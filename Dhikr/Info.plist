@@ -7,5 +7,22 @@
 		<string>audio</string>
 		<string>bluetooth-central</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Used for voice commands and audio features.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>To accurately calculate your prayer times, we need access to your location.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>api.aladhan.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

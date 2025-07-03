@@ -1,43 +1,57 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
+    @State private var selection = 0
     @State private var showingFullScreenPlayer = false
     @EnvironmentObject var audioPlayerService: AudioPlayerService
+    @EnvironmentObject var dhikrService: DhikrService
+    @EnvironmentObject var bluetoothService: BluetoothService
+    @EnvironmentObject var backTapService: BackTapService
+    @EnvironmentObject var quranAPIService: QuranAPIService
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
+            TabView(selection: $selection) {
                 HomeView()
                     .tabItem {
-                        Image(systemName: "house.fill")
-                        Text("Home")
+                        Label("Listen Now", systemImage: "play.circle.fill")
                     }
                     .tag(0)
-                ReciterDirectoryView()
+                
+                PrayerTimeBlockerView()
                     .tabItem {
-                        Image(systemName: "person.3.fill")
-                        Text("Reciters")
+                        Label("Prayer Times", systemImage: "clock.fill")
                     }
                     .tag(1)
-                SearchView()
+                
+                ReciterDirectoryView()
                     .tabItem {
-                        Image(systemName: "magnifyingglass")
-                        Text("Search")
+                        Label("Reciters", systemImage: "person.3.fill")
                     }
                     .tag(2)
-                ProfileView()
+                
+                SearchView()
                     .tabItem {
-                        Image(systemName: "person.fill")
-                        Text("Profile")
+                        Label("Search", systemImage: "magnifyingglass")
                     }
                     .tag(3)
+
+                ProfileView()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    .tag(4)
             }
+            .environmentObject(audioPlayerService)
+            .environmentObject(dhikrService)
+            .environmentObject(bluetoothService)
+            .environmentObject(backTapService)
+            .environmentObject(quranAPIService)
+            
             // Mini Player Overlay
             if audioPlayerService.currentSurah != nil {
                 MiniPlayerBar(showingFullScreenPlayer: $showingFullScreenPlayer)
-                    .padding(.bottom, 0)
-                    .ignoresSafeArea(.keyboard)
+                    .padding(.bottom, 49) // Height of tab bar
             }
         }
         .fullScreenCover(isPresented: $showingFullScreenPlayer) {

@@ -7,6 +7,8 @@
 
 import SwiftUI
 import Kingfisher
+import AVFoundation
+import AVKit
 
 struct FullScreenPlayerView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
@@ -71,7 +73,7 @@ struct FullScreenPlayerView: View {
                     selectedSurah: audioPlayerService.currentSurah,
                     onSelect: { surah in
                         if let reciter = audioPlayerService.currentReciter {
-                            audioPlayerService.load(surah: surah, reciter: reciter)
+                            audioPlayerService.load(surah: surah, reciter: reciter, artwork: nil)
                         }
                         showSurahPickerSheet = false
                     }
@@ -80,6 +82,21 @@ struct FullScreenPlayerView: View {
             .onAppear {
                 // Restore liked surahs
                 likedSurahs = Set(UserDefaults.standard.array(forKey: "likedSurahs") as? [Int] ?? [])
+            }
+            .onChange(of: artworkViewModel.artworkURL) { newURL in
+                guard let url = newURL else { return }
+                
+                KingfisherManager.shared.retrieveImage(with: url) { result in
+                    switch result {
+                    case .success(let imageResult):
+                        audioPlayerService.currentArtwork = imageResult.image
+                        if let surah = audioPlayerService.currentSurah, let reciter = audioPlayerService.currentReciter {
+                            audioPlayerService.load(surah: surah, reciter: reciter, artwork: imageResult.image)
+                        }
+                    case .failure(let error):
+                        print("❌ [FullScreenPlayerView] Failed to download artwork: \(error)")
+                    }
+                }
             }
         }
     }
@@ -283,17 +300,26 @@ struct FullScreenPlayerView: View {
     }
     
     // Sleep timer logic
-    private func setSleepTimer(minutes: Int) {
-        sleepTimerMinutes = minutes
+    private func setSleepTimer(minutes: Int?) {
+        guard let minutes = minutes, minutes > 0 else {
+            // Cancel timer
+            sleepTimer?.invalidate()
+            sleepTimer = nil
+            sleepTimerActive = false
+            return
+        }
+        
         sleepTimerRemaining = minutes * 60
         sleepTimerActive = true
-        sleepTimer?.invalidate()
-        sleepTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            sleepTimerRemaining -= 1
-            if sleepTimerRemaining <= 0 {
+        
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            if sleepTimerRemaining > 0 {
+                sleepTimerRemaining -= 1
+            } else {
                 audioPlayerService.pause()
-                sleepTimerActive = false
                 sleepTimer?.invalidate()
+                sleepTimer = nil
+                sleepTimerActive = false
             }
         }
     }
@@ -303,127 +329,20 @@ struct FullScreenPlayerView: View {
     }
     // Like/Unlike logic
     private func toggleLike() {
-        guard let surahNum = audioPlayerService.currentSurah?.number else { return }
-        if likedSurahs.contains(surahNum) {
-            likedSurahs.remove(surahNum)
+        guard let surahNumber = audioPlayerService.currentSurah?.number else { return }
+        
+        if likedSurahs.contains(surahNumber) {
+            likedSurahs.remove(surahNumber)
         } else {
-            likedSurahs.insert(surahNum)
+            likedSurahs.insert(surahNumber)
         }
+        
+        // Persist the liked surahs
         UserDefaults.standard.set(Array(likedSurahs), forKey: "likedSurahs")
     }
 }
 
-// MARK: - Animated Background
-struct AnimatedGradientBackground: View {
-    @State private var startPoint = UnitPoint.topLeading
-    @State private var endPoint = UnitPoint.bottomTrailing
-    
-    let colors = [
-        Color.blue.opacity(0.8),
-        Color.purple.opacity(0.6),
-        Color.pink.opacity(0.6),
-        Color.orange.opacity(0.5)
-    ]
-
-    var body: some View {
-        LinearGradient(gradient: Gradient(colors: colors), startPoint: startPoint, endPoint: endPoint)
-            .onAppear {
-                withAnimation(Animation.easeInOut(duration: 8).repeatForever(autoreverses: true)) {
-                    self.startPoint = .bottomTrailing
-                    self.endPoint = .topLeading
-                }
-            }
-    }
-}
-
-// MARK: - TimeInterval Extension
-extension TimeInterval {
-    var formattedTime: String {
-        let minutes = Int(self) / 60
-        let seconds = Int(self) % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-}
-
-// Sleep Timer Sheet
-struct SleepTimerSheet: View {
-    @Binding var selectedMinutes: Int?
-    var onSet: (Int) -> Void
-    let increments = [15, 30, 45, 60, 90, 120]
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        NavigationView {
-            List(increments, id: \.self) { min in
-                Button("\(min) minutes") {
-                    selectedMinutes = min
-                    onSet(min)
-                    dismiss()
-                }
-            }
-            .navigationTitle("Set Sleep Timer")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-// Surah Picker Sheet
-struct SurahPickerSheet: View {
-    let reciter: Reciter?
-    let selectedSurah: Surah?
-    var onSelect: (Surah) -> Void
-    @EnvironmentObject var quranAPIService: QuranAPIService
-    @State private var surahs: [Surah] = []
-    @State private var isLoading = true
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        NavigationView {
-            Group {
-                if isLoading {
-                    ProgressView()
-                } else {
-                    List(surahs) { surah in
-                        Button(action: {
-                            onSelect(surah)
-                            dismiss()
-                        }) {
-                            HStack {
-                                Text("\(surah.number). \(surah.englishName)")
-                                Spacer()
-                                if surah == selectedSurah {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Choose Surah")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-            .onAppear {
-                Task {
-                    do {
-                        let fetched = try await quranAPIService.fetchSurahs()
-                        await MainActor.run {
-                            self.surahs = fetched
-                            self.isLoading = false
-                        }
-                    } catch {
-                        self.isLoading = false
-                    }
-                }
-            }
-        }
-    }
-}
-
+// MARK: - Previews
 struct FullScreenPlayerView_Previews: PreviewProvider {
     static var previews: some View {
         // Create a mock audio service instance for the preview
@@ -436,16 +355,131 @@ struct FullScreenPlayerView_Previews: PreviewProvider {
         audioService.currentTime = 120
         
         // Pass the required onMinimize parameter in the initializer
-        return FullScreenPlayerView(onMinimize: {
-            print("Preview minimize action triggered.")
-        })
-        .environmentObject(audioService)
+        return FullScreenPlayerView(onMinimize: {})
+            .environmentObject(audioService)
+            .background(Color.black)
+    }
+}
+
+// MARK: - Helper Extensions
+
+extension TimeInterval {
+    var formattedTime: String {
+        let minutes = Int(self) / 60
+        let seconds = Int(self) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+struct AirPlayView: UIViewRepresentable {
+    func makeUIView(context: Context) -> some UIView {
+        let routePickerView = AVRoutePickerView()
+        routePickerView.activeTintColor = UIColor.systemBlue
+        routePickerView.tintColor = UIColor.white
+        return routePickerView
+    }
+    
+    func updateUIView(_ uiView: UIViewType, context: Context) {}
+}
+
+struct SurahPickerSheet: View {
+    var reciter: Reciter?
+    var selectedSurah: Surah?
+    var onSelect: (Surah) -> Void
+    
+    @State private var allSurahs: [Surah] = []
+    @State private var isLoading = false
+    @State private var searchText = ""
+    
+    var filteredSurahs: [Surah] {
+        if searchText.isEmpty {
+            return allSurahs
+        } else {
+            return allSurahs.filter {
+                $0.englishName.localizedCaseInsensitiveContains(searchText) ||
+                "\($0.number)".contains(searchText)
+            }
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                if isLoading {
+                    ProgressView("Loading Surahs...")
+                } else {
+                    List(filteredSurahs) { surah in
+                        Button(action: { onSelect(surah) }) {
+                            HStack {
+                                Text("\(surah.number). \(surah.englishName)")
+                                    .foregroundColor(surah.number == selectedSurah?.number ? .blue : .primary)
+                                Spacer()
+                                if surah.number == selectedSurah?.number {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                    .searchable(text: $searchText)
+                }
+            }
+            .navigationTitle("Select Surah")
+            .onAppear(perform: loadAllSurahs)
+        }
+    }
+    
+    private func loadAllSurahs() {
+        isLoading = true
+        self.allSurahs = QuranAPIService.shared.getHardcodedSurahs()
+        isLoading = false
+    }
+}
+
+struct SleepTimerSheet: View {
+    @Binding var selectedMinutes: Int?
+    let onSet: (Int?) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    let timerOptions = [5, 10, 15, 30, 45, 60]
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("Set Sleep Timer")) {
+                    ForEach(timerOptions, id: \.self) { minutes in
+                        Button(action: {
+                            selectedMinutes = minutes
+                            onSet(minutes)
+                            dismiss()
+                        }) {
+                            HStack {
+                                Text("\(minutes) minutes")
+                                Spacer()
+                                if selectedMinutes == minutes {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Section {
+                    Button("Turn Off Timer", role: .destructive) {
+                        selectedMinutes = nil
+                        onSet(nil)
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle("Sleep Timer")
+            .navigationBarItems(trailing: Button("Cancel") { dismiss() })
+        }
     }
 }
 
 #Preview {
-    FullScreenPlayerView(onMinimize: {
-        print("Preview minimize action triggered.")
-    })
-    .environmentObject(AudioPlayerService.shared)
+    FullScreenPlayerView(onMinimize: {})
+        .environmentObject(AudioPlayerService.shared)
 } 

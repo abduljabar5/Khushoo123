@@ -8,6 +8,7 @@
 import Foundation
 import AVFoundation
 import MediaPlayer
+import UIKit
 
 // MARK: - Audio Player Service
 class AudioPlayerService: NSObject, ObservableObject {
@@ -26,6 +27,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var totalListeningTime: TimeInterval = 0
     @Published var completedSurahNumbers: Set<Int> = []
     @Published var isAutoplayEnabled: Bool = false
+    @Published var currentArtwork: UIImage?
     
     // MARK: - Private Properties
     private var player: AVPlayer?
@@ -34,6 +36,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     private var allSurahs: [Surah] = []
     private var currentSurahIndex: Int = 0
     private var shuffledSurahIndices: [Int] = []
+    private var defaultArtwork: MPMediaItemArtwork?
+    private var currentArtworkImage: UIImage?
     
     // MARK: - UserDefaults Keys
     private let lastPlayedSurahKey = "lastPlayedSurah"
@@ -67,6 +71,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         print("🎵 [AudioPlayerService] Activating audio service...")
         setupAudioSession()
         setupRemoteTransportControls()
+        setupDefaultArtwork()
         print("🎵 [AudioPlayerService] Audio service activated")
     }
     
@@ -162,6 +167,88 @@ class AudioPlayerService: NSObject, ObservableObject {
         print("✅ [AudioPlayerService] Remote transport controls setup complete")
     }
     
+    // MARK: - Artwork Setup
+    private func setupDefaultArtwork() {
+        print("🎵 [AudioPlayerService] Setting up default artwork...")
+        
+        // Try to load app icon as artwork
+        if let appIcon = UIImage(named: "AppIcon") ?? UIImage(systemName: "book.closed") {
+            let artwork = MPMediaItemArtwork(boundsSize: appIcon.size) { size in
+                return appIcon
+            }
+            defaultArtwork = artwork
+            print("✅ [AudioPlayerService] Default artwork created successfully")
+        } else {
+            print("⚠️ [AudioPlayerService] Could not create default artwork - using system icon")
+            // Fallback to a system icon
+            if let systemIcon = UIImage(systemName: "music.note", withConfiguration: UIImage.SymbolConfiguration(pointSize: 200)) {
+                let artwork = MPMediaItemArtwork(boundsSize: systemIcon.size) { size in
+                    return systemIcon
+                }
+                defaultArtwork = artwork
+            }
+        }
+    }
+    
+    private func createArtworkImage() -> UIImage? {
+        // Try different approaches to get an appropriate image
+        
+        // 1. Try to use app icon
+        if let appIcon = UIImage(named: "AppIcon") {
+            return appIcon
+        }
+        
+        // 2. Try to get the app icon from the bundle
+        if let iconName = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any],
+           let primaryIcon = iconName["CFBundlePrimaryIcon"] as? [String: Any],
+           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+           let iconFile = iconFiles.last,
+           let icon = UIImage(named: iconFile) {
+            return icon
+        }
+        
+        // 3. Create a custom Quran-themed image using system symbols
+        let config = UIImage.SymbolConfiguration(pointSize: 200, weight: .medium)
+        if let bookIcon = UIImage(systemName: "book.closed.fill", withConfiguration: config) {
+            // Create a styled version
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 300))
+            let styledImage = renderer.image { context in
+                // Set background
+                UIColor.systemBackground.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 300, height: 300))
+                
+                // Draw the book icon in the center
+                let iconRect = CGRect(x: 50, y: 50, width: 200, height: 200)
+                bookIcon.withTintColor(.systemBlue).draw(in: iconRect)
+            }
+            return styledImage
+        }
+        
+        // 4. Final fallback - simple colored rectangle with text
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 300))
+        return renderer.image { context in
+            // Background
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 300, height: 300))
+            
+            // Text
+            let text = "الذكر"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: UIColor.white,
+                .font: UIFont.systemFont(ofSize: 48, weight: .bold)
+            ]
+            let attributedText = NSAttributedString(string: text, attributes: attributes)
+            let textSize = attributedText.size()
+            let textRect = CGRect(
+                x: (300 - textSize.width) / 2,
+                y: (300 - textSize.height) / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            attributedText.draw(in: textRect)
+        }
+    }
+    
     // MARK: - Playback Controls
     func play() {
         print("🎵 [AudioPlayerService] Play requested")
@@ -252,7 +339,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     // MARK: - Track Management
-    func load(surah: Surah, reciter: Reciter) {
+    func load(surah: Surah, reciter: Reciter, artwork: UIImage? = nil) {
         print("🎵 [AudioPlayerService] ===== LOADING NEW SURAH ======")
         print("🎵 [AudioPlayerService] Surah Details:")
         print("   - Number: \(surah.number)")
@@ -276,6 +363,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         // Set current surah and reciter
         currentSurah = surah
         currentReciter = reciter
+        currentArtwork = artwork
         
         // Update current surah index
         if let index = allSurahs.firstIndex(where: { $0.number == surah.number }) {
@@ -519,8 +607,16 @@ class AudioPlayerService: NSObject, ObservableObject {
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackSpeed : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
         
-        // Set artwork if available (you can add a default Quran app icon)
-        // nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        // Set dynamic artwork for the current surah
+        if let image = currentArtwork {
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        } else if let image = createArtworkImage() {
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        } else if let artwork = defaultArtwork {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
         
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         
@@ -545,6 +641,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         // Clear current track info
         currentSurah = nil
         currentReciter = nil
+        currentArtwork = nil
         isPlaying = false
         currentTime = 0
         duration = 0

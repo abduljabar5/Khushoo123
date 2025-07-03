@@ -6,6 +6,7 @@ struct DhikrApp: App {
     @StateObject private var audioPlayerService = AudioPlayerService.shared
     @StateObject private var bluetoothService = BluetoothService()
     @StateObject private var quranAPIService = QuranAPIService.shared
+    @StateObject private var backTapService = BackTapService.shared
     
     init() {
         audioPlayerService.activate()
@@ -13,15 +14,17 @@ struct DhikrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
                 .environmentObject(dhikrService)
                 .environmentObject(audioPlayerService)
                 .environmentObject(bluetoothService)
                 .environmentObject(quranAPIService)
+                .environmentObject(backTapService)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     bluetoothService.startScanning()
+                    audioPlayerService.activate()
+                }
         }
     }
-}
 } 

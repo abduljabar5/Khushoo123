@@ -143,6 +143,11 @@ class QuranAPIService: ObservableObject {
         Surah(number: 114, name: "الناس", englishName: "An-Nas", englishNameTranslation: "Mankind", numberOfAyahs: 6, revelationType: "Meccan")
     ]
     
+    // Public accessor for the hardcoded surahs
+    func getHardcodedSurahs() -> [Surah] {
+        return hardcodedSurahs
+    }
+    
     // MARK: - Fetch Reciters from MP3Quran API
     func fetchReciters() async throws -> [Reciter] {
         print("🔍 [QuranAPIService] Fetching reciters from MP3Quran API...")

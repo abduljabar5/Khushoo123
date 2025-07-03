@@ -26,6 +26,13 @@ class OpenAIService {
     }
 
     private let apiURL = URL(string: "https://api.openai.com/v1/images/generations")!
+    private let session: URLSession
+
+    init() {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 120 // 2-minute timeout
+        self.session = URLSession(configuration: configuration)
+    }
 
     private let sceneDescriptions = [
     "a secluded beach with golden sand and turquoise water",
@@ -157,7 +164,7 @@ class OpenAIService {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.cannotParseResponse)
