@@ -1,0 +1,794 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8125501C2E079D0C0035AD52 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501B2E079D0B0035AD52 /* WidgetKit.framework */; };
+		8125501E2E079D0C0035AD52 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501D2E079D0C0035AD52 /* SwiftUI.framework */; };
+		8125502F2E079D0D0035AD52 /* DhikrtrackerExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 815731EF2E14EACE00DD29EF /* Kingfisher */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		81254FDE2E0794200035AD52 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 81254FC82E07941E0035AD52 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 81254FCF2E07941E0035AD52;
+			remoteInfo = Dhikr;
+		};
+		81254FE82E0794200035AD52 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 81254FC82E07941E0035AD52 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 81254FCF2E07941E0035AD52;
+			remoteInfo = Dhikr;
+		};
+		8125502D2E079D0D0035AD52 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 81254FC82E07941E0035AD52 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 812550182E079D0B0035AD52;
+			remoteInfo = DhikrtrackerExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		812550342E079D0D0035AD52 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8125502F2E079D0D0035AD52 /* DhikrtrackerExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		81254FD02E07941E0035AD52 /* Dhikr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dhikr.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		81254FDD2E0794200035AD52 /* DhikrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DhikrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		81254FE72E0794200035AD52 /* DhikrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DhikrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DhikrtrackerExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8125501B2E079D0B0035AD52 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8125501D2E079D0C0035AD52 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		812550CB2E0D052D0035AD52 /* DhikrtrackerExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DhikrtrackerExtension.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		812550302E079D0D0035AD52 /* Exceptions for "Dhikrtracker" folder in "DhikrtrackerExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 812550182E079D0B0035AD52 /* DhikrtrackerExtension */;
+		};
+		812552322E0E0E730035AD52 /* Exceptions for "Dhikr" folder in "Dhikr" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 81254FCF2E07941E0035AD52 /* Dhikr */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		81254FD22E07941E0035AD52 /* Dhikr */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				812552322E0E0E730035AD52 /* Exceptions for "Dhikr" folder in "Dhikr" target */,
+			);
+			path = Dhikr;
+			sourceTree = "<group>";
+		};
+		81254FE02E0794200035AD52 /* DhikrTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = DhikrTests;
+			sourceTree = "<group>";
+		};
+		81254FEA2E0794200035AD52 /* DhikrUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = DhikrUITests;
+			sourceTree = "<group>";
+		};
+		8125501F2E079D0C0035AD52 /* Dhikrtracker */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				812550302E079D0D0035AD52 /* Exceptions for "Dhikrtracker" folder in "DhikrtrackerExtension" target */,
+			);
+			path = Dhikrtracker;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		81254FCD2E07941E0035AD52 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81254FDA2E0794200035AD52 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81254FE42E0794200035AD52 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		812550162E079D0B0035AD52 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8125501E2E079D0C0035AD52 /* SwiftUI.framework in Frameworks */,
+				8125501C2E079D0C0035AD52 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		81254FC72E07941E0035AD52 = {
+			isa = PBXGroup;
+			children = (
+				812550CB2E0D052D0035AD52 /* DhikrtrackerExtension.entitlements */,
+				81254FD22E07941E0035AD52 /* Dhikr */,
+				81254FE02E0794200035AD52 /* DhikrTests */,
+				81254FEA2E0794200035AD52 /* DhikrUITests */,
+				8125501F2E079D0C0035AD52 /* Dhikrtracker */,
+				8125501A2E079D0B0035AD52 /* Frameworks */,
+				81254FD12E07941E0035AD52 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		81254FD12E07941E0035AD52 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				81254FD02E07941E0035AD52 /* Dhikr.app */,
+				81254FDD2E0794200035AD52 /* DhikrTests.xctest */,
+				81254FE72E0794200035AD52 /* DhikrUITests.xctest */,
+				812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8125501A2E079D0B0035AD52 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8125501B2E079D0B0035AD52 /* WidgetKit.framework */,
+				8125501D2E079D0C0035AD52 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		81254FCF2E07941E0035AD52 /* Dhikr */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81254FF12E0794200035AD52 /* Build configuration list for PBXNativeTarget "Dhikr" */;
+			buildPhases = (
+				81254FCC2E07941E0035AD52 /* Sources */,
+				81254FCD2E07941E0035AD52 /* Frameworks */,
+				81254FCE2E07941E0035AD52 /* Resources */,
+				812550342E079D0D0035AD52 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8125502E2E079D0D0035AD52 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				81254FD22E07941E0035AD52 /* Dhikr */,
+			);
+			name = Dhikr;
+			packageProductDependencies = (
+				815731EF2E14EACE00DD29EF /* Kingfisher */,
+			);
+			productName = Dhikr;
+			productReference = 81254FD02E07941E0035AD52 /* Dhikr.app */;
+			productType = "com.apple.product-type.application";
+		};
+		81254FDC2E0794200035AD52 /* DhikrTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81254FF42E0794200035AD52 /* Build configuration list for PBXNativeTarget "DhikrTests" */;
+			buildPhases = (
+				81254FD92E0794200035AD52 /* Sources */,
+				81254FDA2E0794200035AD52 /* Frameworks */,
+				81254FDB2E0794200035AD52 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				81254FDF2E0794200035AD52 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				81254FE02E0794200035AD52 /* DhikrTests */,
+			);
+			name = DhikrTests;
+			packageProductDependencies = (
+			);
+			productName = DhikrTests;
+			productReference = 81254FDD2E0794200035AD52 /* DhikrTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		81254FE62E0794200035AD52 /* DhikrUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81254FF72E0794200035AD52 /* Build configuration list for PBXNativeTarget "DhikrUITests" */;
+			buildPhases = (
+				81254FE32E0794200035AD52 /* Sources */,
+				81254FE42E0794200035AD52 /* Frameworks */,
+				81254FE52E0794200035AD52 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				81254FE92E0794200035AD52 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				81254FEA2E0794200035AD52 /* DhikrUITests */,
+			);
+			name = DhikrUITests;
+			packageProductDependencies = (
+			);
+			productName = DhikrUITests;
+			productReference = 81254FE72E0794200035AD52 /* DhikrUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		812550182E079D0B0035AD52 /* DhikrtrackerExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 812550312E079D0D0035AD52 /* Build configuration list for PBXNativeTarget "DhikrtrackerExtension" */;
+			buildPhases = (
+				812550152E079D0B0035AD52 /* Sources */,
+				812550162E079D0B0035AD52 /* Frameworks */,
+				812550172E079D0B0035AD52 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8125501F2E079D0C0035AD52 /* Dhikrtracker */,
+			);
+			name = DhikrtrackerExtension;
+			packageProductDependencies = (
+			);
+			productName = DhikrtrackerExtension;
+			productReference = 812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		81254FC82E07941E0035AD52 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+				TargetAttributes = {
+					81254FCF2E07941E0035AD52 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					81254FDC2E0794200035AD52 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 81254FCF2E07941E0035AD52;
+					};
+					81254FE62E0794200035AD52 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 81254FCF2E07941E0035AD52;
+					};
+					812550182E079D0B0035AD52 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+				};
+			};
+			buildConfigurationList = 81254FCB2E07941E0035AD52 /* Build configuration list for PBXProject "Dhikr" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 81254FC72E07941E0035AD52;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 81254FD12E07941E0035AD52 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				81254FCF2E07941E0035AD52 /* Dhikr */,
+				81254FDC2E0794200035AD52 /* DhikrTests */,
+				81254FE62E0794200035AD52 /* DhikrUITests */,
+				812550182E079D0B0035AD52 /* DhikrtrackerExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		81254FCE2E07941E0035AD52 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81254FDB2E0794200035AD52 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81254FE52E0794200035AD52 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		812550172E079D0B0035AD52 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		81254FCC2E07941E0035AD52 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81254FD92E0794200035AD52 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81254FE32E0794200035AD52 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		812550152E079D0B0035AD52 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		81254FDF2E0794200035AD52 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 81254FCF2E07941E0035AD52 /* Dhikr */;
+			targetProxy = 81254FDE2E0794200035AD52 /* PBXContainerItemProxy */;
+		};
+		81254FE92E0794200035AD52 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 81254FCF2E07941E0035AD52 /* Dhikr */;
+			targetProxy = 81254FE82E0794200035AD52 /* PBXContainerItemProxy */;
+		};
+		8125502E2E079D0D0035AD52 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 812550182E079D0B0035AD52 /* DhikrtrackerExtension */;
+			targetProxy = 8125502D2E079D0D0035AD52 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		81254FEF2E0794200035AD52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		81254FF02E0794200035AD52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		81254FF22E0794200035AD52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Dhikr/Info.plist;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app needs to connect to your Zikr Ring to keep your count updated.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Connect to nearby Zikr rings to sync your tasbih count.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		81254FF32E0794200035AD52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Dhikr/Info.plist;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "This app needs to connect to your Zikr Ring to keep your count updated.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Connect to nearby Zikr rings to sync your tasbih count.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		81254FF52E0794200035AD52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.DhikrTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Dhikr.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Dhikr";
+			};
+			name = Debug;
+		};
+		81254FF62E0794200035AD52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.DhikrTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Dhikr.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Dhikr";
+			};
+			name = Release;
+		};
+		81254FF82E0794200035AD52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.DhikrUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Dhikr;
+			};
+			name = Debug;
+		};
+		81254FF92E0794200035AD52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.DhikrUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Dhikr;
+			};
+			name = Release;
+		};
+		812550322E079D0D0035AD52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = DhikrtrackerExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Dhikrtracker/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Dhikrtracker;
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Connect to nearby Zikr rings to sync your tasbih count.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr.Dhikrtracker;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		812550332E079D0D0035AD52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = DhikrtrackerExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Dhikrtracker/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Dhikrtracker;
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Connect to nearby Zikr rings to sync your tasbih count.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr.Dhikrtracker;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		81254FCB2E07941E0035AD52 /* Build configuration list for PBXProject "Dhikr" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81254FEF2E0794200035AD52 /* Debug */,
+				81254FF02E0794200035AD52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		81254FF12E0794200035AD52 /* Build configuration list for PBXNativeTarget "Dhikr" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81254FF22E0794200035AD52 /* Debug */,
+				81254FF32E0794200035AD52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		81254FF42E0794200035AD52 /* Build configuration list for PBXNativeTarget "DhikrTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81254FF52E0794200035AD52 /* Debug */,
+				81254FF62E0794200035AD52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		81254FF72E0794200035AD52 /* Build configuration list for PBXNativeTarget "DhikrUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81254FF82E0794200035AD52 /* Debug */,
+				81254FF92E0794200035AD52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		812550312E079D0D0035AD52 /* Build configuration list for PBXNativeTarget "DhikrtrackerExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				812550322E079D0D0035AD52 /* Debug */,
+				812550332E079D0D0035AD52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/onevcat/Kingfisher.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.3.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		815731EF2E14EACE00DD29EF /* Kingfisher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */;
+			productName = Kingfisher;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 81254FC82E07941E0035AD52 /* Project object */;
+}
