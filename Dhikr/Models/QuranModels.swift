@@ -44,7 +44,8 @@ struct AlQuranCloudResponse<T: Codable>: Codable {
 }
 
 // MARK: - Reciter (Audio Edition)
-struct Reciter: Codable, Identifiable, Equatable {
+struct Reciter: Codable, Identifiable, Hashable {
+    // Properties from the original model
     var id: String { identifier }
     let identifier: String
     let language: String
@@ -53,10 +54,40 @@ struct Reciter: Codable, Identifiable, Equatable {
     let server: String?
     let reciterId: Int?
     
+    // New property to identify the source
+    let source: String // "mp3quran", "Quran Central", etc.
+
+    // Initializer for the API response
+    init(identifier: String, language: String, name: String, englishName: String, server: String?, reciterId: Int?, source: String = "mp3quran") {
+        self.identifier = identifier
+        self.language = language
+        self.name = name
+        self.englishName = englishName
+        self.server = server
+        self.reciterId = reciterId
+        self.source = source
+    }
+    
+    // Initializer for the hardcoded data
+    init(external: ExternalReciter) {
+        self.identifier = external.id
+        self.language = "ar" // Assuming Arabic for all external reciters for now
+        self.name = external.name
+        self.englishName = external.englishName
+        self.server = external.pageURL // For external reciters, 'server' holds the page URL to scrape
+        self.reciterId = nil // No integer ID for external reciters
+        self.source = external.source
+    }
+    
     // For mock data and easier use
     static var mock: Reciter {
-        Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil)
+        Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil, source: "mock")
     }
+}
+
+// MARK: - Surah API Response
+struct SurahAPIResponse: Codable {
+    let surahs: [Surah]
 }
 
 // MARK: - Surah
