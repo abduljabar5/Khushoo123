@@ -2,27 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
-		<string>bluetooth-central</string>
-	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Used for voice commands and audio features.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>To accurately calculate your prayer times, we need access to your location.</string>
+	<string>We need your location to provide you with accurate prayer times based on your current city.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>api.aladhan.com</key>
 			<dict>
-				<key>NSIncludesSubdomains</key>
-				<true/>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
 				<true/>
 			</dict>
 		</dict>
 	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Khodijah Free.ttf</string>
+		<string></string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+	</array>
 </dict>
 </plist>

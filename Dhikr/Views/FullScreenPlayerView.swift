@@ -16,11 +16,12 @@ struct FullScreenPlayerView: View {
     @State private var isExpanded = false
     @State private var showSleepTimerSheet = false
     @State private var showSurahPickerSheet = false
+    @State private var showingReciterDetail = false
     @State private var sleepTimerMinutes: Int? = nil
     @State private var sleepTimerActive = false
     @State private var sleepTimerRemaining: Int = 0
     @State private var sleepTimer: Timer? = nil
-    @State private var likedSurahs: Set<Int> = Set(UserDefaults.standard.array(forKey: "likedSurahs") as? [Int] ?? [])
+    @State private var forceRedraw: Bool = false
     @StateObject private var artworkViewModel: PlayerArtworkViewModel
     var onMinimize: (() -> Void)? = nil
     
@@ -67,21 +68,29 @@ struct FullScreenPlayerView: View {
                     setSleepTimer(minutes: minutes)
                 })
             }
+            .sheet(isPresented: $showingReciterDetail) {
+                if let reciter = audioPlayerService.currentReciter {
+                    NavigationView {
+                        ReciterDetailView(reciter: reciter)
+                    }
+                }
+            }
             .sheet(isPresented: $showSurahPickerSheet) {
                 SurahPickerSheet(
                     reciter: audioPlayerService.currentReciter,
                     selectedSurah: audioPlayerService.currentSurah,
                     onSelect: { surah in
                         if let reciter = audioPlayerService.currentReciter {
-                            audioPlayerService.load(surah: surah, reciter: reciter, artwork: nil)
+                            audioPlayerService.load(surah: surah, reciter: reciter)
                         }
                         showSurahPickerSheet = false
                     }
                 )
             }
+            .navigationBarHidden(true)
             .onAppear {
-                // Restore liked surahs
-                likedSurahs = Set(UserDefaults.standard.array(forKey: "likedSurahs") as? [Int] ?? [])
+                // This view doesn't need to manage its own liked state anymore,
+                // as the AudioPlayerService is the source of truth.
             }
             .onChange(of: artworkViewModel.artworkURL) { newURL in
                 guard let url = newURL else { return }
@@ -89,10 +98,7 @@ struct FullScreenPlayerView: View {
                 KingfisherManager.shared.retrieveImage(with: url) { result in
                     switch result {
                     case .success(let imageResult):
-                        audioPlayerService.currentArtwork = imageResult.image
-                        if let surah = audioPlayerService.currentSurah, let reciter = audioPlayerService.currentReciter {
-                            audioPlayerService.load(surah: surah, reciter: reciter, artwork: imageResult.image)
-                        }
+                        audioPlayerService.updateArtwork(with: imageResult.image)
                     case .failure(let error):
                         print("❌ [FullScreenPlayerView] Failed to download artwork: \(error)")
                     }
@@ -157,7 +163,7 @@ struct FullScreenPlayerView: View {
 
     private var header: some View {
         HStack {
-            Button(action: { dismiss() }) {
+            Button(action: { onMinimize?() }) {
                 Image(systemName: "chevron.down")
                     .font(.body.weight(.semibold))
             }
@@ -167,9 +173,19 @@ struct FullScreenPlayerView: View {
                 .fontWeight(.semibold)
                 .lineLimit(1)
             Spacer()
-            Button(action: {}) {
-                Image(systemName: "ellipsis")
+            Button(action: {
+                guard let reciter = audioPlayerService.currentReciter else { return }
+                FavoritesManager.shared.toggleFavorite(reciter: reciter)
+                forceRedraw.toggle()
+            }) {
+                if let reciter = audioPlayerService.currentReciter, FavoritesManager.shared.isFavorite(reciter: reciter) {
+                    Image(systemName: "bookmark.fill")
+                        .foregroundColor(.accentColor)
+                } else {
+                    Image(systemName: "bookmark")
             }
+            }
+            .font(.body.weight(.semibold))
         }
         .padding(.top, 20)
     }
@@ -181,12 +197,28 @@ struct FullScreenPlayerView: View {
                     .font(.title2)
                     .fontWeight(.bold)
                     .lineLimit(1)
-                Text(audioPlayerService.currentReciter?.englishName ?? "Reciter Name")
+
+                if let reciter = audioPlayerService.currentReciter {
+                    Button(action: { showingReciterDetail = true }) {
+                        Text(reciter.englishName)
+                            .font(.title3)
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(1)
+                    }
+                } else {
+                    Text("Reciter Name")
                     .font(.title3)
                     .foregroundColor(.white.opacity(0.7))
                     .lineLimit(1)
+                }
             }
             Spacer()
+            
+            Button(action: { artworkViewModel.forceRefreshArtwork() }) {
+                Image(systemName: "arrow.clockwise.circle")
+                    .font(.title2)
+            }
+            
             Button(action: { showSleepTimerSheet = true }) {
                 Image(systemName: "timer")
                     .font(.title2)
@@ -233,11 +265,6 @@ struct FullScreenPlayerView: View {
 
     private var bottomToolbar: some View {
         HStack {
-            Button(action: { audioPlayerService.toggleAutoplay() }) {
-                Image(systemName: audioPlayerService.isAutoplayEnabled ? "play.rectangle.on.rectangle.fill" : "play.rectangle.on.rectangle")
-            }
-            .foregroundColor(audioPlayerService.isAutoplayEnabled ? .accentColor : .white)
-            Spacer()
             Button(action: { audioPlayerService.toggleShuffle() }) {
                 Image(systemName: "shuffle")
             }
@@ -249,11 +276,11 @@ struct FullScreenPlayerView: View {
             .foregroundColor(audioPlayerService.repeatMode != .off ? .accentColor : .white)
             Spacer()
             Button(action: toggleLike) {
-                Image(systemName: isSurahLiked() ? "heart.fill" : "heart")
+                Image(systemName: isCurrentTrackLiked() ? "heart.fill" : "heart")
+                    .foregroundColor(isCurrentTrackLiked() ? .red : .white)
             }
-            .foregroundColor(isSurahLiked() ? .pink : .white)
+            .font(.title2)
         }
-        .font(.headline)
         .padding(.horizontal)
     }
     
@@ -294,9 +321,11 @@ struct FullScreenPlayerView: View {
         return String(format: "%d:%02d", minutes, seconds)
     }
 
-    private func isSurahLiked() -> Bool {
-        guard let surahNum = audioPlayerService.currentSurah?.number else { return false }
-        return likedSurahs.contains(surahNum)
+    private func isCurrentTrackLiked() -> Bool {
+        guard let surah = audioPlayerService.currentSurah, let reciter = audioPlayerService.currentReciter else {
+            return false
+        }
+        return audioPlayerService.isLiked(surahNumber: surah.number, reciterIdentifier: reciter.identifier)
     }
     
     // Sleep timer logic
@@ -314,7 +343,7 @@ struct FullScreenPlayerView: View {
         
         sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if sleepTimerRemaining > 0 {
-                sleepTimerRemaining -= 1
+            sleepTimerRemaining -= 1
             } else {
                 audioPlayerService.pause()
                 sleepTimer?.invalidate()
@@ -329,35 +358,31 @@ struct FullScreenPlayerView: View {
     }
     // Like/Unlike logic
     private func toggleLike() {
-        guard let surahNumber = audioPlayerService.currentSurah?.number else { return }
-        
-        if likedSurahs.contains(surahNumber) {
-            likedSurahs.remove(surahNumber)
-        } else {
-            likedSurahs.insert(surahNumber)
+        guard let surah = audioPlayerService.currentSurah, let reciter = audioPlayerService.currentReciter else {
+            return
         }
-        
-        // Persist the liked surahs
-        UserDefaults.standard.set(Array(likedSurahs), forKey: "likedSurahs")
+        audioPlayerService.toggleLike(surahNumber: surah.number, reciterIdentifier: reciter.identifier)
+        // Force a UI update by toggling a dummy state or by making the service an ObservableObject
+        // and using its properties directly. Since AudioPlayerService is already an EnvObject,
+        // we just need to make sure the view re-evaluates.
+        // A simple way is to observe a property on the service that changes, like `isPlaying`
+        // or add a dedicated publisher for like changes if needed.
+        // For now, the view should re-render when other properties change.
     }
 }
 
 // MARK: - Previews
 struct FullScreenPlayerView_Previews: PreviewProvider {
     static var previews: some View {
-        // Create a mock audio service instance for the preview
-        let audioService = AudioPlayerService.shared
+        let audioPlayerService = AudioPlayerService.shared
+        audioPlayerService.load(
+            surah: Surah(number: 1, name: "Al-Fatihah", englishName: "The Opening", englishNameTranslation: "The Opening", numberOfAyahs: 7, revelationType: "Meccan"),
+            reciter: Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil, country: nil, dialect: nil, artworkURL: nil)
+        )
         
-        // Setup mock data for preview
-        audioService.currentSurah = Surah(number: 1, name: "Al-Fatihah", englishName: "The Opening", englishNameTranslation: "The Opening", numberOfAyahs: 7, revelationType: "Meccan")
-        audioService.currentReciter = Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil)
-        audioService.duration = 245
-        audioService.currentTime = 120
-        
-        // Pass the required onMinimize parameter in the initializer
         return FullScreenPlayerView(onMinimize: {})
-            .environmentObject(audioService)
-            .background(Color.black)
+            .environmentObject(audioPlayerService)
+            .preferredColorScheme(.dark)
     }
 }
 
@@ -383,56 +408,60 @@ struct AirPlayView: UIViewRepresentable {
 }
 
 struct SurahPickerSheet: View {
-    var reciter: Reciter?
-    var selectedSurah: Surah?
-    var onSelect: (Surah) -> Void
-    
-    @State private var allSurahs: [Surah] = []
-    @State private var isLoading = false
+    let reciter: Reciter?
+    let selectedSurah: Surah?
+    let onSelect: (Surah) -> Void
+    @State private var surahs: [Surah] = []
     @State private var searchText = ""
-    
-    var filteredSurahs: [Surah] {
-        if searchText.isEmpty {
-            return allSurahs
-        } else {
-            return allSurahs.filter {
-                $0.englishName.localizedCaseInsensitiveContains(searchText) ||
-                "\($0.number)".contains(searchText)
-            }
-        }
-    }
-    
+
     var body: some View {
         NavigationView {
             VStack {
-                if isLoading {
-                    ProgressView("Loading Surahs...")
-                } else {
-                    List(filteredSurahs) { surah in
-                        Button(action: { onSelect(surah) }) {
-                            HStack {
-                                Text("\(surah.number). \(surah.englishName)")
-                                    .foregroundColor(surah.number == selectedSurah?.number ? .blue : .primary)
-                                Spacer()
-                                if surah.number == selectedSurah?.number {
-                                    Image(systemName: "speaker.wave.2.fill")
-                                        .foregroundColor(.blue)
-                                }
+                SearchBar(text: $searchText)
+                List(filteredSurahs) { surah in
+                    Button(action: { onSelect(surah) }) {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(surah.displayName)
+                                    .font(.headline)
+                                Text("Surah \(surah.number)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            if surah.number == selectedSurah?.number {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.accentColor)
                             }
                         }
                     }
-                    .searchable(text: $searchText)
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
-            .navigationTitle("Select Surah")
-            .onAppear(perform: loadAllSurahs)
+            .navigationTitle("Select a Surah")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear(perform: loadSurahs)
+                }
+            }
+    
+    private var filteredSurahs: [Surah] {
+        if searchText.isEmpty {
+            return surahs
+        } else {
+            return surahs.filter {
+                $0.displayName.localizedCaseInsensitiveContains(searchText)
+            }
         }
     }
-    
-    private func loadAllSurahs() {
-        isLoading = true
-        self.allSurahs = QuranAPIService.shared.getHardcodedSurahs()
-        isLoading = false
+
+    private func loadSurahs() {
+        Task {
+            do {
+                self.surahs = try await QuranAPIService.shared.fetchSurahs()
+            } catch {
+                print("Error loading surahs in picker: \(error)")
+            }
+        }
     }
 }
 
@@ -481,5 +510,5 @@ struct SleepTimerSheet: View {
 
 #Preview {
     FullScreenPlayerView(onMinimize: {})
-        .environmentObject(AudioPlayerService.shared)
+    .environmentObject(AudioPlayerService.shared)
 } 

@@ -42,21 +42,15 @@ struct MainTabView: View {
                     }
                     .tag(4)
             }
-            .environmentObject(audioPlayerService)
-            .environmentObject(dhikrService)
-            .environmentObject(bluetoothService)
-            .environmentObject(backTapService)
-            .environmentObject(quranAPIService)
             
             // Mini Player Overlay
             if audioPlayerService.currentSurah != nil {
                 MiniPlayerBar(showingFullScreenPlayer: $showingFullScreenPlayer)
-                    .padding(.bottom, 49) // Height of tab bar
+                    .padding(.bottom, 49) // Standard TabView height
             }
         }
         .fullScreenCover(isPresented: $showingFullScreenPlayer) {
             FullScreenPlayerView(onMinimize: { showingFullScreenPlayer = false })
-                .environmentObject(audioPlayerService)
         }
     }
 }

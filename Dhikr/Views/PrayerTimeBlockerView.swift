@@ -5,6 +5,7 @@ import CoreLocationUI
 struct PrayerTimeBlockerView: View {
     @StateObject private var viewModel = PrayerTimeViewModel()
     @State private var isPulsing = false
+    @EnvironmentObject var audioPlayerService: AudioPlayerService
 
     var body: some View {
         ZStack {
@@ -12,14 +13,14 @@ struct PrayerTimeBlockerView: View {
             AnimatedGradientBackground().ignoresSafeArea()
 
             // Content Area
-            VStack {
-                if viewModel.isLoading {
-                    ProgressView("Fetching Prayer Times...")
+        VStack {
+            if viewModel.isLoading {
+                ProgressView("Fetching Prayer Times...")
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                } else if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .padding()
+            } else if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+                    .padding()
                 } else {
                     HeaderView()
                     
@@ -45,10 +46,11 @@ struct PrayerTimeBlockerView: View {
                     UpcomingPrayersList(prayers: viewModel.prayerTimes, displayedPrayer: viewModel.currentPrayer ?? viewModel.nextPrayer)
                 }
             }
+            .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
         }
         .foregroundColor(.white)
         .onAppear {
-            viewModel.requestLocationPermission()
+            viewModel.start()
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                 isPulsing = true
             }
@@ -64,7 +66,7 @@ struct HeaderView: View {
         formatter.dateFormat = "EEEE, d MMMM"
         return formatter
     }()
-    
+
     var body: some View {
         VStack(spacing: 4) {
             Text("Prayer Times")
@@ -158,7 +160,7 @@ struct UpcomingPrayersList: View {
                     Section(header:
                         Text("Tomorrow")
                             .font(.title3)
-                            .fontWeight(.bold)
+                .fontWeight(.bold)
                             .foregroundColor(.white)
                             .padding(.top, 20)
                             .textCase(nil) // Prevent automatic uppercasing
@@ -167,8 +169,8 @@ struct UpcomingPrayersList: View {
                             PrayerRow(prayer: prayer)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
-                        }
-                    }
+    }
+}
                 }
             }
         }
@@ -179,7 +181,7 @@ struct UpcomingPrayersList: View {
 
 struct PrayerRow: View {
     let prayer: PrayerTime
-    
+
     var body: some View {
         HStack {
             Text(prayer.name)

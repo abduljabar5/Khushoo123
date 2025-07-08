@@ -26,7 +26,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var isShuffleEnabled: Bool = false
     @Published var totalListeningTime: TimeInterval = 0
     @Published var completedSurahNumbers: Set<Int> = []
-    @Published var isAutoplayEnabled: Bool = false
+    @Published var isAutoplayEnabled: Bool = true
     @Published var currentArtwork: UIImage?
     
     // MARK: - Private Properties
@@ -34,8 +34,9 @@ class AudioPlayerService: NSObject, ObservableObject {
     private var timeObserver: Any?
     private var isAudioSessionActive = false
     private var allSurahs: [Surah] = []
-    private var currentSurahIndex: Int = 0
-    private var shuffledSurahIndices: [Int] = []
+    private var currentPlaylist: [Surah] = []
+    private var currentSurahIndex: Int = -1
+    private var shuffledPlaylistIndices: [Int] = []
     private var defaultArtwork: MPMediaItemArtwork?
     private var currentArtworkImage: UIImage?
     
@@ -43,6 +44,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     private let lastPlayedSurahKey = "lastPlayedSurah"
     private let lastPlayedReciterKey = "lastPlayedReciter"
     private let lastPlayedTimeKey = "lastPlayedTime"
+    private let likedItemsKey = "likedItems"
     
     // MARK: - Repeat Mode
     enum RepeatMode: String, CaseIterable {
@@ -78,6 +80,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     func deactivate() {
         print("🎵 [AudioPlayerService] Deactivating audio service...")
         
+        saveLastPlayed()
         // Stop playback
         pause()
         
@@ -249,8 +252,19 @@ class AudioPlayerService: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Playback Controls
+    // MARK: - Playback Control - Public
+    
+    /// Loads a specific surah for a specific reciter and starts playback.
+    /// This is the primary entry point for starting audio.
+    func load(surah: Surah, reciter: Reciter) {
+        print("🎵 [AudioPlayerService] Queued load for Surah: \(surah.englishName), Reciter: \(reciter.englishName)")
+        Task {
+            await loadAndPlay(surah: surah, reciter: reciter)
+        }
+    }
+    
     func play() {
+        if player?.currentItem != nil {
         print("🎵 [AudioPlayerService] Play requested")
         
         guard let player = player else {
@@ -270,6 +284,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         isPlaying = true
         updateNowPlayingInfo()
         print("✅ [AudioPlayerService] Playback started")
+        }
     }
     
     func pause() {
@@ -278,6 +293,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         player?.pause()
         isPlaying = false
         updateNowPlayingInfo()
+        saveLastPlayed()
         
         print("✅ [AudioPlayerService] Playback paused")
     }
@@ -339,44 +355,6 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     // MARK: - Track Management
-    func load(surah: Surah, reciter: Reciter, artwork: UIImage? = nil) {
-        print("🎵 [AudioPlayerService] ===== LOADING NEW SURAH ======")
-        print("🎵 [AudioPlayerService] Surah Details:")
-        print("   - Number: \(surah.number)")
-        print("   - Name: \(surah.englishName)")
-        print("   - Arabic Name: \(surah.name)")
-        print("   - Translation: \(surah.englishNameTranslation)")
-        print("🎵 [AudioPlayerService] Reciter Details:")
-        print("   - Identifier: \(reciter.identifier)")
-        print("   - Name: \(reciter.englishName)")
-        print("   - Arabic Name: \(reciter.name)")
-        
-        // Ensure audio session is active
-        if !isAudioSessionActive {
-            print("🎵 [AudioPlayerService] Activating audio session for new surah")
-            setupAudioSession()
-        }
-        
-        // Clear any existing audio
-        clearCurrentAudio()
-        
-        // Set current surah and reciter
-        currentSurah = surah
-        currentReciter = reciter
-        currentArtwork = artwork
-        
-        // Update current surah index
-        if let index = allSurahs.firstIndex(where: { $0.number == surah.number }) {
-            currentSurahIndex = index
-        }
-        
-        // Save as last played
-        saveLastPlayed()
-        
-        // Load full surah audio
-        loadFullSurahAudio(surah: surah, reciter: reciter)
-    }
-    
     private func loadFullSurahAudio(surah: Surah, reciter: Reciter) {
         print("🎵 [AudioPlayerService] Loading full surah audio from Quran Foundation API")
         isLoading = true
@@ -385,7 +363,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         Task {
             do {
                 // Get full surah audio URL from Quran Foundation API
-                let audioURLString = try QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
+                let audioURLString = try await QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
                 print("🎵 [AudioPlayerService] Got full surah audio URL: \(audioURLString)")
                 
                 guard let url = URL(string: audioURLString) else {
@@ -396,6 +374,8 @@ class AudioPlayerService: NSObject, ObservableObject {
                     }
                     return
                 }
+                
+                print("❗️❗️❗️ [AudioPlayerService] FINAL URL FOR PLAYER: \(url.absoluteString) ❗️❗️❗️")
                 
                 // Create and configure player
                 let playerItem = AVPlayerItem(url: url)
@@ -410,7 +390,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                 // Add observer for playback end
                 NotificationCenter.default.addObserver(
                     self,
-                    selector: #selector(playerDidFinishPlaying),
+                    selector: #selector(playerDidFinishPlaying(note:)),
                     name: .AVPlayerItemDidPlayToEndTime,
                     object: playerItem
                 )
@@ -442,7 +422,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         }
     }
     
-    @objc private func playerDidFinishPlaying() {
+    @objc private func playerDidFinishPlaying(note: NSNotification) {
         print("🎵 [AudioPlayerService] Full surah completed")
         
         if let surah = currentSurah {
@@ -470,59 +450,83 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     func nextTrack() {
-        print("🎵 [AudioPlayerService] Next track requested")
-        
-        guard !allSurahs.isEmpty, let currentReciter = currentReciter else {
-            print("❌ [AudioPlayerService] No surahs or reciter available for next track")
+        guard !currentPlaylist.isEmpty else {
+            print("⚠️ [AudioPlayerService] Cannot go to next track, playlist is empty.")
             return
         }
         
-        let nextIndex: Int
+        var nextIndex = -1
+        
         if isShuffleEnabled {
-            // Get next shuffled index
-            if let currentShuffledIndex = shuffledSurahIndices.firstIndex(of: currentSurahIndex) {
-                let nextShuffledIndex = (currentShuffledIndex + 1) % shuffledSurahIndices.count
-                nextIndex = shuffledSurahIndices[nextShuffledIndex]
+            // Find the current index in the shuffled list and get the next one
+            if let currentIndexInShuffledList = shuffledPlaylistIndices.firstIndex(of: currentSurahIndex) {
+                let nextShuffledIndex = currentIndexInShuffledList + 1
+                if nextShuffledIndex < shuffledPlaylistIndices.count {
+                    nextIndex = shuffledPlaylistIndices[nextShuffledIndex]
+                } else if repeatMode == .all {
+                    // Re-shuffle and start from the beginning of the new shuffled list
+                    shuffledPlaylistIndices.shuffle()
+                    nextIndex = shuffledPlaylistIndices.first ?? 0
+                }
             } else {
-                // If current surah not in shuffled list, start from beginning
-                nextIndex = shuffledSurahIndices.first ?? 0
+                // If something went wrong, just pick a new random one
+                shuffledPlaylistIndices.shuffle()
+                nextIndex = shuffledPlaylistIndices.first ?? 0
             }
         } else {
-            // Sequential navigation
-            nextIndex = (currentSurahIndex + 1) % allSurahs.count
+            // Sequential playback
+            let potentialNextIndex = currentSurahIndex + 1
+            if potentialNextIndex < currentPlaylist.count {
+                nextIndex = potentialNextIndex
+            } else if repeatMode == .all {
+                nextIndex = 0 // Loop back to the beginning
+            }
         }
         
-        let nextSurah = allSurahs[nextIndex]
-        print("🎵 [AudioPlayerService] Loading next surah: \(nextSurah.englishName)")
-        load(surah: nextSurah, reciter: currentReciter)
+        if nextIndex != -1 {
+            let nextSurah = currentPlaylist[nextIndex]
+            self.currentSurahIndex = nextIndex
+            load(surah: nextSurah, reciter: self.currentReciter!)
+        } else {
+            print("🎵 [AudioPlayerService] End of playlist reached.")
+            pause() // Or handle as desired
+        }
     }
     
     func previousTrack() {
-        print("🎵 [AudioPlayerService] Previous track requested")
-        
-        guard !allSurahs.isEmpty, let currentReciter = currentReciter else {
-            print("❌ [AudioPlayerService] No surahs or reciter available for previous track")
+        guard !currentPlaylist.isEmpty, let currentReciter = currentReciter else {
+            print("⚠️ [AudioPlayerService] Cannot go to previous track, playlist or reciter is missing.")
             return
         }
         
-        let previousIndex: Int
+        var prevIndex = -1
+
         if isShuffleEnabled {
-            // Get previous shuffled index
-            if let currentShuffledIndex = shuffledSurahIndices.firstIndex(of: currentSurahIndex) {
-                let previousShuffledIndex = currentShuffledIndex == 0 ? shuffledSurahIndices.count - 1 : currentShuffledIndex - 1
-                previousIndex = shuffledSurahIndices[previousShuffledIndex]
-            } else {
-                // If current surah not in shuffled list, start from end
-                previousIndex = shuffledSurahIndices.last ?? 0
+            // Find the current index in the shuffled list and get the previous one
+            if let currentIndexInShuffledList = shuffledPlaylistIndices.firstIndex(of: currentSurahIndex) {
+                let prevShuffledIndex = currentIndexInShuffledList - 1
+                if prevShuffledIndex >= 0 {
+                    prevIndex = shuffledPlaylistIndices[prevShuffledIndex]
+                }
+                // Don't loop back on previous in shuffle mode
             }
         } else {
-            // Sequential navigation
-            previousIndex = currentSurahIndex == 0 ? allSurahs.count - 1 : currentSurahIndex - 1
+            // Sequential playback
+            let potentialPrevIndex = currentSurahIndex - 1
+            if potentialPrevIndex >= 0 {
+                prevIndex = potentialPrevIndex
+            }
         }
-        
-        let previousSurah = allSurahs[previousIndex]
-        print("🎵 [AudioPlayerService] Loading previous surah: \(previousSurah.englishName)")
-        load(surah: previousSurah, reciter: currentReciter)
+
+        if prevIndex != -1 {
+            let prevSurah = currentPlaylist[prevIndex]
+            self.currentSurahIndex = prevIndex
+            load(surah: prevSurah, reciter: currentReciter)
+        } else {
+            print("🎵 [AudioPlayerService] Beginning of playlist reached.")
+            // Seek to the beginning of the current track instead of changing tracks
+            seek(to: 0)
+        }
     }
     
     // MARK: - KVO
@@ -666,39 +670,13 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Additional Controls
     func toggleRepeatMode() {
-        print("🎵 [AudioPlayerService] Toggling repeat mode")
-        switch repeatMode {
-        case .off:
-            repeatMode = .one
-        case .one:
-            repeatMode = .all
-        case .all:
-            repeatMode = .off
-        }
-        print("🎵 [AudioPlayerService] Repeat mode changed to: \(repeatMode)")
-    }
-    
-    func toggleAutoplay() {
-        isAutoplayEnabled.toggle()
-        print("🎵 [AudioPlayerService] Autoplay is now \(isAutoplayEnabled ? "ON" : "OFF")")
-    }
-    
-    func cyclePlaybackSpeed() {
-        print("🎵 [AudioPlayerService] Cycling playback speed")
-        let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-        
-        if let currentIndex = speeds.firstIndex(of: playbackSpeed) {
-            let nextIndex = (currentIndex + 1) % speeds.count
-            playbackSpeed = speeds[nextIndex]
+        let allModes = RepeatMode.allCases
+        if let currentIndex = allModes.firstIndex(of: repeatMode), currentIndex + 1 < allModes.count {
+            repeatMode = allModes[currentIndex + 1]
         } else {
-            playbackSpeed = 1.0
+            repeatMode = allModes[0]
         }
-        
-        // Apply speed to current player
-        player?.rate = isPlaying ? playbackSpeed : 0.0
-        
-        print("🎵 [AudioPlayerService] Playback speed changed to: \(playbackSpeed)x")
-        updateNowPlayingInfo()
+        print("🔁 [AudioPlayerService] Repeat mode is now \(repeatMode.rawValue).")
     }
     
     // MARK: - Load All Surahs (for navigation)
@@ -710,37 +688,41 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Shuffle Functionality
     func toggleShuffle() {
         isShuffleEnabled.toggle()
-        print("🎵 [AudioPlayerService] Shuffle \(isShuffleEnabled ? "enabled" : "disabled")")
+        print("🔀 [AudioPlayerService] Shuffle mode is now \(isShuffleEnabled ? "ON" : "OFF").")
         
         if isShuffleEnabled {
-            // Create shuffled indices excluding current surah
-            var indices = Array(0..<allSurahs.count)
-            indices.removeAll { $0 == currentSurahIndex }
-            shuffledSurahIndices = indices.shuffled()
-            // Add current surah at the beginning
-            shuffledSurahIndices.insert(currentSurahIndex, at: 0)
+            // When enabling shuffle, create a shuffled list of indices from the current playlist
+            shuffledPlaylistIndices = Array(0..<currentPlaylist.count)
+            shuffledPlaylistIndices.shuffle()
+            
+            // Ensure the current playing track is the first in the shuffled sequence
+            if let index = shuffledPlaylistIndices.firstIndex(of: currentSurahIndex) {
+                shuffledPlaylistIndices.swapAt(0, index)
         }
+        }
+        // When disabling, we don't need to do anything, it will revert to sequential playback.
     }
     
     // MARK: - Continue Last Played
     func continueLastPlayed() -> Bool {
         print("🎵 [AudioPlayerService] Attempting to continue last played")
         
-        guard let lastSurahData = UserDefaults.standard.data(forKey: lastPlayedSurahKey),
-              let lastReciterData = UserDefaults.standard.data(forKey: lastPlayedReciterKey),
-              let lastSurah = try? JSONDecoder().decode(Surah.self, from: lastSurahData),
-              let lastReciter = try? JSONDecoder().decode(Reciter.self, from: lastReciterData) else {
+        guard let lastPlayedInfo = getLastPlayedInfo() else {
             print("❌ [AudioPlayerService] No last played data found")
             return false
         }
         
-        print("🎵 [AudioPlayerService] Found last played: \(lastSurah.englishName) by \(lastReciter.englishName)")
-        load(surah: lastSurah, reciter: lastReciter)
+        print("🎵 [AudioPlayerService] Found last played: \(lastPlayedInfo.surah.englishName) by \(lastPlayedInfo.reciter.englishName) at \(lastPlayedInfo.time)s")
+        
+        Task {
+            await loadAndPlay(surah: lastPlayedInfo.surah, reciter: lastPlayedInfo.reciter, startTime: lastPlayedInfo.time)
+        }
+        
         return true
     }
     
     // MARK: - Save Last Played
-    private func saveLastPlayed() {
+    func saveLastPlayed() {
         guard let surah = currentSurah, let reciter = currentReciter else { return }
         
         do {
@@ -798,5 +780,195 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     func getProgress() -> (completed: Int, total: Int) {
         return (completedSurahNumbers.count, allSurahs.count)
+    }
+    
+    // MARK: - Artwork Update
+    func updateArtwork(with newImage: UIImage) {
+        print("🖼️ [AudioPlayerService] Updating artwork without reloading player.")
+        self.currentArtwork = newImage
+        updateNowPlayingInfo()
+    }
+    
+    private func loadAndPlay(surah: Surah, reciter: Reciter, startTime: TimeInterval? = nil) async {
+        await MainActor.run {
+            self.isLoading = true
+            self.errorMessage = nil
+            self.isReadyToPlay = false
+        }
+        
+        // If the reciter has changed, we need to build a new playlist.
+        if reciter.id != self.currentReciter?.id {
+            await buildPlaylist(for: reciter)
+        }
+        
+        // Now that the playlist is built, find the index for the requested surah.
+        if let index = currentPlaylist.firstIndex(where: { $0.id == surah.id }) {
+             await MainActor.run {
+                self.currentSurahIndex = index
+            }
+        } else {
+             await MainActor.run {
+                print("⚠️ [AudioPlayerService] Requested surah not found in the new playlist. Defaulting to first track.")
+                self.currentSurahIndex = 0
+            }
+        }
+
+        // Set the current items on the main thread
+        await MainActor.run {
+            self.currentSurah = surah
+            self.currentReciter = reciter
+        }
+        
+        // Log the track to the recents manager
+        RecentsManager.shared.addTrack(surah: surah, reciter: reciter)
+        
+        do {
+            let audioURLString = try await QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
+            guard let audioURL = URL(string: audioURLString) else {
+                throw QuranAPIError.invalidURL
+            }
+            
+            print("▶️ [AudioPlayerService] Playing from URL: \(audioURL.absoluteString)")
+            
+            let playerItem = AVPlayerItem(url: audioURL)
+            
+            // Add observer for playback end
+            NotificationCenter.default.addObserver(self,
+                                               selector: #selector(playerDidFinishPlaying(note:)),
+                                               name: .AVPlayerItemDidPlayToEndTime,
+                                               object: playerItem)
+            
+            // Observe when the item is ready to play
+            let anObserver = playerItem.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
+                guard let self = self else { return }
+                if item.status == .readyToPlay {
+                    self.isReadyToPlay = true
+                    self.duration = item.duration.seconds
+                    
+                    if let time = startTime {
+                        print("🎵 [AudioPlayerService] Seeking to last played time: \(time)s")
+                        self.seek(to: time)
+                    }
+                    
+                    self.play() // Start playing automatically when ready
+                    print("✅ [AudioPlayerService] Player item is ready to play.")
+                } else if item.status == .failed {
+                    print("❌ [AudioPlayerService] Player item failed to load.")
+                    self.errorMessage = "Failed to load audio."
+                }
+            }
+
+            await MainActor.run {
+                if self.player == nil {
+                    self.player = AVPlayer()
+                    self.setupTimeObserver()
+                }
+                self.player?.replaceCurrentItem(with: playerItem)
+                self.player?.rate = self.playbackSpeed
+                
+                // Keep the observer reference
+                // Note: In a real app, you would need a more robust way to manage this observer's lifecycle.
+                // For this service, we can associate it with the player.
+                // A better approach would be a dictionary mapping items to observers.
+                // A better approach would be a dictionary mapping items to observers.
+                objc_setAssociatedObject(self.player as Any, "playerItemObserver", anObserver, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+
+                self.updateNowPlayingInfo()
+            }
+            
+        } catch {
+            let errorDescription = "Error loading audio: \(error.localizedDescription)"
+            print("❌ [AudioPlayerService] \(errorDescription)")
+            await MainActor.run {
+                self.errorMessage = errorDescription
+            }
+        }
+        
+        await MainActor.run {
+            self.isLoading = false
+        }
+    }
+    
+    // MARK: - Playlist Management
+    private func buildPlaylist(for reciter: Reciter) async {
+        print("🏗️ [AudioPlayerService] Building playlist for reciter: \(reciter.englishName)")
+        
+        // Fetch all 114 surahs to serve as the master list
+        guard let allSurahs = try? await QuranAPIService.shared.fetchSurahs() else {
+            print("❌ [AudioPlayerService] Could not fetch master surah list to build playlist.")
+            await MainActor.run {
+                self.currentPlaylist = []
+            }
+            return
+        }
+        
+        var availableSurahs: [Surah] = []
+        let quranCentralPrefix = "qurancentral_"
+
+        if reciter.identifier.hasPrefix(quranCentralPrefix) {
+            let slug = String(reciter.identifier.dropFirst(quranCentralPrefix.count))
+            if let availableNumbers = try? await QuranCentralService.shared.fetchAvailableSurahNumbers(for: slug) {
+                availableSurahs = allSurahs.filter { availableNumbers.contains($0.number) }
+                print("✅ [AudioPlayerService] Found \(availableSurahs.count) available surahs for Quran Central reciter.")
+            } else {
+                print("⚠️ [AudioPlayerService] Could not fetch available surah numbers for Quran Central reciter. Playlist will be empty.")
+            }
+        } else {
+            // For MP3Quran reciters, assume all 114 are available as per previous logic.
+            availableSurahs = allSurahs
+            print("✅ [AudioPlayerService] Assuming all 114 surahs are available for MP3Quran reciter.")
+        }
+        
+        await MainActor.run {
+            self.currentPlaylist = availableSurahs
+            
+            // If shuffle is on, we need to regenerate the shuffled indices for the new playlist.
+            if self.isShuffleEnabled {
+                self.shuffledPlaylistIndices = Array(0..<self.currentPlaylist.count)
+                self.shuffledPlaylistIndices.shuffle()
+            }
+        }
+    }
+    
+    // MARK: - Liked Items Management
+    
+    func getLikedItems() -> Set<LikedItem> {
+        guard let data = UserDefaults.standard.data(forKey: likedItemsKey) else { return [] }
+        do {
+            let items = try JSONDecoder().decode(Set<LikedItem>.self, from: data)
+            return items
+        } catch {
+            print("❌ [AudioPlayerService] Failed to decode liked items: \(error)")
+            return []
+        }
+    }
+    
+    func isLiked(surahNumber: Int, reciterIdentifier: String) -> Bool {
+        let item = LikedItem(surahNumber: surahNumber, reciterIdentifier: reciterIdentifier)
+        return getLikedItems().contains(item)
+    }
+    
+    func toggleLike(surahNumber: Int, reciterIdentifier: String) {
+        var items = getLikedItems()
+        let item = LikedItem(surahNumber: surahNumber, reciterIdentifier: reciterIdentifier)
+        
+        if items.contains(item) {
+            items.remove(item)
+            print("💔 [AudioPlayerService] Unliked: Surah \(surahNumber) by \(reciterIdentifier)")
+        } else {
+            items.insert(item)
+            print("❤️ [AudioPlayerService] Liked: Surah \(surahNumber) by \(reciterIdentifier)")
+        }
+        
+        saveLikedItems(items)
+    }
+    
+    private func saveLikedItems(_ items: Set<LikedItem>) {
+        do {
+            let data = try JSONEncoder().encode(items)
+            UserDefaults.standard.set(data, forKey: likedItemsKey)
+        } catch {
+            print("❌ [AudioPlayerService] Failed to encode liked items: \(error)")
+        }
     }
 } 

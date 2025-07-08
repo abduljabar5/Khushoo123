@@ -51,16 +51,8 @@ class PrayerTimeViewModel: ObservableObject {
     init() {
         self.locationAuthorizationStatus = locationService.authorizationStatus
         
-        // Subscribe to location updates
-        locationService.$location
-            .compactMap { $0 }
-            .first()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] location in
-                self?.fetchAllRequiredPrayerTimes(for: location)
-            }
-            .store(in: &cancellables)
-            
+        print("🕌 [PrayerTimeViewModel] Initialized. Current location auth status: \(locationAuthorizationStatus.rawValue)")
+        
         // Subscribe to authorization status changes
         locationService.$authorizationStatus
             .receive(on: DispatchQueue.main)
@@ -74,6 +66,42 @@ class PrayerTimeViewModel: ObservableObject {
         updateTimer?.invalidate()
     }
 
+    func start() {
+        print("🕌 [PrayerTimeViewModel] Start method called.")
+        // This is now the entry point to begin the process.
+        // It's called from the view's onAppear.
+        locationService.$location
+            .compactMap { $0 }
+            .first() // We only need the first location update.
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] location in
+                print("🕌 [PrayerTimeViewModel] Received location update. Fetching prayer times.")
+                self?.fetchAllRequiredPrayerTimes(for: location)
+            }
+            .store(in: &cancellables)
+
+        // Check the current authorization status to decide the next action.
+        print("🕌 [PrayerTimeViewModel] Checking auth status in start(): \(locationService.authorizationStatus.rawValue)")
+        switch locationService.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            // Permission is already granted, just request the location.
+            print("🕌 [PrayerTimeViewModel] Status: Authorized. Requesting location.")
+            locationService.requestLocation()
+        case .notDetermined:
+            // Permission has not been asked for yet.
+            print("🕌 [PrayerTimeViewModel] Status: Not Determined. Requesting permission.")
+            locationService.requestLocationPermission()
+        case .denied, .restricted:
+            // Permission has been denied. Show an error message.
+            print("🕌 [PrayerTimeViewModel] Status: Denied/Restricted. Showing error.")
+            errorMessage = "Location permission is required to show prayer times. Please enable it in Settings."
+        @unknown default:
+            // Handle any future cases.
+            print("🕌 [PrayerTimeViewModel] Status: Unknown. Requesting permission.")
+            locationService.requestLocationPermission()
+        }
+    }
+
     func requestLocationPermission() {
         locationService.requestLocationPermission()
     }
@@ -82,6 +110,7 @@ class PrayerTimeViewModel: ObservableObject {
     private func fetchAllRequiredPrayerTimes(for location: CLLocation) {
         isLoading = true
         errorMessage = nil
+        print("🕌 [PrayerTimeViewModel] Fetching all required prayer times for location: \(location.coordinate)")
         
         Task {
             do {
@@ -101,8 +130,10 @@ class PrayerTimeViewModel: ObservableObject {
                 // Start the timer to update the UI every second.
                 self.startUpdateTimer()
                 
+                print("🕌 [PrayerTimeViewModel] Successfully fetched and parsed prayer times.")
             } catch {
                 self.errorMessage = "Failed to fetch prayer times: \(error.localizedDescription)"
+                print("❌ [PrayerTimeViewModel] Error fetching prayer times: \(error.localizedDescription)")
             }
             isLoading = false
         }

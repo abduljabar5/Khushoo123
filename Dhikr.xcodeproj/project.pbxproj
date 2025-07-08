@@ -11,6 +11,7 @@
 		8125501E2E079D0C0035AD52 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501D2E079D0C0035AD52 /* SwiftUI.framework */; };
 		8125502F2E079D0D0035AD52 /* DhikrtrackerExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 815731EF2E14EACE00DD29EF /* Kingfisher */; };
+		815736292E1744DD00DD29EF /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 815736282E1744DD00DD29EF /* SwiftSoup */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +114,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */,
+				815736292E1744DD00DD29EF /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -198,6 +200,7 @@
 			name = Dhikr;
 			packageProductDependencies = (
 				815731EF2E14EACE00DD29EF /* Kingfisher */,
+				815736282E1744DD00DD29EF /* SwiftSoup */,
 			);
 			productName = Dhikr;
 			productReference = 81254FD02E07941E0035AD52 /* Dhikr.app */;
@@ -308,6 +311,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */,
+				815736272E1744DD00DD29EF /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 81254FD12E07941E0035AD52 /* Products */;
@@ -780,6 +784,14 @@
 				minimumVersion = 8.3.3;
 			};
 		};
+		815736272E1744DD00DD29EF /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/scinfu/SwiftSoup.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.8;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -787,6 +799,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */;
 			productName = Kingfisher;
+		};
+		815736282E1744DD00DD29EF /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 815736272E1744DD00DD29EF /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

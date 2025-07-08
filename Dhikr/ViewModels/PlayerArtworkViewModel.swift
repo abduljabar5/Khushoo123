@@ -15,12 +15,14 @@ class PlayerArtworkViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private let openAIService = OpenAIService()
+    private let unsplashService = UnsplashService.shared
     private let imageURLCache = NSCache<NSString, NSURL>()
     private var cancellables = Set<AnyCancellable>()
-    private let persistentCacheKey = "artworkURLPersistentCache"
+    private let persistentCacheKey = "artworkURLPersistentCache_Unsplash"
+    private let audioPlayerService: AudioPlayerService
 
     init(audioPlayerService: AudioPlayerService) {
+        self.audioPlayerService = audioPlayerService
         loadPersistentCache() // Load saved URLs into memory on initialization
         
         audioPlayerService.$currentSurah
@@ -67,11 +69,7 @@ class PlayerArtworkViewModel: ObservableObject {
 
         Task {
             do {
-                guard let url = try await openAIService.generateImageURL(for: surah.englishName) else {
-                    self.errorMessage = "Failed to generate image URL."
-                    self.isLoading = false
-                    return
-                }
+                let url = try await unsplashService.fetchNatureImageURL(query: surah.englishName)
                 
                 // 3. Update UI and save to both in-memory and persistent caches
                 self.artworkURL = url
@@ -79,10 +77,34 @@ class PlayerArtworkViewModel: ObservableObject {
                 self.saveToPersistentCache(key: surah.englishName, url: url)
                 
             } catch {
-                self.errorMessage = "Error fetching artwork: \(error.localizedDescription)"
-                print("❌ [PlayerArtworkViewModel] Error: \(error)")
+                if let unsplashError = error as? UnsplashError, case .networkError(let statusCode) = unsplashError {
+                    self.errorMessage = "Network Error (\(statusCode ?? 0))"
+                } else {
+                    self.errorMessage = "Error fetching artwork"
+                }
+                print("❌ [PlayerArtworkViewModel] Error: \(error.localizedDescription)")
             }
             self.isLoading = false
         }
+    }
+
+    func forceRefreshArtwork() {
+        guard let surah = self.audioPlayerService.currentSurah else {
+            print("❌ [PlayerArtworkViewModel] Could not force refresh, surah not available.")
+            return
+        }
+
+        print("🔄 [PlayerArtworkViewModel] Forcing refresh for surah: \(surah.englishName)")
+        
+        // Clear caches for the current surah
+        let cacheKey = surah.englishName as NSString
+        imageURLCache.removeObject(forKey: cacheKey)
+        
+        var savedCache = UserDefaults.standard.dictionary(forKey: persistentCacheKey) as? [String: String] ?? [:]
+        savedCache.removeValue(forKey: surah.englishName)
+        UserDefaults.standard.set(savedCache, forKey: persistentCacheKey)
+
+        // Trigger a new fetch
+        fetchArtwork(for: surah)
     }
 } 

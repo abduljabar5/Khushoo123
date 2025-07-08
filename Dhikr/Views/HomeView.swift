@@ -6,46 +6,79 @@
 //
 
 import SwiftUI
+import Kingfisher
 
 struct HomeView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var quranAPIService: QuranAPIService
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var bluetoothService: BluetoothService
+    @StateObject private var favoritesManager = FavoritesManager.shared
     
     @State private var featuredReciter: Reciter?
     @State private var popularReciters: [Reciter] = []
+    @State private var soothingReciters: [Reciter] = []
     @State private var recentSurahs: [Surah] = []
     @State private var isLoading = true
     @State private var showingFullScreenPlayer = false
+    @State private var showingRecents = false
+    
+    // Static lists of reciter names
+    private let popularReciterNames = [
+        "Abdur Rahman As-Sudais",
+        "Mishary Rashid Alafasy",
+        "Saad al-Ghamdi",
+        "Saud Al-Shuraim",
+        "Ahmed Al Ajmi",
+        "Muhammad Siddiq al-Minshawi",
+        "Abu Bakr al-Shatri",
+        "Nasser Al Qatami",
+        "Bandar Baleela",
+        "Yasser Al Dossari"
+    ]
+
+    private let soothingReciterNames = [
+        "Islam Sobhi",
+        "Omar Hisham Al Arabi",
+        "Hazza Al Balushi",
+        "Noreen Muhammad Siddique",
+        "Raad Muhammad Al-Kurdi",
+        "Salman Al-Utaybi",
+        "Wadee Hammadi Al Yamani",
+        "Abdul Wadood Haneef",
+        "Abdul-Kareem Al Hazmi",
+        "Mahmoud Ali Al Banna"
+    ]
     
     var body: some View {
-        ZStack {
-            NavigationView {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Hero Banner
-                        heroBanner
-                        
-                        // Quick Actions
-                        quickActionsSection
-                        
-                        // Category Rows
-                        categoryRows
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 80)
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Hero Banner
+                    heroBanner
+                    
+                    // Quick Actions
+                    quickActionsSection
+                    
+                    // Category Rows
+                    categoryRows
                 }
-                .navigationTitle("QariVerse")
-                .navigationBarTitleDisplayMode(.large)
-                .background(Color(.systemBackground))
-                .onAppear {
-                    loadData()
-                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, audioPlayerService.currentSurah != nil ? 130 : 80)
+            }
+            .navigationTitle("QariVerse")
+            .navigationBarTitleDisplayMode(.large)
+            .background(Color(.systemBackground))
+            .onAppear {
+                loadData()
             }
         }
         .fullScreenCover(isPresented: $showingFullScreenPlayer) {
             FullScreenPlayerView(onMinimize: { showingFullScreenPlayer = false })
+                .environmentObject(audioPlayerService)
+        }
+        .sheet(isPresented: $showingRecents) {
+            RecentsView()
                 .environmentObject(audioPlayerService)
         }
     }
@@ -56,36 +89,52 @@ struct HomeView: View {
             if let reciter = featuredReciter {
                 ZStack(alignment: .bottomLeading) {
                     // Background Image
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
+                    KFImage(reciter.artworkURL)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 200)
+                        .cornerRadius(16)
+                        .overlay(
                             LinearGradient(
-                                colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.6)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                                colors: [Color.black.opacity(0.0), Color.black.opacity(0.6)],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
                         )
-                        .frame(height: 200)
-                    
+
                     // Content
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Featured Reciter")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.8))
-                        
+                        HStack {
+                            Text("Featured Reciter")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.8))
+                            Spacer()
+                            if let country = reciter.country {
+                                Text(country)
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(12)
+                                    .foregroundColor(.white)
+                            }
+                        }
+
                         Text(reciter.englishName)
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-                        
-                        Text(reciter.language.uppercased())
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
-                        
+
+                        if let dialect = reciter.dialect {
+                            Text(dialect.uppercased())
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+
                         // Play Button
                         Button(action: {
-                            // Play a random surah with this reciter
-                            if let randomSurah = recentSurahs.randomElement() {
-                                audioPlayerService.load(surah: randomSurah, reciter: reciter)
+                            Task {
+                                await playRandomSurah(for: reciter)
                             }
                         }) {
                             HStack {
@@ -153,11 +202,11 @@ struct HomeView: View {
                     )
                 }
                 
-                // Favorites
-                NavigationLink(destination: FavoritesView()) {
+                // Liked
+                NavigationLink(destination: LikedSurahsView()) {
                     QuickActionCard(
-                        title: "Favorites",
-                        subtitle: "\(getLikedSurahsCount()) surahs",
+                        title: "Liked",
+                        subtitle: "\(audioPlayerService.getLikedItems().count) tracks",
                         icon: "heart.fill",
                         color: .red
                     )
@@ -165,7 +214,7 @@ struct HomeView: View {
                 
                 // Most Recent Played
                 Button(action: {
-                    _ = audioPlayerService.continueLastPlayed()
+                    showingRecents = true
                 }) {
                     QuickActionCard(
                         title: "Recent",
@@ -183,21 +232,49 @@ struct HomeView: View {
         VStack(spacing: 24) {
             // Popular Reciters
             CategoryRow(
-                title: "Popular Reciters",
+                title: "Most Popular Reciters",
                 items: popularReciters,
                 itemView: { reciter in
                     ReciterCard(reciter: reciter)
+                        .onTapGesture {
+                            Task {
+                                await playRandomSurah(for: reciter)
+                            }
+                        }
                 }
             )
             
-            // Recent Surahs
+            // Soothing Reciters
             CategoryRow(
-                title: "Recent Surahs",
-                items: recentSurahs,
-                itemView: { surah in
-                    SurahCard(surah: surah)
+                title: "Most Soothing Reciters",
+                items: soothingReciters,
+                itemView: { reciter in
+                    ReciterCard(reciter: reciter)
+                        .onTapGesture {
+                            Task {
+                                await playRandomSurah(for: reciter)
+                            }
+                        }
                 }
             )
+            
+            // Favorite Reciters
+            if !favoritesManager.favoriteReciterIdentifiers.isEmpty {
+                let favoriteReciters = quranAPIService.reciters.filter {
+                    favoritesManager.favoriteReciterIdentifiers.contains($0.identifier)
+                }
+                
+                CategoryRow(
+                    title: "Favorite Reciters",
+                    items: favoriteReciters,
+                    itemView: { reciter in
+                        NavigationLink(destination: ReciterDetailView(reciter: reciter)) {
+                            ReciterCard(reciter: reciter)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                )
+            }
         }
     }
     
@@ -210,24 +287,29 @@ struct HomeView: View {
                 let reciters = try await quranAPIService.fetchReciters()
                 print("🏠 [HomeView] Successfully fetched \(reciters.count) reciters")
                 
-                print("🏠 [HomeView] Fetching surahs...")
-                let surahs = try await quranAPIService.fetchSurahs()
-                print("🏠 [HomeView] Successfully fetched \(surahs.count) surahs")
+                // Use Quran Central reciters for the curated lists if possible
+                let quranCentralReciters = reciters.filter { $0.identifier.hasPrefix("qurancentral_") }
                 
                 await MainActor.run {
-                    // Randomize featured reciter
-                    self.featuredReciter = reciters.randomElement()
-                    self.popularReciters = Array(reciters.prefix(6))
-                    self.recentSurahs = Array(surahs.prefix(6))
+                    self.popularReciters = Array(quranCentralReciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+                    self.soothingReciters = Array(quranCentralReciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+                    
+                    // Fallback to any reciter if the curated list is empty
+                    if self.popularReciters.isEmpty {
+                        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+                    }
+                    if self.soothingReciters.isEmpty {
+                        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+                    }
+                    
+                    // Assign a featured reciter from the popular list
+                    self.featuredReciter = self.popularReciters.randomElement() ?? reciters.randomElement()
+                    
                     self.isLoading = false
-                    
-                    // Load all surahs into AudioPlayerService for navigation
-                    audioPlayerService.loadAllSurahs(surahs)
-                    
-                    print("🏠 [HomeView] Data loading completed successfully")
+                    print("✅ [HomeView] Data loaded and UI updated.")
                 }
             } catch {
-                print("❌ [HomeView] Error loading data: \(error)")
+                print("❌ [HomeView] Failed to load data: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                 }
@@ -235,27 +317,53 @@ struct HomeView: View {
         }
     }
     
-    private func getContinueSubtitle() -> String {
-        if let lastPlayed = audioPlayerService.getLastPlayedInfo() {
-            return "\(lastPlayed.surah.englishName) • \(lastPlayed.reciter.englishName)"
-        } else if !recentSurahs.isEmpty && !popularReciters.isEmpty {
-            return "Start listening"
-        } else {
-            return "No content"
+    private func playRandomSurah(for reciter: Reciter) async {
+        Task {
+            do {
+                let allSurahs = try await quranAPIService.fetchSurahs()
+                var surahToPlay: Surah?
+
+                let quranCentralPrefix = "qurancentral_"
+                if reciter.identifier.hasPrefix(quranCentralPrefix) {
+                    // It's a Quran Central reciter; we must fetch their specific list.
+                    let slug = String(reciter.identifier.dropFirst(quranCentralPrefix.count))
+                    let availableNumbers = try await QuranCentralService.shared.fetchAvailableSurahNumbers(for: slug)
+                    let availableSurahs = allSurahs.filter { availableNumbers.contains($0.number) }
+                    surahToPlay = availableSurahs.randomElement()
+                } else {
+                    // It's an MP3Quran reciter; any surah is fine.
+                    surahToPlay = allSurahs.randomElement()
+                }
+
+                if let surah = surahToPlay {
+                    await MainActor.run {
+                        audioPlayerService.load(surah: surah, reciter: reciter)
+                    }
+                }
+            } catch {
+                print("❌ [HomeView] Could not play random surah: \(error)")
+            }
         }
+    }
+    
+    private func getContinueSubtitle() -> String {
+        if let surah = audioPlayerService.currentSurah {
+            return "Surah \(surah.englishName)"
+        }
+        return "Nothing playing"
     }
     
     private func getLikedSurahsCount() -> Int {
-        let likedSurahs = Set(UserDefaults.standard.array(forKey: "likedSurahs") as? [Int] ?? [])
-        return likedSurahs.count
+        // This function is no longer accurate as we count items, not just surah numbers.
+        // It's better to get the count directly from the service.
+        return audioPlayerService.getLikedItems().count
     }
     
     private func getRecentSubtitle() -> String {
-        if let lastPlayed = audioPlayerService.getLastPlayedInfo() {
-            return "\(lastPlayed.surah.englishName)"
-        } else {
-            return "No recent played"
+        if let mostRecent = RecentsManager.shared.recentItems.first {
+            return "Last: \(mostRecent.surah.englishName)"
         }
+        return "No tracks played"
     }
 }
 
@@ -316,31 +424,21 @@ struct ReciterCard: View {
     let reciter: Reciter
     
     var body: some View {
-        NavigationLink(destination: ReciterDetailView(reciter: reciter)) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Reciter Image
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.blue.opacity(0.2))
-                    .frame(width: 120, height: 120)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .font(.title)
-                            .foregroundColor(.blue)
-                    )
-                
-                // Reciter Info
-                Text(reciter.englishName)
-                    .font(.headline)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                
-                Text(reciter.language.uppercased())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .frame(width: 120)
+        VStack {
+            KFImage(reciter.artworkURL)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 120, height: 120)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
+
+            Text(reciter.englishName)
+                .font(.footnote)
+                .fontWeight(.medium)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(width: 120)
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 

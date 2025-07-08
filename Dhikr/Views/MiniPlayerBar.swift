@@ -17,12 +17,6 @@ struct MiniPlayerBar: View {
                         .fill(Color.blue)
                         .frame(width: geometry.size.width * progressPercentage, height: 2)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { location in
-                    let percentage = location.x / geometry.size.width
-                    let newTime = percentage * audioPlayerService.duration
-                    audioPlayerService.seek(to: newTime)
-                }
             }
             .frame(height: 2)
             // Player bar

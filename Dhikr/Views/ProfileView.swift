@@ -18,7 +18,6 @@ struct ProfileView: View {
     @State private var showingFullScreenPlayer = false
     
     var body: some View {
-        ZStack {
             NavigationView {
                 ScrollView {
                     VStack(spacing: 24) {
@@ -41,6 +40,7 @@ struct ProfileView: View {
                         settingsSection
                     }
                     .padding(.horizontal, 16)
+                .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
                 }
                 .navigationTitle("Profile")
                 .navigationBarTitleDisplayMode(.large)
@@ -53,7 +53,6 @@ struct ProfileView: View {
                 }
                 .sheet(isPresented: $showingBackTapTest) {
                     BackTapTestView()
-                }
             }
         }
         .fullScreenCover(isPresented: $showingFullScreenPlayer) {
@@ -197,8 +196,8 @@ struct ProfileView: View {
                 )
                 
                 StatCard(
-                    title: "Favorite Reciter",
-                    value: getFavoriteReciter(),
+                    title: "Most Listened Reciter",
+                    value: getMostListenedReciter(),
                     icon: "person.fill",
                     color: .green
                 )
@@ -380,6 +379,15 @@ struct ProfileView: View {
                         color: .blue
                     )
                 }
+                
+                // Liked
+                NavigationLink(destination: LikedSurahsView()) {
+                    SettingsRow(
+                        imageName: "heart.fill",
+                        title: "Liked",
+                        value: "\(audioPlayerService.getLikedItems().count) Tracks"
+                    )
+                }
             }
         }
     }
@@ -412,6 +420,11 @@ struct ProfileView: View {
     private func getCompletedSurahs() -> Int {
         // For now, return a placeholder. In a real app, you'd track completed surahs
         return UserDefaults.standard.integer(forKey: "completedSurahs")
+    }
+    
+    private func getMostListenedReciter() -> String {
+        // Implement logic to get the most listened reciter
+        return "Not Implemented"
     }
 }
 
@@ -617,6 +630,36 @@ enum ActivityType {
     case listened
     case dhikr
     case favorited
+}
+
+// MARK: - Profile Settings Row
+struct SettingsRow: View {
+    var imageName: String
+    var title: String
+    var value: String?
+    
+    var body: some View {
+        HStack {
+            Image(systemName: imageName)
+                .frame(width: 24, height: 24)
+                .foregroundColor(.accentColor)
+            
+            Text(title)
+                .font(.body)
+            
+            Spacer()
+            
+            if let value = value {
+                Text(value)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+            } else {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 8)
+    }
 }
 
 #Preview {
