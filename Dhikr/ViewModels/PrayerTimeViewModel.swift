@@ -47,7 +47,7 @@ class PrayerTimeViewModel: ObservableObject {
     private let prayerTimeService = PrayerTimeService()
     private var cancellables = Set<AnyCancellable>()
     private var updateTimer: Timer?
-
+    
     init() {
         self.locationAuthorizationStatus = locationService.authorizationStatus
         
@@ -101,7 +101,7 @@ class PrayerTimeViewModel: ObservableObject {
             locationService.requestLocationPermission()
         }
     }
-
+    
     func requestLocationPermission() {
         locationService.requestLocationPermission()
     }

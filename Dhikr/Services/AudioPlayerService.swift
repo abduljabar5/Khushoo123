@@ -28,10 +28,13 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var completedSurahNumbers: Set<Int> = []
     @Published var isAutoplayEnabled: Bool = true
     @Published var currentArtwork: UIImage?
+    @Published var sleepTimeRemaining: TimeInterval?
+    @Published var likedItems: Set<LikedItem> = []
     
     // MARK: - Private Properties
     private var player: AVPlayer?
     private var timeObserver: Any?
+    private var sleepTimer: Timer?
     private var isAudioSessionActive = false
     private var allSurahs: [Surah] = []
     private var currentPlaylist: [Surah] = []
@@ -66,6 +69,19 @@ class AudioPlayerService: NSObject, ObservableObject {
     private override init() {
         super.init()
         print("🎵 [AudioPlayerService] Initialized")
+
+        // Load liked items from UserDefaults on initialization
+        if let data = UserDefaults.standard.data(forKey: likedItemsKey) {
+            do {
+                self.likedItems = try JSONDecoder().decode(Set<LikedItem>.self, from: data)
+                print("🎵 [AudioPlayerService] Loaded \(likedItems.count) liked items.")
+            } catch {
+                print("❌ [AudioPlayerService] Failed to decode liked items on init: \(error)")
+                self.likedItems = []
+            }
+        } else {
+            self.likedItems = []
+        }
     }
     
     // MARK: - Activation
@@ -739,6 +755,39 @@ class AudioPlayerService: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Sleep Timer
+    func setSleepTimer(minutes: Double) {
+        cancelSleepTimer() // Invalidate any existing timer
+        let timeInSeconds = minutes * 60
+        self.sleepTimeRemaining = timeInSeconds
+        
+        print("⏰ [AudioPlayerService] Sleep timer set for \(minutes) minutes.")
+        
+        self.sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            
+            if let remaining = self.sleepTimeRemaining {
+                if remaining > 1 {
+                    self.sleepTimeRemaining = remaining - 1
+                } else {
+                    print("⏰ [AudioPlayerService] Sleep timer finished. Pausing playback.")
+                    self.pause()
+                    self.cancelSleepTimer()
+                }
+            }
+        }
+    }
+
+    func cancelSleepTimer() {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        sleepTimeRemaining = nil
+        print("⏰ [AudioPlayerService] Sleep timer cancelled.")
+    }
+    
     // MARK: - Get Last Played Info
     func getLastPlayedInfo() -> (surah: Surah, reciter: Reciter, time: TimeInterval)? {
         guard let lastSurahData = UserDefaults.standard.data(forKey: lastPlayedSurahKey),
@@ -932,40 +981,28 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Liked Items Management
     
-    func getLikedItems() -> Set<LikedItem> {
-        guard let data = UserDefaults.standard.data(forKey: likedItemsKey) else { return [] }
-        do {
-            let items = try JSONDecoder().decode(Set<LikedItem>.self, from: data)
-            return items
-        } catch {
-            print("❌ [AudioPlayerService] Failed to decode liked items: \(error)")
-            return []
-        }
-    }
-    
     func isLiked(surahNumber: Int, reciterIdentifier: String) -> Bool {
         let item = LikedItem(surahNumber: surahNumber, reciterIdentifier: reciterIdentifier)
-        return getLikedItems().contains(item)
+        return likedItems.contains(item)
     }
     
     func toggleLike(surahNumber: Int, reciterIdentifier: String) {
-        var items = getLikedItems()
         let item = LikedItem(surahNumber: surahNumber, reciterIdentifier: reciterIdentifier)
         
-        if items.contains(item) {
-            items.remove(item)
+        if likedItems.contains(item) {
+            likedItems.remove(item)
             print("💔 [AudioPlayerService] Unliked: Surah \(surahNumber) by \(reciterIdentifier)")
         } else {
-            items.insert(item)
+            likedItems.insert(item)
             print("❤️ [AudioPlayerService] Liked: Surah \(surahNumber) by \(reciterIdentifier)")
         }
         
-        saveLikedItems(items)
+        saveLikedItems()
     }
     
-    private func saveLikedItems(_ items: Set<LikedItem>) {
+    private func saveLikedItems() {
         do {
-            let data = try JSONEncoder().encode(items)
+            let data = try JSONEncoder().encode(likedItems)
             UserDefaults.standard.set(data, forKey: likedItemsKey)
         } catch {
             print("❌ [AudioPlayerService] Failed to encode liked items: \(error)")

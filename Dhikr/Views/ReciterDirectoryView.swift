@@ -27,10 +27,10 @@ struct ReciterDirectoryView: View {
             }
         )
     }
-
+    
     var body: some View {
         NavigationView {
-            ZStack {
+        ZStack {
                 // Background NavigationLink for programmatic presentation
                 if let reciter = selectedReciter {
                     NavigationLink(
@@ -69,7 +69,7 @@ struct ReciterDirectoryView: View {
                                     reciters: filteredReciters,
                                     onReciterTapped: handleReciterTap
                                 )
-                            }
+            }
                             .padding(.top, 20)
                         }
                     }
@@ -83,7 +83,7 @@ struct ReciterDirectoryView: View {
         }
         .navigationViewStyle(.stack)
     }
-
+    
     private func clearRecents() {
         RecentRecitersManager.shared.clearAllReciters()
         self.recentReciters = []
@@ -114,7 +114,7 @@ struct ReciterDirectoryView: View {
             }
         }
     }
-
+    
     private func applyFilters(query: String) {
         if query.isEmpty {
             filteredReciters = allReciters
@@ -330,8 +330,8 @@ struct TagView: View {
 
 struct ReciterDirectoryView_Previews: PreviewProvider {
     static var previews: some View {
-        ReciterDirectoryView()
-            .environmentObject(QuranAPIService.shared)
-            .environmentObject(AudioPlayerService.shared)
+    ReciterDirectoryView()
+        .environmentObject(QuranAPIService.shared)
+        .environmentObject(AudioPlayerService.shared)
     }
 } 

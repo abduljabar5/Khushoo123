@@ -385,7 +385,7 @@ struct ProfileView: View {
                     SettingsRow(
                         imageName: "heart.fill",
                         title: "Liked",
-                        value: "\(audioPlayerService.getLikedItems().count) Tracks"
+                        value: "\(audioPlayerService.likedItems.count) Tracks"
                     )
                 }
             }

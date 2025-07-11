@@ -206,7 +206,7 @@ struct HomeView: View {
                 NavigationLink(destination: LikedSurahsView()) {
                     QuickActionCard(
                         title: "Liked",
-                        subtitle: "\(audioPlayerService.getLikedItems().count) tracks",
+                        subtitle: "\(audioPlayerService.likedItems.count) tracks",
                         icon: "heart.fill",
                         color: .red
                     )
@@ -259,10 +259,17 @@ struct HomeView: View {
             )
             
             // Favorite Reciters
-            if !favoritesManager.favoriteReciterIdentifiers.isEmpty {
-                let favoriteReciters = quranAPIService.reciters.filter {
-                    favoritesManager.favoriteReciterIdentifiers.contains($0.identifier)
-                }
+            if !favoritesManager.favoriteReciters.isEmpty {
+                // Sort favorite items by date, then map to full Reciter objects
+                let sortedFavoriteIdentifiers = favoritesManager.favoriteReciters
+                    .sorted { $0.dateAdded > $1.dateAdded }
+                    .map { $0.identifier }
+
+                // Create a dictionary for quick lookups
+                let reciterDict = Dictionary(uniqueKeysWithValues: quranAPIService.reciters.map { ($0.identifier, $0) })
+                
+                // Map the sorted identifiers to reciter objects
+                let favoriteReciters = sortedFavoriteIdentifiers.compactMap { reciterDict[$0] }
                 
                 CategoryRow(
                     title: "Favorite Reciters",
@@ -353,10 +360,8 @@ struct HomeView: View {
         return "Nothing playing"
     }
     
-    private func getLikedSurahsCount() -> Int {
-        // This function is no longer accurate as we count items, not just surah numbers.
-        // It's better to get the count directly from the service.
-        return audioPlayerService.getLikedItems().count
+    private func getLikedCount() -> Int {
+        return audioPlayerService.likedItems.count
     }
     
     private func getRecentSubtitle() -> String {

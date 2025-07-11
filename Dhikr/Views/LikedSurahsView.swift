@@ -17,14 +17,26 @@ struct LikedSurahsView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var quranAPIService: QuranAPIService
     
-    @State private var likedItems: [LikedSurahViewModel] = []
+    @State private var allSurahs: [Surah] = []
+    @State private var allReciters: [Reciter] = []
     @State private var isLoading = true
     
+    var likedSurahViewModels: [LikedSurahViewModel] {
+        // Sort the liked items by date before mapping to view models
+        let sortedLikedItems = audioPlayerService.likedItems.sorted { $0.dateAdded > $1.dateAdded }
+        
+        return sortedLikedItems.compactMap { likedItem -> LikedSurahViewModel? in
+            guard let surah = allSurahs.first(where: { $0.number == likedItem.surahNumber }) else { return nil }
+            guard let reciter = allReciters.first(where: { $0.identifier == likedItem.reciterIdentifier }) else { return nil }
+            return LikedSurahViewModel(surah: surah, reciter: reciter)
+        }
+    }
+
     var body: some View {
         VStack {
             if isLoading {
-                ProgressView("Loading liked tracks...")
-            } else if likedItems.isEmpty {
+                ProgressView("Loading...")
+            } else if likedSurahViewModels.isEmpty {
                 VStack {
                     Image(systemName: "heart.slash")
                         .font(.largeTitle)
@@ -37,7 +49,7 @@ struct LikedSurahsView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                List(likedItems) { item in
+                List(likedSurahViewModels) { item in
                     LikedSurahRow(item: item)
                         .onTapGesture {
                             play(item: item)
@@ -45,35 +57,31 @@ struct LikedSurahsView: View {
                 }
             }
         }
-        .navigationTitle("Liked")
+        .navigationTitle("Liked Tracks")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            loadLikedItems()
+            loadInitialData()
         }
     }
     
-    private func loadLikedItems() {
-        isLoading = true
-        let likedItemsSet = audioPlayerService.getLikedItems()
+    private func loadInitialData() {
+        guard isLoading else { return }
         
         Task {
             do {
-                let allSurahs = try await quranAPIService.fetchSurahs()
-                let allReciters = try await quranAPIService.fetchReciters()
+                async let surahs = quranAPIService.fetchSurahs()
+                async let reciters = quranAPIService.fetchReciters()
                 
-                let viewModels = likedItemsSet.compactMap { likedItem -> LikedSurahViewModel? in
-                    guard let surah = allSurahs.first(where: { $0.number == likedItem.surahNumber }) else { return nil }
-                    guard let reciter = allReciters.first(where: { $0.identifier == likedItem.reciterIdentifier }) else { return nil }
-                    return LikedSurahViewModel(surah: surah, reciter: reciter)
-                }
+                let (fetchedSurahs, fetchedReciters) = try await (surahs, reciters)
                 
-                DispatchQueue.main.async {
-                    self.likedItems = viewModels.sorted(by: { $0.surah.number < $1.surah.number })
+                await MainActor.run {
+                    self.allSurahs = fetchedSurahs
+                    self.allReciters = fetchedReciters
                     self.isLoading = false
                 }
             } catch {
-                print("❌ [LikedSurahsView] Error loading liked items: \(error)")
-                DispatchQueue.main.async {
+                print("❌ [LikedSurahsView] Error loading initial data: \(error)")
+                await MainActor.run {
                     self.isLoading = false
                 }
             }
@@ -108,7 +116,7 @@ struct LikedSurahRow: View {
 struct LikedSurahsView_Previews: PreviewProvider {
     static var previews: some View {
         LikedSurahsView()
-            .environmentObject(AudioPlayerService.shared)
-            .environmentObject(QuranAPIService.shared)
+        .environmentObject(AudioPlayerService.shared)
+        .environmentObject(QuranAPIService.shared)
     }
 } 

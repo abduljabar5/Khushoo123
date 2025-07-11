@@ -36,7 +36,7 @@ struct ReciterDetailView: View {
             KFImage(reciter.artworkURL)
                 .resizable()
                 .placeholder {
-                    Image(systemName: "person.circle.fill")
+            Image(systemName: "person.circle.fill")
                         .font(.system(size: 120))
                         .foregroundColor(.gray)
                 }
@@ -112,9 +112,9 @@ struct ReciterDetailView: View {
                     }
                 } else {
                     // This is an MP3Quran.net reciter, load all surahs.
-                    await MainActor.run {
+                await MainActor.run {
                         self.surahs = allSurahs
-                        self.isLoading = false
+                    self.isLoading = false
                     }
                 }
             } catch {

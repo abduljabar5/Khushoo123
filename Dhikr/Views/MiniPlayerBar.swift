@@ -3,7 +3,6 @@ import SwiftUI
 struct MiniPlayerBar: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @Binding var showingFullScreenPlayer: Bool
-    @GestureState private var dragOffset = CGSize.zero
     
     var body: some View {
         VStack(spacing: 0) {
@@ -11,85 +10,67 @@ struct MiniPlayerBar: View {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Rectangle()
-                        .fill(Color.blue.opacity(0.3))
+                        .fill(Color(UIColor.systemGray4))
                         .frame(height: 2)
                     Rectangle()
-                        .fill(Color.blue)
-                        .frame(width: geometry.size.width * progressPercentage, height: 2)
+                        .fill(Color.accentColor)
+                        .frame(width: geometry.size.width * progressPercentage)
                 }
             }
             .frame(height: 2)
-            // Player bar
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.blue.opacity(0.2))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "book.fill")
-                            .foregroundColor(.blue)
-                            .font(.title3)
-                    )
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(audioPlayerService.currentSurah?.englishName ?? "Surah")
-                        .font(.subheadline)
+            .padding(.top, 0)
+            
+            // Player controls
+            HStack {
+                if let artwork = audioPlayerService.currentArtwork {
+                    Image(uiImage: artwork)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 48, height: 48)
+                        .cornerRadius(4)
+                        .clipped()
+                } else {
+                    Image(systemName: "music.note")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 48, height: 48)
+                        .cornerRadius(4)
+                        .background(Color.gray.opacity(0.3))
+                }
+                
+                VStack(alignment: .leading) {
+                    Text(audioPlayerService.currentSurah?.englishName ?? "Not Playing")
                         .fontWeight(.semibold)
                         .lineLimit(1)
-                    Text(audioPlayerService.currentReciter?.englishName ?? "Reciter")
+                    Text(audioPlayerService.currentReciter?.englishName ?? "")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
+                .padding(.leading, 8)
+                
                 Spacer()
-                HStack(spacing: 16) {
-                    Button(action: {
-                        if audioPlayerService.isPlaying {
-                            audioPlayerService.pause()
-                        } else {
-                            audioPlayerService.play()
-                        }
-                    }) {
-                        ZStack {
-                            if audioPlayerService.isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                                    .scaleEffect(0.8)
-                            } else {
-                                Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.title3)
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                    .disabled(!audioPlayerService.isReadyToPlay)
-                    Button(action: { showingFullScreenPlayer = true }) {
-                        Image(systemName: "chevron.up")
-                            .font(.title3)
-                            .foregroundColor(.secondary)
-                    }
+                
+                Button(action: {
+                    audioPlayerService.togglePlayPause()
+                }) {
+                    Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title)
+                        .frame(width: 44, height: 44)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(.systemBackground))
-            .overlay(
-                Rectangle()
-                    .frame(height: 0.5)
-                    .foregroundColor(Color(.separator)),
-                alignment: .top
-            )
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
-        .gesture(
-            DragGesture(minimumDistance: 20, coordinateSpace: .local)
-                .onEnded { value in
-                    if value.translation.height < -40 {
-                        showingFullScreenPlayer = true
-                    }
-                }
-        )
-        .onTapGesture {
-            showingFullScreenPlayer = true
-        }
+        .frame(height: 70)
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
+        .shadow(radius: 5)
+        .padding(.horizontal, 8) // Reduced padding to make it wider
+        .padding(.bottom, 8)
+        .animation(.spring(), value: audioPlayerService.currentSurah?.id)
     }
+    
     private var progressPercentage: Double {
         guard audioPlayerService.duration > 0 else { return 0 }
         return audioPlayerService.currentTime / audioPlayerService.duration
