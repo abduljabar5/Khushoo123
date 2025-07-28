@@ -142,8 +142,11 @@ class PrayerTimeViewModel: ObservableObject {
     private func startUpdateTimer() {
         updateTimer?.invalidate()
         updatePrayerState() // Run once immediately to set the initial state
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.updatePrayerState()
+        // Reduced frequency for better performance - every 30 seconds instead of every second
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            DispatchQueue.global(qos: .utility).async {
+                self?.updatePrayerState()
+            }
         }
     }
 

@@ -42,6 +42,9 @@ class AudioPlayerService: NSObject, ObservableObject {
     private var shuffledPlaylistIndices: [Int] = []
     private var defaultArtwork: MPMediaItemArtwork?
     private var currentArtworkImage: UIImage?
+    private var isPreloaded = false // Track if audio is just preloaded vs actively playing
+    private var preloadedSurah: Surah?
+    private var preloadedReciter: Reciter?
     
     // MARK: - UserDefaults Keys
     private let lastPlayedSurahKey = "lastPlayedSurah"
@@ -322,11 +325,12 @@ class AudioPlayerService: NSObject, ObservableObject {
         }
     }
     
-    func seek(to time: TimeInterval) {
+    func seek(to time: TimeInterval, completion: ((Bool) -> Void)? = nil) {
         print("🎵 [AudioPlayerService] Seeking to: \(time) seconds")
         
         guard let player = player else {
             print("❌ [AudioPlayerService] No player available for seeking")
+            completion?(false)
             return
         }
         
@@ -339,6 +343,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             } else {
                 print("❌ [AudioPlayerService] Seek failed")
             }
+            completion?(finished)
         }
     }
     
@@ -434,8 +439,19 @@ class AudioPlayerService: NSObject, ObservableObject {
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             self?.currentTime = time.seconds
-            self?.updateNowPlayingInfo()
+            self?.updatePlaybackTime()
         }
+    }
+    
+    // Lightweight method to update only time-sensitive info
+    private func updatePlaybackTime() {
+        guard MPNowPlayingInfoCenter.default().nowPlayingInfo != nil else { return }
+        
+        var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackSpeed : 0.0
+        
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
     
     @objc private func playerDidFinishPlaying(note: NSNotification) {
@@ -719,6 +735,22 @@ class AudioPlayerService: NSObject, ObservableObject {
         // When disabling, we don't need to do anything, it will revert to sequential playback.
     }
     
+    // MARK: - Preload Last Played
+    func preloadLastPlayed() {
+        print("🎵 [AudioPlayerService] Preloading last played audio in background")
+        
+        guard let lastPlayedInfo = getLastPlayedInfo() else {
+            print("❌ [AudioPlayerService] No last played data found for preloading")
+            return
+        }
+        
+        print("🎵 [AudioPlayerService] Preloading: \(lastPlayedInfo.surah.englishName) by \(lastPlayedInfo.reciter.englishName)")
+        
+        Task {
+            await preloadAudio(surah: lastPlayedInfo.surah, reciter: lastPlayedInfo.reciter, startTime: lastPlayedInfo.time)
+        }
+    }
+    
     // MARK: - Continue Last Played
     func continueLastPlayed() -> Bool {
         print("🎵 [AudioPlayerService] Attempting to continue last played")
@@ -728,7 +760,32 @@ class AudioPlayerService: NSObject, ObservableObject {
             return false
         }
         
-        print("🎵 [AudioPlayerService] Found last played: \(lastPlayedInfo.surah.englishName) by \(lastPlayedInfo.reciter.englishName) at \(lastPlayedInfo.time)s")
+        // Check if audio is already preloaded
+        if let surah = preloadedSurah, let reciter = preloadedReciter,
+           surah.id == lastPlayedInfo.surah.id && reciter.id == lastPlayedInfo.reciter.id,
+           isPreloaded && isReadyToPlay {
+            print("✅ [AudioPlayerService] Audio already preloaded, activating and playing immediately")
+            
+            // Now expose the preloaded audio to the UI
+            currentSurah = surah
+            currentReciter = reciter
+            isPreloaded = false
+            
+            // Log to recents manager now that user is actually playing
+            RecentsManager.shared.addTrack(surah: surah, reciter: reciter)
+            
+            seek(to: lastPlayedInfo.time) { [weak self] completed in
+                if completed {
+                    self?.play()
+                } else {
+                    print("⚠️ [AudioPlayerService] Seek failed, playing from current position")
+                    self?.play()
+                }
+            }
+            return true
+        }
+        
+        print("🎵 [AudioPlayerService] Audio not preloaded, loading: \(lastPlayedInfo.surah.englishName) by \(lastPlayedInfo.reciter.englishName) at \(lastPlayedInfo.time)s")
         
         Task {
             await loadAndPlay(surah: lastPlayedInfo.surah, reciter: lastPlayedInfo.reciter, startTime: lastPlayedInfo.time)
@@ -866,6 +923,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         await MainActor.run {
             self.currentSurah = surah
             self.currentReciter = reciter
+            // Clear preloaded state since we're now actively playing
+            self.isPreloaded = false
+            self.preloadedSurah = nil
+            self.preloadedReciter = nil
         }
         
         // Log the track to the recents manager
@@ -896,10 +957,19 @@ class AudioPlayerService: NSObject, ObservableObject {
                     
                     if let time = startTime {
                         print("🎵 [AudioPlayerService] Seeking to last played time: \(time)s")
-                        self.seek(to: time)
+                        self.seek(to: time) { [weak self] completed in
+                            if completed {
+                                print("✅ [AudioPlayerService] Seek completed, starting playback")
+                                self?.play()
+                            } else {
+                                print("⚠️ [AudioPlayerService] Seek failed, starting from beginning")
+                                self?.play()
+                            }
+                        }
+                    } else {
+                        self.play() // Start playing immediately if no seek needed
                     }
                     
-                    self.play() // Start playing automatically when ready
                     print("✅ [AudioPlayerService] Player item is ready to play.")
                 } else if item.status == .failed {
                     print("❌ [AudioPlayerService] Player item failed to load.")
@@ -927,6 +997,110 @@ class AudioPlayerService: NSObject, ObservableObject {
             
         } catch {
             let errorDescription = "Error loading audio: \(error.localizedDescription)"
+            print("❌ [AudioPlayerService] \(errorDescription)")
+            await MainActor.run {
+                self.errorMessage = errorDescription
+            }
+        }
+        
+        await MainActor.run {
+            self.isLoading = false
+        }
+    }
+    
+    // MARK: - Preload Audio (without playing)
+    private func preloadAudio(surah: Surah, reciter: Reciter, startTime: TimeInterval? = nil) async {
+        print("🎵 [AudioPlayerService] Preloading audio: \(surah.englishName) by \(reciter.englishName)")
+        
+        await MainActor.run {
+            self.isLoading = true
+            self.errorMessage = nil
+            self.isReadyToPlay = false
+        }
+        
+        // If the reciter has changed, we need to build a new playlist.
+        if reciter.id != self.currentReciter?.id {
+            await buildPlaylist(for: reciter)
+        }
+        
+        // Now that the playlist is built, find the index for the requested surah.
+        if let index = currentPlaylist.firstIndex(where: { $0.id == surah.id }) {
+             await MainActor.run {
+                self.currentSurahIndex = index
+            }
+        } else {
+             await MainActor.run {
+                print("⚠️ [AudioPlayerService] Requested surah not found in the new playlist. Defaulting to first track.")
+                self.currentSurahIndex = 0
+                         }
+        }
+
+        // Store preloaded items privately (don't expose to UI yet)
+        await MainActor.run {
+            self.preloadedSurah = surah
+            self.preloadedReciter = reciter
+            self.isPreloaded = true
+        }
+        
+        // Don't log to recents manager yet - only when user actually plays
+        
+        do {
+            let audioURLString = try await QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
+            guard let audioURL = URL(string: audioURLString) else {
+                throw QuranAPIError.invalidURL
+            }
+            
+            print("🔄 [AudioPlayerService] Preloading from URL: \(audioURL.absoluteString)")
+            
+            let playerItem = AVPlayerItem(url: audioURL)
+            
+            // Add observer for playback end
+            NotificationCenter.default.addObserver(self,
+                                               selector: #selector(playerDidFinishPlaying(note:)),
+                                               name: .AVPlayerItemDidPlayToEndTime,
+                                               object: playerItem)
+            
+            // Observe when the item is ready to play (but don't start playing)
+            let anObserver = playerItem.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
+                guard let self = self else { return }
+                if item.status == .readyToPlay {
+                    self.isReadyToPlay = true
+                    self.duration = item.duration.seconds
+                    
+                    if let time = startTime {
+                        print("🎵 [AudioPlayerService] Preloading: seeking to saved position: \(time)s")
+                        self.seek(to: time) { completed in
+                            if completed {
+                                print("✅ [AudioPlayerService] Preload seek completed, ready for instant play")
+                            } else {
+                                print("⚠️ [AudioPlayerService] Preload seek failed")
+                            }
+                        }
+                    }
+                    
+                    print("✅ [AudioPlayerService] Audio preloaded and ready for instant playback")
+                } else if item.status == .failed {
+                    print("❌ [AudioPlayerService] Failed to preload audio")
+                    self.errorMessage = "Failed to preload audio."
+                }
+            }
+
+            await MainActor.run {
+                if self.player == nil {
+                    self.player = AVPlayer()
+                    self.setupTimeObserver()
+                }
+                self.player?.replaceCurrentItem(with: playerItem)
+                // Don't set the rate or play - just preload
+                
+                // Keep the observer reference
+                objc_setAssociatedObject(self.player as Any, "playerItemObserver", anObserver, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+
+                // Don't update now playing info for preloaded audio - no current track to show
+            }
+            
+        } catch {
+            let errorDescription = "Error preloading audio: \(error.localizedDescription)"
             print("❌ [AudioPlayerService] \(errorDescription)")
             await MainActor.run {
                 self.errorMessage = errorDescription

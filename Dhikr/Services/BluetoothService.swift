@@ -73,9 +73,11 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     // MARK: - Throttling Logic
     private func startUpdateTimer() {
         stopUpdateTimer() // Invalidate any existing timer
-        // Schedule a new timer that fires 4 times a second (every 250ms)
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            self?.processRingCount()
+        // Reduced frequency to improve performance - once per second instead of 4 times
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            DispatchQueue.global(qos: .background).async {
+                self?.processRingCount()
+            }
         }
         print("⏱️ Throttling timer started.")
     }
@@ -87,7 +89,7 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
     
     @objc private func processRingCount() {
-        // This runs on the main thread because Timer schedules on the current RunLoop (main).
+        // This now runs on background thread for better performance
         guard ringCount != lastProcessedCount else { return }
 
         let newCount = ringCount
@@ -127,9 +129,11 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             }
         }
 
-        // Update the published count and the last processed count
-        dhikrCount = newCount
-        lastProcessedCount = newCount
+        // Update the published count and the last processed count on main thread
+        DispatchQueue.main.async {
+            self.dhikrCount = newCount
+            self.lastProcessedCount = newCount
+        }
     }
 
     // MARK: - Helper Methods

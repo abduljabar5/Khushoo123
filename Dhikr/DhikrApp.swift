@@ -13,7 +13,6 @@ struct DhikrApp: App {
     @StateObject private var locationService = LocationService()
     
     init() {
-        audioPlayerService.activate()
         // Request permission as soon as the app is initialized
         locationService.requestLocationPermission()
     }
@@ -31,9 +30,22 @@ struct DhikrApp: App {
                 .environmentObject(locationService)
                 .preferredColorScheme(.dark)
                 .onAppear {
-                    bluetoothService.startScanning()
+                    // Prioritize audio service for immediate UI responsiveness
                     audioPlayerService.activate()
-                    prayerTimeViewModel.start() // Pre-fetch prayer times
+                    
+                    // Preload last played audio in background for instant continue
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        audioPlayerService.preloadLastPlayed()
+                    }
+                    
+                    // Delay heavy operations to not block initial UI
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        prayerTimeViewModel.start() // Pre-fetch prayer times
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        bluetoothService.startScanning()
+                    }
                 }
                 .onChange(of: scenePhase) { newPhase in
                     if newPhase == .background {

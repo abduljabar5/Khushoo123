@@ -74,7 +74,6 @@ struct ReciterDirectoryView: View {
                         }
                     }
                 }
-                .padding(.bottom, audioPlayerService.currentSurah != nil ? 60 : 0) // Padding for the mini-player
                 .background(Color.black.edgesIgnoringSafeArea(.all))
                 .onAppear(perform: loadData)
                 .onChange(of: searchText, perform: applyFilters)

@@ -53,7 +53,7 @@ class BackTapService: ObservableObject {
     private init() {
         print("🔧 [BackTapService] Initializing...")
         checkBackTapAvailability()
-        setupMotionDetection()
+        // Don't start motion detection immediately - wait for user to enable
         loadConfiguration()
         print("🔧 [BackTapService] Initialization complete")
         print("🔧 [BackTapService] Debug logging: \(debugLoggingEnabled)")
