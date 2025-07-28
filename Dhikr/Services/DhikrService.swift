@@ -14,6 +14,15 @@ extension Notification.Name {
     static let dhikrCountUpdated = Notification.Name("dhikrCountUpdated")
 }
 
+
+
+// MARK: - Dhikr Goals Model
+struct DhikrGoals: Codable {
+    var subhanAllah: Int = 33
+    var alhamdulillah: Int = 33
+    var astaghfirullah: Int = 33
+}
+
 // MARK: - Dhikr Service
 class DhikrService: ObservableObject {
     // MARK: - Properties
@@ -24,12 +33,18 @@ class DhikrService: ObservableObject {
         }
     }
     @Published var streak: Int = 0
+    @Published var goal: DhikrGoals {
+        didSet {
+            saveGoals()
+        }
+    }
     
     // MARK: - UserDefaults Keys
     private let dhikrCountKey = "dhikrCount"
     private let streakKey = "streak"
     private let lastStreakDateKey = "lastStreakDate"
     private let dailyStatsKey = "dailyStats"
+    private let goalsKey = "dhikrGoals"
     
     // MARK: - UserDefaults
     private let userDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")!
@@ -41,6 +56,7 @@ class DhikrService: ObservableObject {
     private init() {
         self.dhikrCount = DhikrService.loadDhikrCount(from: userDefaults)
         self.streak = userDefaults.integer(forKey: streakKey)
+        self.goal = DhikrService.loadGoals(from: userDefaults)
         checkStreakOnLaunch()
     }
     
@@ -241,6 +257,44 @@ class DhikrService: ObservableObject {
             self?.startStreakTimer()
         }
     }
+    
+    // MARK: - Goals Management
+    private func saveGoals() {
+        do {
+            let data = try JSONEncoder().encode(goal)
+            userDefaults.set(data, forKey: goalsKey)
+        } catch {
+            print("❌ [DhikrService] Error saving goals: \(error)")
+        }
+    }
+    
+    private static func loadGoals(from userDefaults: UserDefaults) -> DhikrGoals {
+        guard let data = userDefaults.data(forKey: "dhikrGoals") else {
+            return DhikrGoals() // Default goals
+        }
+        
+        do {
+            return try JSONDecoder().decode(DhikrGoals.self, from: data)
+        } catch {
+            print("❌ [DhikrService] Error loading goals: \(error)")
+            return DhikrGoals() // Default goals
+        }
+    }
+    
+    // MARK: - History Management
+    func getAllDhikrStats() -> [DailyDhikrStats] {
+        guard let data = userDefaults.data(forKey: dailyStatsKey) else {
+            return []
+        }
+        
+        do {
+            let stats = try JSONDecoder().decode([DailyDhikrStats].self, from: data)
+            return stats.sorted { $0.date > $1.date } // Most recent first
+        } catch {
+            print("❌ [DhikrService] Error loading dhikr stats: \(error)")
+            return []
+        }
+    }
 }
 
 // MARK: - Supporting Models
@@ -271,6 +325,12 @@ struct DailyDhikrStats: Codable {
     var dayName: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE"
+        return formatter.string(from: date)
+    }
+    
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
         return formatter.string(from: date)
     }
     
