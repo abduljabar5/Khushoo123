@@ -26,6 +26,10 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var isShuffleEnabled: Bool = false
     @Published var totalListeningTime: TimeInterval = 0
     @Published var completedSurahNumbers: Set<Int> = []
+    
+    // Track listening time during playback
+    private var lastRecordedTime: TimeInterval = 0
+    private var sessionStartTime: TimeInterval = 0
     @Published var isAutoplayEnabled: Bool = true
     @Published var currentArtwork: UIImage?
     @Published var sleepTimeRemaining: TimeInterval?
@@ -85,6 +89,13 @@ class AudioPlayerService: NSObject, ObservableObject {
         } else {
             self.likedItems = []
         }
+        
+        // Load listening statistics
+        self.totalListeningTime = UserDefaults.standard.double(forKey: "totalListeningTime")
+        if let completedArray = UserDefaults.standard.array(forKey: "completedSurahNumbers") as? [Int] {
+            self.completedSurahNumbers = Set(completedArray)
+        }
+        print("🎵 [AudioPlayerService] Loaded listening stats: \(Int(totalListeningTime))s total, \(completedSurahNumbers.count) completed surahs")
     }
     
     // MARK: - Activation
@@ -301,6 +312,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         print("🎵 [AudioPlayerService] Audio session active: \(isAudioSessionActive)")
         player.play()
         isPlaying = true
+        lastRecordedTime = currentTime // Reset tracking when playback starts
         updateNowPlayingInfo()
         print("✅ [AudioPlayerService] Playback started")
         }
@@ -440,6 +452,19 @@ class AudioPlayerService: NSObject, ObservableObject {
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             self?.currentTime = time.seconds
             self?.updatePlaybackTime()
+            
+            // Track listening time during playback
+            if let self = self, self.isPlaying {
+                let currentPlaybackTime = time.seconds
+                if self.lastRecordedTime > 0 {
+                    let timeDifference = currentPlaybackTime - self.lastRecordedTime
+                    // Only add time if it's a reasonable increment (0.3 to 1.0 seconds)
+                    if timeDifference > 0.3 && timeDifference < 1.0 {
+                        self.addListeningTime(timeDifference)
+                    }
+                }
+                self.lastRecordedTime = currentPlaybackTime
+            }
         }
     }
     
@@ -861,18 +886,28 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Listening Stats
     func markSurahCompleted(_ surah: Surah) {
         completedSurahNumbers.insert(surah.number)
+        // Persist the completed surahs
+        let completedArray = Array(completedSurahNumbers)
+        UserDefaults.standard.set(completedArray, forKey: "completedSurahNumbers")
     }
     
     func addListeningTime(_ seconds: TimeInterval) {
         totalListeningTime += seconds
+        // Persist the total listening time
+        UserDefaults.standard.set(totalListeningTime, forKey: "totalListeningTime")
     }
     
     func getTotalListeningTimeString() -> String {
+        if totalListeningTime <= 0 {
+            return "0s"
+        }
+        
         let hours = Int(totalListeningTime) / 3600
         let minutes = (Int(totalListeningTime) % 3600) / 60
         let seconds = Int(totalListeningTime) % 60
+        
         if hours > 0 {
-            return String(format: "%dh %dm %ds", hours, minutes, seconds)
+            return String(format: "%dh %dm", hours, minutes)
         } else if minutes > 0 {
             return String(format: "%dm %ds", minutes, seconds)
         } else {

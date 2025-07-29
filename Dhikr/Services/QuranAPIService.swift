@@ -22,9 +22,114 @@ class QuranAPIService: ObservableObject {
     static let shared = QuranAPIService()
     
     @Published var reciters: [Reciter] = []
+    @Published var isLoadingReciters = false
     private var allReciters: [Reciter] = []
+    private var hasLoadedReciters = false
     
-    private init() {}
+    private init() {
+        // Preload reciters on service initialization
+        Task {
+            await preloadReciters()
+        }
+    }
+    
+    // MARK: - Preload Reciters (Called once on app launch)
+    @MainActor
+    func preloadReciters() async {
+        guard !hasLoadedReciters && !isLoadingReciters else { return }
+        
+        isLoadingReciters = true
+        print("🚀 [QuranAPIService] Preloading reciters globally...")
+        
+        do {
+            let loadedReciters = try await fetchRecitersInternal()
+            self.allReciters = loadedReciters
+            self.reciters = loadedReciters
+            self.hasLoadedReciters = true
+            print("✅ [QuranAPIService] Global reciters preloaded: \(loadedReciters.count)")
+        } catch {
+            print("❌ [QuranAPIService] Failed to preload reciters: \(error)")
+        }
+        
+        isLoadingReciters = false
+    }
+    
+    // MARK: - Public API (Returns cached data instantly)
+    func fetchReciters() async throws -> [Reciter] {
+        // If already loaded, return immediately
+        if hasLoadedReciters && !allReciters.isEmpty {
+            print("✅ [QuranAPIService] Returning cached reciters (\(allReciters.count))")
+            return allReciters
+        }
+        
+        // If currently loading, wait for it to complete
+        if isLoadingReciters {
+            print("⏳ [QuranAPIService] Waiting for preloading to complete...")
+            // Wait for the loading to complete by polling the state
+            while isLoadingReciters {
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            }
+            
+            if hasLoadedReciters && !allReciters.isEmpty {
+                print("✅ [QuranAPIService] Preloading completed, returning reciters (\(allReciters.count))")
+                return allReciters
+            } else {
+                print("❌ [QuranAPIService] Preloading failed")
+                throw QuranAPIError.networkError
+            }
+        }
+        
+        // Otherwise, load now
+        print("🔄 [QuranAPIService] Starting fresh load...")
+        await preloadReciters()
+        if allReciters.isEmpty {
+            throw QuranAPIError.networkError
+        }
+        return allReciters
+    }
+    
+    // MARK: - Internal fetch method (does the actual work)
+    private func fetchRecitersInternal() async throws -> [Reciter] {
+        print("🔍 [QuranAPIService] Fetching reciters from all sources...")
+
+        var mp3quranReciters: [Reciter] = []
+        var quranCentralReciters: [Reciter] = []
+        
+        // Try to fetch from MP3Quran
+        do {
+            mp3quranReciters = try await fetchMP3QuranReciters()
+            print("✅ [QuranAPIService] Fetched \(mp3quranReciters.count) reciters from MP3Quran.net")
+        } catch {
+            print("⚠️ [QuranAPIService] Failed to fetch from MP3Quran: \(error)")
+        }
+        
+        // Try to fetch from QuranCentral
+        do {
+            quranCentralReciters = try await QuranCentralService.shared.fetchAllReciters()
+            print("✅ [QuranAPIService] Fetched \(quranCentralReciters.count) reciters from Quran Central")
+        } catch {
+            print("⚠️ [QuranAPIService] Failed to fetch from Quran Central: \(error)")
+        }
+        
+        // If both services failed, throw an error
+        if mp3quranReciters.isEmpty && quranCentralReciters.isEmpty {
+            print("❌ [QuranAPIService] All services failed to fetch reciters")
+            throw QuranAPIError.networkError
+        }
+
+        // De-duplication logic: Prioritize Quran Central reciters.
+        var uniqueReciters = quranCentralReciters
+        let quranCentralNames = Set(quranCentralReciters.map { $0.englishName.lowercased() })
+        
+        for mp3Reciter in mp3quranReciters {
+            if !quranCentralNames.contains(mp3Reciter.englishName.lowercased()) {
+                uniqueReciters.append(mp3Reciter)
+            }
+        }
+        
+        print("✅ [QuranAPIService] Combined unique reciters: \(uniqueReciters.count)")
+        return uniqueReciters
+    }
     
     // MARK: - API Base URLs
     private let mp3QuranBaseURL = "https://www.mp3quran.net/api/v3"
@@ -150,67 +255,6 @@ class QuranAPIService: ObservableObject {
     // Public accessor for the hardcoded surahs
     func getHardcodedSurahs() -> [Surah] {
         return hardcodedSurahs
-    }
-    
-    // MARK: - Fetch Reciters from MP3Quran API
-    func fetchReciters() async throws -> [Reciter] {
-        // If we have already fetched the reciters, return the cached version.
-        if !allReciters.isEmpty {
-            print("✅ [QuranAPIService] Returning cached reciters.")
-            return allReciters
-        }
-
-        print("🔍 [QuranAPIService] Fetching reciters from all sources...")
-
-        var mp3quranReciters: [Reciter] = []
-        var quranCentralReciters: [Reciter] = []
-        
-        // Try to fetch from MP3Quran
-        do {
-            mp3quranReciters = try await fetchMP3QuranReciters()
-            print("✅ [QuranAPIService] Fetched \(mp3quranReciters.count) reciters from MP3Quran.net")
-        } catch {
-            print("⚠️ [QuranAPIService] Failed to fetch from MP3Quran: \(error)")
-        }
-        
-        // Try to fetch from QuranCentral
-        do {
-            quranCentralReciters = try await QuranCentralService.shared.fetchAllReciters()
-            print("✅ [QuranAPIService] Fetched \(quranCentralReciters.count) reciters from Quran Central")
-        } catch {
-            print("⚠️ [QuranAPIService] Failed to fetch from Quran Central: \(error)")
-        }
-        
-        // If both services failed, throw an error
-        if mp3quranReciters.isEmpty && quranCentralReciters.isEmpty {
-            print("❌ [QuranAPIService] All services failed to fetch reciters")
-            throw QuranAPIError.networkError
-        }
-
-        // De-duplication logic: Prioritize Quran Central reciters.
-        // Only add reciters from MP3Quran if a reciter with a similar name doesn't already exist in the Quran Central list.
-        var uniqueReciters = quranCentralReciters
-        let quranCentralNames = Set(quranCentralReciters.map { $0.englishName.lowercased() })
-        
-        for mp3Reciter in mp3quranReciters {
-            if !quranCentralNames.contains(mp3Reciter.englishName.lowercased()) {
-                uniqueReciters.append(mp3Reciter)
-            }
-        }
-        
-        print("✅ [QuranAPIService] Combined and de-duplicated lists. Total unique reciters: \(uniqueReciters.count)")
-        
-        let sortedReciters = uniqueReciters.sorted { $0.englishName < $1.englishName }
-        
-        // Cache the reciters
-        self.allReciters = sortedReciters
-        
-        // Publish the change
-        await MainActor.run {
-            self.reciters = sortedReciters
-        }
-        
-        return sortedReciters
     }
 
     private func fetchMP3QuranReciters() async throws -> [Reciter] {

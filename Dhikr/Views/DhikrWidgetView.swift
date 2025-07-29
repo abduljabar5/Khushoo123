@@ -31,11 +31,17 @@ struct DhikrWidgetView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 80)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Dhikr Tracker")
             .navigationBarTitleDisplayMode(.large)
             .background(Color(.systemBackground))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // Dismiss keyboard when tapping outside text fields
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
             .sheet(isPresented: $showingStats) {
-                DhikrStatsView()
+                DhikrHistoryView()
             }
         }
     }
@@ -95,12 +101,15 @@ struct DhikrWidgetView: View {
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 16) {
                 ForEach(DhikrType.allCases, id: \.self) { dhikrType in
+                    VStack(spacing: 8) {
                     DhikrInputField(
                         type: dhikrType,
                         count: getCount(for: dhikrType),
                         isActive: bluetoothService.isConnected && bluetoothService.activeDhikrType == dhikrType
                     ) { newCount in
                         dhikrService.setDhikrCount(dhikrType, count: newCount)
+                        }
+                        GoalProgressView(dhikrType: dhikrType, dhikrService: dhikrService)
                     }
                 }
             }
@@ -171,6 +180,55 @@ struct DhikrWidgetView: View {
     }
 }
 
+// MARK: - Goal Progress View
+struct GoalProgressView: View {
+    let dhikrType: DhikrType
+    @ObservedObject var dhikrService: DhikrService
+
+    private var progress: Double {
+        let count = Double(currentCount)
+        let goal = Double(currentGoal)
+        return goal > 0 ? min(count / goal, 1.0) : 0
+    }
+
+    private var currentCount: Int {
+        let stats = dhikrService.getTodayStats()
+        switch dhikrType {
+        case .subhanAllah: return stats.subhanAllah
+        case .alhamdulillah: return stats.alhamdulillah
+        case .astaghfirullah: return stats.astaghfirullah
+        }
+    }
+
+    private var currentGoal: Int {
+        switch dhikrType {
+        case .subhanAllah: return dhikrService.goal.subhanAllah
+        case .alhamdulillah: return dhikrService.goal.alhamdulillah
+        case .astaghfirullah: return dhikrService.goal.astaghfirullah
+        }
+    }
+    
+    private var color: Color {
+        switch dhikrType {
+        case .subhanAllah: return .blue
+        case .alhamdulillah: return .green
+        case .astaghfirullah: return .purple
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ProgressView(value: progress)
+                .progressViewStyle(LinearProgressViewStyle(tint: color))
+            Text("\(currentCount) / \(currentGoal)")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 8)
+    }
+}
+
+
 // MARK: - Dhikr Input Field
 struct DhikrInputField: View {
     let type: DhikrType
@@ -204,6 +262,16 @@ struct DhikrInputField: View {
                         .keyboardType(.numberPad)
                         .focused($isFocused)
                         .frame(width: 70)
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("Done") {
+                                    isFocused = false
+                                    commitEdit()
+                                }
+                                .fontWeight(.bold)
+                            }
+                        }
                         .onAppear { 
                             editText = "\(count)"
                             // Small delay to avoid conflicting with system keyboard management
@@ -213,14 +281,6 @@ struct DhikrInputField: View {
                         }
                         .onSubmit { commitEdit() }
                         .onChange(of: isFocused) { focused in if !focused { commitEdit() } }
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("Done") {
-                                    isFocused = false
-                                }
-                            }
-                        }
                 } else {
                     Text("\(count)")
                         .font(.title3.bold())
@@ -272,12 +332,11 @@ struct DhikrInputField: View {
 // MARK: - Weekly Progress Chart
 struct WeeklyProgressChart: View {
     let stats: [DailyDhikrStats]
+    @State private var selectedStat: DailyDhikrStats?
     
     private let dayOrder = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     
     var symmetricalStats: [DailyDhikrStats] {
-        // Map stats to day name for lookup
-        var statsByDay = Dictionary(uniqueKeysWithValues: stats.map { ($0.dayName, $0) })
         let calendar = Calendar.current
         let today = Date()
         // Find the most recent Sunday
@@ -287,7 +346,6 @@ struct WeeklyProgressChart: View {
         // Build 7 days starting from Sunday
         return (0..<7).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: lastSunday) ?? today
-            let dayName = dayOrder[offset]
             if let stat = stats.first(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
                 return stat
             } else {
@@ -300,15 +358,25 @@ struct WeeklyProgressChart: View {
         let displayStats = symmetricalStats
         let maxTotal = max(displayStats.map { $0.total }.max() ?? 1, 1)
         let minBarHeight: CGFloat = 8
-        let maxBarHeight: CGFloat = 120 // Use more vertical space
+        let maxBarHeight: CGFloat = 120
+
+        VStack(spacing: 16) {
+            // Header for selected day
+            selectedDayHeader
+                .padding(.horizontal, 8)
+
         GeometryReader { geometry in
-            VStack(spacing: 12) {
                 HStack(alignment: .bottom, spacing: 0) {
                     ForEach(Array(displayStats.enumerated()), id: \.offset) { idx, stat in
+                        Button(action: {
+                            withAnimation(.spring()) {
+                                selectedStat = stat
+                            }
+                        }) {
                         VStack(spacing: 6) {
                             // Bar
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(stat.isToday ? Color.green : Color.gray.opacity(0.3))
+                                    .fill(barColor(for: stat))
                                 .frame(
                                     height: stat.total == 0 ? minBarHeight : max(minBarHeight, maxBarHeight * CGFloat(stat.total) / CGFloat(maxTotal))
                                 )
@@ -317,19 +385,99 @@ struct WeeklyProgressChart: View {
                             Text(dayOrder[idx])
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
+                                    .fontWeight(selectedStat?.dayName == stat.dayName ? .bold : .regular)
+                            }
                         }
+                        .buttonStyle(PlainButtonStyle()) // Use plain style to avoid default button appearance
                         .frame(width: geometry.size.width / 7)
                     }
                 }
                 .frame(height: maxBarHeight + 24)
+            }
+            .frame(height: maxBarHeight + 24)
+
+            // Total this week
                 Text("Total: \(displayStats.reduce(0) { $0 + $1.total }) this week")
                     .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 16)
+        .onAppear {
+            // Pre-select today's stats on appear
+            if selectedStat == nil {
+                selectedStat = symmetricalStats.first(where: { $0.isToday })
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var selectedDayHeader: some View {
+        if let stat = selectedStat {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(stat.isToday ? "Today's Dhikr" : stat.formattedDate)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                if stat.total > 0 {
+                    HStack(spacing: 16) {
+                        DhikrCountPill(type: .subhanAllah, count: stat.subhanAllah)
+                        DhikrCountPill(type: .alhamdulillah, count: stat.alhamdulillah)
+                        DhikrCountPill(type: .astaghfirullah, count: stat.astaghfirullah)
+                        Spacer()
+                    }
+                } else {
+                    Text("No dhikr recorded for this day.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(height: 50) // Give a fixed height to prevent layout jumps
+        } else {
+            // Placeholder to prevent layout shift
+            VStack {
+                Text("Select a day to see details")
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
-            .frame(width: geometry.size.width)
+            .frame(height: 50)
         }
-        .frame(height: 160)
-        .padding(.bottom, 32) // Use more space at the bottom
+    }
+
+    private func barColor(for stat: DailyDhikrStats) -> Color {
+        if selectedStat?.dayName == stat.dayName {
+            return .green
+        } else if stat.isToday {
+            return .green.opacity(0.6)
+        } else {
+            return .gray.opacity(0.3)
+        }
+    }
+}
+
+// Pill view for displaying individual Dhikr counts
+struct DhikrCountPill: View {
+    let type: DhikrType
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(type.rawValue.prefix(1))
+            Text("\(count)")
+        }
+        .font(.caption.bold())
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(getColor(for: type).opacity(0.2))
+        .foregroundColor(getColor(for: type))
+        .cornerRadius(20)
+    }
+
+    private func getColor(for type: DhikrType) -> Color {
+        switch type {
+        case .subhanAllah: return .blue
+        case .alhamdulillah: return .green
+        case .astaghfirullah: return .purple
+        }
     }
 }
 

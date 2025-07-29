@@ -288,32 +288,27 @@ struct HomeView: View {
     // MARK: - Data Loading
     private func loadData() {
         print("🏠 [HomeView] Starting data loading...")
+        
+        // Check if reciters are already available from the service
+        if !quranAPIService.reciters.isEmpty {
+            print("🏠 [HomeView] Using already loaded reciters from service: \(quranAPIService.reciters.count)")
+            processReciters(quranAPIService.reciters)
+            return
+        }
+        
+        // Check if service is currently loading
+        if quranAPIService.isLoadingReciters {
+            print("🏠 [HomeView] Service is loading, waiting...")
+        }
+        
         Task {
             do {
                 print("🏠 [HomeView] Fetching reciters...")
                 let reciters = try await quranAPIService.fetchReciters()
                 print("🏠 [HomeView] Successfully fetched \(reciters.count) reciters")
                 
-                // Use Quran Central reciters for the curated lists if possible
-                let quranCentralReciters = reciters.filter { $0.identifier.hasPrefix("qurancentral_") }
-                
                 await MainActor.run {
-                    self.popularReciters = Array(quranCentralReciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-                    self.soothingReciters = Array(quranCentralReciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
-                    
-                    // Fallback to any reciter if the curated list is empty
-                    if self.popularReciters.isEmpty {
-                        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-                    }
-                    if self.soothingReciters.isEmpty {
-                        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
-                    }
-                    
-                    // Assign a featured reciter from the popular list
-                    self.featuredReciter = self.popularReciters.randomElement() ?? reciters.randomElement()
-                    
-                    self.isLoading = false
-                    print("✅ [HomeView] Data loaded and UI updated.")
+                    processReciters(reciters)
                 }
             } catch {
                 print("❌ [HomeView] Failed to load data: \(error)")
@@ -322,6 +317,30 @@ struct HomeView: View {
                 }
             }
         }
+    }
+    
+    private func processReciters(_ reciters: [Reciter]) {
+        print("🏠 [HomeView] Processing \(reciters.count) reciters...")
+        
+        // Use Quran Central reciters for the curated lists if possible
+        let quranCentralReciters = reciters.filter { $0.identifier.hasPrefix("qurancentral_") }
+        
+        self.popularReciters = Array(quranCentralReciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+        self.soothingReciters = Array(quranCentralReciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+        
+        // Fallback to any reciter if the curated list is empty
+        if self.popularReciters.isEmpty {
+            self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+        }
+        if self.soothingReciters.isEmpty {
+            self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+        }
+        
+        // Assign a featured reciter from the popular list
+        self.featuredReciter = self.popularReciters.randomElement() ?? reciters.randomElement()
+        
+        self.isLoading = false
+        print("✅ [HomeView] Data loaded and UI updated. Popular: \(popularReciters.count), Soothing: \(soothingReciters.count), Featured: \(featuredReciter?.englishName ?? "none")")
     }
     
     private func playRandomSurah(for reciter: Reciter) async {

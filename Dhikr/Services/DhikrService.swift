@@ -32,7 +32,45 @@ class DhikrService: ObservableObject {
             updateTodayStats()
         }
     }
-    @Published var streak: Int = 0
+    
+    // MARK: - Performance Optimization: Batched UserDefaults Operations
+    private var pendingUpdates: [String: Any] = [:]
+    private var updateTimer: Timer?
+    
+    private func batchUserDefaultsUpdate(key: String, value: Any) {
+        pendingUpdates[key] = value
+        
+        // Debounce updates - write after 0.5 seconds of inactivity
+        updateTimer?.invalidate()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            self?.flushPendingUpdates()
+        }
+    }
+    
+    private func flushPendingUpdates() {
+        guard !pendingUpdates.isEmpty else { return }
+        
+        // Batch write all pending updates
+        for (key, value) in pendingUpdates {
+            userDefaults.set(value, forKey: key)
+        }
+        
+        pendingUpdates.removeAll()
+        print("📦 [DhikrService] Flushed \(pendingUpdates.count) batched UserDefaults updates")
+    }
+    
+    // Override streak setter to use batched updates
+    @Published var streak: Int = 0 {
+        didSet {
+            // Update highest streak when current streak changes
+            if streak > highestStreak {
+                highestStreak = streak
+                batchUserDefaultsUpdate(key: highestStreakKey, value: highestStreak)
+            }
+            batchUserDefaultsUpdate(key: streakKey, value: streak)
+        }
+    }
+    @Published var highestStreak: Int = 0
     @Published var goal: DhikrGoals {
         didSet {
             saveGoals()
@@ -42,6 +80,7 @@ class DhikrService: ObservableObject {
     // MARK: - UserDefaults Keys
     private let dhikrCountKey = "dhikrCount"
     private let streakKey = "streak"
+    private let highestStreakKey = "highestStreak"
     private let lastStreakDateKey = "lastStreakDate"
     private let dailyStatsKey = "dailyStats"
     private let goalsKey = "dhikrGoals"
@@ -56,6 +95,7 @@ class DhikrService: ObservableObject {
     private init() {
         self.dhikrCount = DhikrService.loadDhikrCount(from: userDefaults)
         self.streak = userDefaults.integer(forKey: streakKey)
+        self.highestStreak = userDefaults.integer(forKey: highestStreakKey)
         self.goal = DhikrService.loadGoals(from: userDefaults)
         checkStreakOnLaunch()
     }
@@ -121,6 +161,30 @@ class DhikrService: ObservableObject {
     
     func getMotivationalMessage() -> String {
         return dhikrCount.motivationalMessage
+    }
+    
+    // MARK: - Streak Information
+    func getHighestStreakInfo() -> (highest: Int, current: Int, isCurrentBest: Bool, achievement: String) {
+        let isCurrentBest = streak == highestStreak && streak > 0
+        
+        let achievement: String
+        if highestStreak == 0 {
+            achievement = "Start your dhikr journey!"
+        } else if isCurrentBest {
+            achievement = "🎉 You're at your best streak!"
+        } else if streak == 0 {
+            achievement = "Keep going to beat your record!"
+        } else {
+            let difference = highestStreak - streak
+            achievement = "\(difference) days to beat your record!"
+        }
+        
+        return (
+            highest: highestStreak,
+            current: streak,
+            isCurrentBest: isCurrentBest,
+            achievement: achievement
+        )
     }
     
     // MARK: - Private Methods
@@ -283,17 +347,9 @@ class DhikrService: ObservableObject {
     
     // MARK: - History Management
     func getAllDhikrStats() -> [DailyDhikrStats] {
-        guard let data = userDefaults.data(forKey: dailyStatsKey) else {
-            return []
-        }
-        
-        do {
-            let stats = try JSONDecoder().decode([DailyDhikrStats].self, from: data)
-            return stats.sorted { $0.date > $1.date } // Most recent first
-        } catch {
-            print("❌ [DhikrService] Error loading dhikr stats: \(error)")
-            return []
-        }
+        let statsDict = loadDailyStats()
+        let stats = Array(statsDict.values)
+        return stats.sorted { $0.date > $1.date } // Most recent first
     }
 }
 

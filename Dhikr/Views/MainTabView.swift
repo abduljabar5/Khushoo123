@@ -15,17 +15,14 @@ struct MainTabView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var lastDragValue: CGFloat = 0
-
     
-    // Screen height for calculations
-    private var screenHeight: CGFloat {
-        UIScreen.main.bounds.height
-    }
+    // MARK: - Performance Optimizations
+    // Cache screen height to avoid repeated calculations
+    private let screenHeight: CGFloat = UIScreen.main.bounds.height
+    private let maxDragDistance: CGFloat = UIScreen.main.bounds.height * 0.85
     
-    // Calculate transition progress (0 = mini player, 1 = full player)
+    // Memoized calculations - only update when dependencies change
     private var transitionProgress: CGFloat {
-        let maxDragDistance = screenHeight * 0.85 // Allow dragging most of screen height
-        
         if showingFullScreenPlayer {
             // Full screen: drag down (positive values)
             let progress = 1.0 - (dragOffset / maxDragDistance)
@@ -38,22 +35,32 @@ struct MainTabView: View {
         }
     }
     
-    // Calculate scale for the player card effect
+    // Pre-calculated constants for better performance
+    private let minScale: CGFloat = 0.92
+    private let scaleRange: CGFloat = 0.08 // 1.0 - 0.92
+    private let opacityMultiplier: CGFloat = 5.0
+    private let backgroundScaleMultiplier: CGFloat = 0.08
+    private let backgroundOpacityMultiplier: CGFloat = 0.4
+    
+    // Optimized computed properties
     private var playerScale: CGFloat {
-        let minScale: CGFloat = 0.92
-        return minScale + ((1.0 - minScale) * transitionProgress)
+        minScale + (scaleRange * transitionProgress)
     }
     
-    // Mini player opacity - fades out as expanding
     private var miniPlayerOpacity: Double {
-        // Fade out much faster so the full player content can show through
-        return 1.0 - (transitionProgress * 5)
+        1.0 - (transitionProgress * opacityMultiplier)
     }
     
-    // Full player opacity - fades in as expanding
     private var fullPlayerOpacity: Double {
-        // Fade in smoothly
-        return transitionProgress
+        transitionProgress
+    }
+    
+    private var backgroundScale: CGFloat {
+        1.0 - (backgroundScaleMultiplier * transitionProgress)
+    }
+    
+    private var backgroundOpacity: Double {
+        1.0 - (backgroundOpacityMultiplier * transitionProgress)
     }
     
     // Mini player position - stays anchored at the bottom
@@ -93,39 +100,48 @@ struct MainTabView: View {
 
         var body: some View {
         TabView(selection: $selectedTab) {
+            // Home tab - always load immediately (no lazy loading)
             HomeView()
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
                 .tag(0)
             
-            PrayerTimeBlockerView()
-                .tabItem {
-                    Label("Prayer", systemImage: "timer")
-                }
-                .tag(1)
+            LazyTabContent(selectedTab: selectedTab, targetTab: 1) {
+                PrayerTimeBlockerView()
+            }
+            .tabItem {
+                Label("Prayer", systemImage: "timer")
+            }
+            .tag(1)
             
-            ReciterDirectoryView()
-                .tabItem {
-                    Label("Reciters", systemImage: "person.wave.2.fill")
-                }
-                .tag(2)
+            LazyTabContent(selectedTab: selectedTab, targetTab: 2) {
+                ReciterDirectoryView()
+            }
+            .tabItem {
+                Label("Reciters", systemImage: "person.wave.2.fill")
+            }
+            .tag(2)
             
-            SearchView()
-                .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                .tag(3)
+            LazyTabContent(selectedTab: selectedTab, targetTab: 3) {
+                SearchView()
+            }
+            .tabItem {
+                Label("Search", systemImage: "magnifyingglass")
+            }
+            .tag(3)
 
-            ProfileView()
-                .tabItem {
-                    Label("Profile", systemImage: "person.fill")
-                }
-                .tag(4)
+            LazyTabContent(selectedTab: selectedTab, targetTab: 4) {
+                ProfileView()
+            }
+            .tabItem {
+                Label("Profile", systemImage: "person.fill")
+            }
+            .tag(4)
         }
         .ignoresSafeArea(.keyboard)
-        .scaleEffect(1.0 - (0.08 * transitionProgress)) // Shrink background
-        .opacity(1.0 - (0.4 * transitionProgress)) // Fade background
+        .scaleEffect(backgroundScale) // Shrink background
+        .opacity(backgroundOpacity) // Fade background
         .disabled(isDragging || showingFullScreenPlayer) // Disable interaction
         .overlay(
             // Connected Player View as overlay - doesn't affect TabView layout
@@ -320,6 +336,46 @@ extension View {
     }
 }
 
+// MARK: - Lazy Tab Loading Component
+struct LazyTabContent<Content: View>: View {
+    let selectedTab: Int
+    let targetTab: Int
+    let content: () -> Content
+    
+    @State private var hasLoaded = false
+    
+    var body: some View {
+        Group {
+            if hasLoaded {
+                content()
+            } else {
+                // Show loading placeholder
+                VStack {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Loading...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemBackground))
+            }
+        }
+        .onAppear {
+            // Load content when tab becomes visible
+            if selectedTab == targetTab {
+                hasLoaded = true
+            }
+        }
+        .onChange(of: selectedTab) { newTab in
+            // Load content when tab is selected
+            if newTab == targetTab && !hasLoaded {
+                hasLoaded = true
+            }
+        }
+    }
+}
 
 struct MainTabView_Previews: PreviewProvider {
     static var previews: some View {
