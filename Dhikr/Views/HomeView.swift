@@ -14,6 +14,8 @@ struct HomeView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var bluetoothService: BluetoothService
     @StateObject private var favoritesManager = FavoritesManager.shared
+    @StateObject private var blockingState = BlockingStateService.shared
+    @State private var earlyUnlockTickHome = 0
     
     @State private var featuredReciter: Reciter?
     @State private var popularReciters: [Reciter] = []
@@ -22,6 +24,8 @@ struct HomeView: View {
     @State private var isLoading = true
     @State private var showingFullScreenPlayer = false
     @State private var showingRecents = false
+    // Early-unlock countdown tick to drive UI updates
+    @State private var earlyUnlockTick = 0
     
     // Static lists of reciter names
     private let popularReciterNames = [
@@ -57,6 +61,9 @@ struct HomeView: View {
                     // Hero Banner
                     heroBanner
                     
+                    // Early Unlock Section (appears during an active block when strict mode is off)
+                    earlyUnlockSection
+
                     // Quick Actions
                     quickActionsSection
                     
@@ -71,6 +78,24 @@ struct HomeView: View {
             .background(Color(.systemBackground))
             .onAppear {
                 loadData()
+                // Double-check blocking state on first appearance of Home
+                BlockingStateService.shared.forceCheck()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    BlockingStateService.shared.forceCheck()
+                }
+            }
+            // Compact banner overlay at the very top (Home only)
+            .overlay(alignment: .top) {
+                if !blockingState.isStrictModeEnabled && blockingState.appsActuallyBlocked && !blockingState.isEarlyUnlockedActive {
+                    EarlyUnlockCompactBannerHome()
+                        .padding(.top, 8)
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            // Smoothly tick the countdown once per second while Home is visible
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+                earlyUnlockTick &+= 1
             }
         }
         .fullScreenCover(isPresented: $showingFullScreenPlayer) {
@@ -80,6 +105,106 @@ struct HomeView: View {
         .sheet(isPresented: $showingRecents) {
             RecentsView()
                 .environmentObject(audioPlayerService)
+        }
+    }
+    
+    // MARK: - Early Unlock Section
+    private var earlyUnlockSection: some View {
+        Group {
+            if !blockingState.isStrictModeEnabled && blockingState.appsActuallyBlocked && !blockingState.isEarlyUnlockedActive {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.open.fill")
+                            .foregroundColor(.orange)
+                        Text("Early Unlock Available Soon")
+                            .font(.headline)
+                    }
+                    .padding(.bottom, 4)
+                    
+                    let remaining = blockingState.timeUntilEarlyUnlock()
+                    if remaining > 0 {
+                        Text("You can unlock apps in")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        HStack {
+                            Text(remaining.formattedForCountdown)
+                                .font(.title3).monospacedDigit()
+                                .foregroundColor(.orange)
+                            Spacer()
+                        }
+                        Button(action: {}) {
+                            HStack {
+                                Image(systemName: "hourglass")
+                                Text("Unlock after countdown")
+                            }
+                        }
+                        .disabled(true)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(10)
+                    } else {
+                        Text("You can now unlock apps early.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Button(action: {
+                            blockingState.earlyUnlockCurrentInterval()
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text("Unlock Apps Now")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.orange)
+                        .cornerRadius(10)
+                    }
+                }
+                .padding(16)
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(12)
+            }
+        }
+    }
+
+    // MARK: - Compact Early Unlock Banner (Home only)
+    private struct EarlyUnlockCompactBannerHome: View {
+        @StateObject private var blocking = BlockingStateService.shared
+        var body: some View {
+            let remaining = blocking.timeUntilEarlyUnlock()
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle().fill(Color.orange.opacity(0.18))
+                    Image(systemName: remaining > 0 ? "hourglass" : "lock.open.fill")
+                        .foregroundColor(.orange)
+                }
+                .frame(width: 26, height: 26)
+                
+                if remaining > 0 {
+                    Text("Early unlock in \(remaining.formattedForCountdown)")
+                        .font(.caption).monospacedDigit()
+                        .foregroundColor(.primary)
+                } else {
+                    Button(action: { blocking.earlyUnlockCurrentInterval() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.seal.fill")
+                            Text("Unlock Now")
+                                .font(.caption).fontWeight(.semibold)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
         }
     }
     
@@ -321,25 +446,25 @@ struct HomeView: View {
     
     private func processReciters(_ reciters: [Reciter]) {
         print("🏠 [HomeView] Processing \(reciters.count) reciters...")
-        
-        // Use Quran Central reciters for the curated lists if possible
-        let quranCentralReciters = reciters.filter { $0.identifier.hasPrefix("qurancentral_") }
-        
-        self.popularReciters = Array(quranCentralReciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-        self.soothingReciters = Array(quranCentralReciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
-        
-        // Fallback to any reciter if the curated list is empty
-        if self.popularReciters.isEmpty {
-            self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-        }
-        if self.soothingReciters.isEmpty {
-            self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
-        }
-        
-        // Assign a featured reciter from the popular list
-        self.featuredReciter = self.popularReciters.randomElement() ?? reciters.randomElement()
-        
-        self.isLoading = false
+                
+                // Use Quran Central reciters for the curated lists if possible
+                let quranCentralReciters = reciters.filter { $0.identifier.hasPrefix("qurancentral_") }
+                
+                    self.popularReciters = Array(quranCentralReciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+                    self.soothingReciters = Array(quranCentralReciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+                    
+                    // Fallback to any reciter if the curated list is empty
+                    if self.popularReciters.isEmpty {
+                        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+                    }
+                    if self.soothingReciters.isEmpty {
+                        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+                    }
+                    
+                    // Assign a featured reciter from the popular list
+                    self.featuredReciter = self.popularReciters.randomElement() ?? reciters.randomElement()
+                    
+                    self.isLoading = false
         print("✅ [HomeView] Data loaded and UI updated. Popular: \(popularReciters.count), Soothing: \(soothingReciters.count), Featured: \(featuredReciter?.englishName ?? "none")")
     }
     

@@ -1,4 +1,9 @@
 import SwiftUI
+import DeviceActivity
+import FamilyControls
+import CoreLocation
+import UserNotifications
+import ManagedSettings
 
 @main
 struct DhikrApp: App {
@@ -15,10 +20,12 @@ struct DhikrApp: App {
     @StateObject private var prayerTimeViewModel = PrayerTimeViewModel()
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var locationService = LocationService()
+    @StateObject private var speechService = SpeechRecognitionService()
+    @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
     
     // Scene Phase
     @Environment(\.scenePhase) private var scenePhase
-    
+
     var body: some Scene {
         WindowGroup {
             MainTabView()
@@ -30,25 +37,34 @@ struct DhikrApp: App {
                 .environmentObject(prayerTimeViewModel)
                 .environmentObject(favoritesManager)
                 .environmentObject(locationService)
+                .environmentObject(screenTimeAuth)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     setupPerformanceOptimizations()
+                    setupNotificationDelegate()
                     
                     // Prioritize audio service for immediate UI responsiveness
                     audioPlayerService.activate()
+                    
+                    // Start prayer time fetching and scheduling
+                    prayerTimeViewModel.start()
                     
                     // Preload last played audio in background for instant continue
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         audioPlayerService.preloadLastPlayed()
                     }
                     
-                    // Delay heavy operations to not block initial UI
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        prayerTimeViewModel.start() // Pre-fetch prayer times
-                    }
-                    
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         bluetoothService.startScanning()
+                    }
+                    
+                    // Ensure blocking state is evaluated immediately on launch and shortly after
+                    BlockingStateService.shared.forceCheck()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        BlockingStateService.shared.forceCheck()
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        BlockingStateService.shared.forceCheck()
                     }
                 }
                 .onChange(of: scenePhase) { newPhase in
@@ -60,6 +76,8 @@ struct DhikrApp: App {
         }
     }
     
+    // Background task setup removed; early stop logic no longer used
+    
     // MARK: - Performance Optimizations
     private func setupPerformanceOptimizations() {
         // Initialize image cache manager
@@ -68,10 +86,35 @@ struct DhikrApp: App {
         print("🚀 [DhikrApp] Performance optimizations initialized")
     }
     
-    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+    // MARK: - Notification Setup
+    private func setupNotificationDelegate() {
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        
+        // Request notification permissions
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            print("Notification permission granted: \(granted)")
+        }
+    }
+    
+
+    
+
+    
+
+    
+
+     
+
+     
+     private func handleScenePhaseChange(_ newPhase: ScenePhase) {
         switch newPhase {
         case .background:
+            print("📲 App entering background")
             audioPlayerService.saveLastPlayed()
+            
+            // Check blocking state immediately when app goes to background
+            BlockingStateService.shared.forceCheck()
+            print("✅ Force check triggered for background")
             
             // Clean up resources when app goes to background
             Task {
@@ -80,11 +123,17 @@ struct DhikrApp: App {
             }
             
         case .inactive:
+            print("📲 App becoming inactive")
+            // Check blocking state when app becomes inactive (user switching away)
+            BlockingStateService.shared.forceCheck()
+            
             // Prepare for potential memory pressure
             ImageCacheManager.shared.clearMemoryCache()
             
         case .active:
-            // App became active - minimal resource restoration
+            print("📲 App became active")
+            // App became active - check blocking state immediately
+            BlockingStateService.shared.forceCheck()
             break
             
         @unknown default:
@@ -109,4 +158,6 @@ struct DhikrApp: App {
             _ = Array(repeating: 0, count: 1000)
         }
     }
+    
+
 } 

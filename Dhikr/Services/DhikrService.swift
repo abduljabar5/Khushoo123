@@ -125,6 +125,29 @@ class DhikrService: ObservableObject {
         checkStreak()
     }
     
+    /// Increment a dhikr type by a specific amount in one update (for batching sources like Zikr ring)
+    func incrementDhikr(_ type: DhikrType, by amount: Int) {
+        guard amount > 0 else { return }
+        // Ensure daily reset behavior remains consistent
+        dhikrCount.resetForNewDay()
+        
+        switch type {
+        case .subhanAllah:
+            dhikrCount.subhanAllah += amount
+        case .alhamdulillah:
+            dhikrCount.alhamdulillah += amount
+        case .astaghfirullah:
+            dhikrCount.astaghfirullah += amount
+        }
+        dhikrCount.lastUpdated = Date()
+        
+        // Single haptic and single notification for the batch
+        triggerHapticFeedback()
+        NotificationCenter.default.post(name: .dhikrCountUpdated, object: type)
+        updateTodayStats()
+        checkStreak()
+    }
+    
     func resetDhikr() {
         dhikrCount = DhikrCount()
         saveDhikrCount()

@@ -243,36 +243,70 @@ struct ProfileView: View {
                     }
                 }
 
-                Button(action: {
-                    if bluetoothService.isConnected {
-                        bluetoothService.disconnect()
-                    } else {
-                        bluetoothService.startScanning()
-                    }
-                }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: bluetoothService.isConnected ? "xmark.circle.fill" : "magnifyingglass")
-                            .font(.title3)
-                        
-                        Text(bluetoothService.isConnected ? "Disconnect Ring" : "Scan for Ring")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: bluetoothService.isConnected ? 
-                                [Color.red, Color.red.opacity(0.8)] : 
-                                [Color.blue, Color.blue.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                VStack(spacing: 12) {
+                    Button(action: {
+                        if bluetoothService.isConnected {
+                            bluetoothService.disconnectActive()
+                        } else if let first = bluetoothService.discoveredRings.first {
+                            bluetoothService.connectToDiscoveredRing(id: first.id)
+                        } else {
+                            bluetoothService.startScanning()
+                        }
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: bluetoothService.isConnected ? "xmark.circle.fill" : (bluetoothService.isScanning ? "antenna.radiowaves.left.and.right" : "magnifyingglass"))
+                                .font(.title3)
+                            
+                            Text(bluetoothService.isConnected ? "Disconnect Ring" : (bluetoothService.isScanning ? "Scanning…" : "Scan for Rings"))
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            LinearGradient(
+                                colors: bluetoothService.isConnected ? 
+                                    [Color.red, Color.red.opacity(0.8)] : 
+                                    [Color.blue, Color.blue.opacity(0.8)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                    )
-                    .foregroundColor(.white)
-                    .cornerRadius(16)
-                    .shadow(color: (bluetoothService.isConnected ? Color.red : Color.blue).opacity(0.3), radius: 8, x: 0, y: 4)
+                        .foregroundColor(.white)
+                        .cornerRadius(16)
+                        .shadow(color: (bluetoothService.isConnected ? Color.red : Color.blue).opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    if !bluetoothService.isConnected && !bluetoothService.discoveredRings.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Available Rings")
+                                    .font(.subheadline).fontWeight(.semibold)
+                                Spacer()
+                                Button("Stop") { bluetoothService.stopScanning(withMessage: "Scan stopped") }
+                                    .font(.caption)
+                            }
+                            ForEach(bluetoothService.discoveredRings.sorted(by: { $0.rssi > $1.rssi })) { ring in
+                                Button(action: { bluetoothService.connectToDiscoveredRing(id: ring.id) }) {
+                                    HStack {
+                                        Image(systemName: "dot.radiowaves.left.and.right")
+                                            .foregroundColor(.blue)
+                                        Text(ring.name)
+                                            .foregroundColor(.primary)
+                                        Spacer()
+                                        Text("RSSI \(ring.rssi)")
+                                            .foregroundColor(.secondary)
+                                            .font(.caption)
+                                    }
+                                    .padding(10)
+                                    .background(Color(.tertiarySystemBackground))
+                                    .cornerRadius(10)
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
             }
             .padding(20)
             .background(

@@ -16,6 +16,7 @@ struct MainTabView: View {
     @State private var isDragging = false
     @State private var lastDragValue: CGFloat = 0
     
+    
     // MARK: - Performance Optimizations
     // Cache screen height to avoid repeated calculations
     private let screenHeight: CGFloat = UIScreen.main.bounds.height
@@ -98,53 +99,53 @@ struct MainTabView: View {
         return maxDim * Double(transitionProgress)
     }
 
-        var body: some View {
-        TabView(selection: $selectedTab) {
+    var body: some View {
+            TabView(selection: $selectedTab) {
             // Home tab - always load immediately (no lazy loading)
-            HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
-                .tag(0)
-            
+                HomeView()
+                    .tabItem {
+                        Label("Home", systemImage: "house.fill")
+                    }
+                    .tag(0)
+
             LazyTabContent(selectedTab: selectedTab, targetTab: 1) {
                 PrayerTimeBlockerView()
             }
-            .tabItem {
-                Label("Prayer", systemImage: "timer")
-            }
-            .tag(1)
-            
+                    .tabItem {
+                        Label("Prayer", systemImage: "timer")
+                    }
+                    .tag(1)
+
             LazyTabContent(selectedTab: selectedTab, targetTab: 2) {
                 ReciterDirectoryView()
             }
-            .tabItem {
-                Label("Reciters", systemImage: "person.wave.2.fill")
-            }
-            .tag(2)
-            
+                    .tabItem {
+                        Label("Reciters", systemImage: "person.wave.2.fill")
+                    }
+                    .tag(2)
+
             LazyTabContent(selectedTab: selectedTab, targetTab: 3) {
                 SearchView()
             }
-            .tabItem {
-                Label("Search", systemImage: "magnifyingglass")
-            }
-            .tag(3)
+                    .tabItem {
+                Label("Focus", systemImage: "shield.fill")
+                    }
+                    .tag(3)
 
             LazyTabContent(selectedTab: selectedTab, targetTab: 4) {
                 ProfileView()
             }
-            .tabItem {
-                Label("Profile", systemImage: "person.fill")
+                    .tabItem {
+                        Label("Profile", systemImage: "person.fill")
+                    }
+                    .tag(4)
             }
-            .tag(4)
-        }
         .ignoresSafeArea(.keyboard)
         .scaleEffect(backgroundScale) // Shrink background
         .opacity(backgroundOpacity) // Fade background
         .disabled(isDragging || showingFullScreenPlayer) // Disable interaction
+        // Re-add connected player overlay (mini + full screen)
         .overlay(
-            // Connected Player View as overlay - doesn't affect TabView layout
             Group {
                 if audioPlayerService.currentSurah != nil {
                     playerView()
@@ -154,7 +155,7 @@ struct MainTabView: View {
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
     }
-    
+
     private func playerView() -> some View {
         let drag = DragGesture()
             .onChanged { value in
@@ -221,7 +222,7 @@ struct MainTabView: View {
             
             ZStack(alignment: .top) {
                 // Full Screen Player
-                FullScreenPlayerView {
+            FullScreenPlayerView {
                     closeFullScreenPlayer()
                 }
                 .opacity(fullPlayerOpacity)
@@ -230,7 +231,7 @@ struct MainTabView: View {
                 MiniPlayerBar(showingFullScreenPlayer: $showingFullScreenPlayer)
                     .onTapGesture {
                         openFullScreenPlayer()
-                    }
+            }
                     .opacity(miniPlayerOpacity)
             }
             .frame(height: geometry.size.height)
@@ -261,8 +262,8 @@ struct MainTabView: View {
         withAnimation(.interpolatingSpring(stiffness: 300, damping: 28)) {
             showingFullScreenPlayer = false
             dragOffset = 0
-        }
-    }
+                    }
+                }
     
     // Handle mini player drag end - expansion logic
     private func handleMiniPlayerDragEnd(translation: CGFloat, velocity: CGFloat) {
@@ -309,6 +310,8 @@ struct MainTabView: View {
     }
 }
 
+// (Removed compact early unlock banner component)
+
 // Custom View Modifier for transparent full screen cover
 struct TransparentFullScreenCover<CoverContent: View>: ViewModifier {
     @Binding var isPresented: Bool
@@ -320,7 +323,7 @@ struct TransparentFullScreenCover<CoverContent: View>: ViewModifier {
             if isPresented {
                 coverContent
                     .edgesIgnoringSafeArea(.all)
-            }
+    }
         }
     }
 }
@@ -380,11 +383,11 @@ struct LazyTabContent<Content: View>: View {
 struct MainTabView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            MainTabView()
+        MainTabView()
                 .environmentObject(DhikrService.shared)
-                .environmentObject(AudioPlayerService.shared)
+            .environmentObject(AudioPlayerService.shared)
                 .environmentObject(BluetoothService())
-                .environmentObject(QuranAPIService.shared)
+            .environmentObject(QuranAPIService.shared)
                 .environmentObject(BackTapService.shared)
                 .environmentObject(PrayerTimeViewModel())
                 .environmentObject(FavoritesManager.shared)

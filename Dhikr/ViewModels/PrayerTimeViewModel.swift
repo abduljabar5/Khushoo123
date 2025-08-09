@@ -114,23 +114,99 @@ class PrayerTimeViewModel: ObservableObject {
         
         Task {
             do {
-                // Fetch today's and tomorrow's prayer times in parallel for efficiency.
-                async let todayTimingsTask = prayerTimeService.fetchPrayerTimes(for: location, on: Date())
+                // Try cache first (once per day per approx location)
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    let todayStart = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
+                    let cachedDay = groupDefaults.object(forKey: "PrayerTimesCacheFetchedDay") as? TimeInterval
+                    let cachedLat = groupDefaults.object(forKey: "PrayerTimesCacheLat") as? Double
+                    let cachedLon = groupDefaults.object(forKey: "PrayerTimesCacheLon") as? Double
+                    let tolerance = 0.02 // ~2 km
+                    if let cachedDay = cachedDay,
+                       let cachedLat = cachedLat,
+                       let cachedLon = cachedLon,
+                       abs(cachedLat - location.coordinate.latitude) <= tolerance,
+                       abs(cachedLon - location.coordinate.longitude) <= tolerance,
+                       cachedDay == todayStart,
+                       let cachedArray = groupDefaults.object(forKey: "PrayerTimesCacheArray") as? [[String: Any]] {
+                        let cached: [PrayerTime] = cachedArray.compactMap { dict in
+                            guard let name = dict["name"] as? String,
+                                  let ts = dict["date"] as? TimeInterval else { return nil }
+                            return PrayerTime(name: name, date: Date(timeIntervalSince1970: ts))
+                        }
+                        if !cached.isEmpty {
+                            await MainActor.run { self.prayerTimes = cached }
+                            print("✅ [PrayerTimeViewModel] Loaded prayer times from cache")
+                            // Kick off scheduling and timer as usual
+                            Task.detached { await self.schedulePrayerBlocking() }
+                            self.startUpdateTimer()
+                            isLoading = false
+                            return
+                        }
+                    }
+                }
                 
-                let tomorrowDate = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
-                async let tomorrowTimingsTask = prayerTimeService.fetchPrayerTimes(for: location, on: tomorrowDate)
+                // Fetch prayer times for 5 days to ensure we have enough for 20 prayers
+                var allPrayerTimes: [PrayerTime] = []
+                let today = Date()
                 
-                // Await both results
-                let todayParsed = parse(timings: try await todayTimingsTask, for: Date())
-                let tomorrowParsed = parse(timings: try await tomorrowTimingsTask, for: tomorrowDate)
+                for dayOffset in 0..<5 {
+                    guard let targetDate = Calendar.current.date(byAdding: .day, value: dayOffset, to: today) else {
+                        continue
+                    }
+                    
+                    let timings = try await prayerTimeService.fetchPrayerTimes(for: location, on: targetDate)
+                    let parsedTimes = parse(timings: timings, for: targetDate)
+                    allPrayerTimes.append(contentsOf: parsedTimes)
+                }
                 
-                // Combine them into a single chronological list.
-                self.prayerTimes = todayParsed + tomorrowParsed
+                // Store all prayer times on main thread
+                await MainActor.run {
+                    self.prayerTimes = allPrayerTimes
+                }
+                
+                // Log fetched prayer times
+                print("✅ [PrayerTimeViewModel] Fetched \(self.prayerTimes.count) real prayer times from API (5 days)")
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .short
+                
+                // Show all prayer times, grouped by day
+                let calendar = Calendar.current
+                var currentDay: Date?
+                
+                for prayer in self.prayerTimes {
+                    let prayerDay = calendar.startOfDay(for: prayer.date)
+                    
+                    // Print day header when we start a new day
+                    if currentDay != prayerDay {
+                        currentDay = prayerDay
+                        let dayFormatter = DateFormatter()
+                        dayFormatter.dateStyle = .medium
+                        print("   📆 \(dayFormatter.string(from: prayerDay)):")
+                    }
+                    
+                    print("      📅 \(prayer.name) at \(formatter.string(from: prayer.date))")
+                }
+                
+                // Automatically schedule prayer blocking on app launch (background task)
+                Task.detached {
+                    await self.schedulePrayerBlocking()
+                }
                 
                 // Start the timer to update the UI every second.
                 self.startUpdateTimer()
                 
-                print("🕌 [PrayerTimeViewModel] Successfully fetched and parsed prayer times.")
+                // Save cache for the day and approximate location
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    let cacheArray = self.prayerTimes.map { [
+                        "name": $0.name,
+                        "date": $0.date.timeIntervalSince1970
+                    ] }
+                    groupDefaults.set(cacheArray, forKey: "PrayerTimesCacheArray")
+                    groupDefaults.set(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970, forKey: "PrayerTimesCacheFetchedDay")
+                    groupDefaults.set(location.coordinate.latitude, forKey: "PrayerTimesCacheLat")
+                    groupDefaults.set(location.coordinate.longitude, forKey: "PrayerTimesCacheLon")
+                }
             } catch {
                 self.errorMessage = "Failed to fetch prayer times: \(error.localizedDescription)"
                 print("❌ [PrayerTimeViewModel] Error fetching prayer times: \(error.localizedDescription)")
@@ -231,5 +307,95 @@ class PrayerTimeViewModel: ObservableObject {
             }
         }
         return parsedTimes.sorted { $0.date < $1.date }
+    }
+    
+    // Schedule prayer blocking automatically on app launch
+    private func schedulePrayerBlocking() async {
+        // First request Screen Time authorization if needed
+        do {
+            try await ScreenTimeAuthorizationService.shared.requestAuthorizationIfNeeded()
+        } catch {
+            print("❌ Screen Time authorization failed: \(error.localizedDescription)")
+            return
+        }
+        
+        // Get user settings
+        let selectedPrayers = getSelectedPrayers()
+        let blockingDuration = getBlockingDuration()
+        
+        guard !selectedPrayers.isEmpty else {
+            return
+        }
+        
+        // Filter to future prayers only and limit to 20
+        let now = Date()
+        let futurePrayers = prayerTimes.filter { $0.date > now }
+        let selectedPrayerTimes = Array(futurePrayers.filter { selectedPrayers.contains($0.name) }.prefix(20))
+        
+        guard !selectedPrayerTimes.isEmpty else {
+            return
+        }
+        
+        // Save schedule and schedule in DeviceActivity
+        saveScheduleToUserDefaults(selectedPrayerTimes, duration: blockingDuration)
+        
+        // Schedule with DeviceActivityService on main actor to avoid threading issues
+        await MainActor.run {
+            let deviceActivityService = DeviceActivityService.shared
+            deviceActivityService.schedulePrayerTimeBlocking(
+                prayerTimes: selectedPrayerTimes,
+                duration: blockingDuration,
+                selectedPrayers: selectedPrayers
+            )
+        }
+    }
+    
+    // Get selected prayers from settings
+    private func getSelectedPrayers() -> Set<String> {
+        var selectedPrayers: Set<String> = []
+        
+        // Check both App Group and standard UserDefaults
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        
+        // Read prayer selections with proper defaults (same as SearchView UI)
+        let selectedFajr = groupDefaults?.object(forKey: "focusSelectedFajr") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedFajr") as? Bool ?? true
+        let selectedDhuhr = groupDefaults?.object(forKey: "focusSelectedDhuhr") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedDhuhr") as? Bool ?? true
+        let selectedAsr = groupDefaults?.object(forKey: "focusSelectedAsr") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedAsr") as? Bool ?? true
+        let selectedMaghrib = groupDefaults?.object(forKey: "focusSelectedMaghrib") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedMaghrib") as? Bool ?? true
+        let selectedIsha = groupDefaults?.object(forKey: "focusSelectedIsha") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedIsha") as? Bool ?? true
+        
+        if selectedFajr { selectedPrayers.insert("Fajr") }
+        if selectedDhuhr { selectedPrayers.insert("Dhuhr") }
+        if selectedAsr { selectedPrayers.insert("Asr") }
+        if selectedMaghrib { selectedPrayers.insert("Maghrib") }
+        if selectedIsha { selectedPrayers.insert("Isha") }
+        
+        return selectedPrayers
+    }
+    
+    // Get blocking duration from settings
+    private func getBlockingDuration() -> Double {
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        // Read duration with proper default (same as SearchView UI)
+        let raw = groupDefaults?.object(forKey: "focusBlockingDuration") as? Double ?? UserDefaults.standard.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
+        // Clamp to 15..60 in 5-min steps
+        let clamped = min(60, max(15, round(raw / 5) * 5))
+        return clamped
+    }
+    
+    // Save prayer schedule for cleanup tracking
+    private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime], duration: Double) {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+        
+        let schedules = prayerTimes.map { prayer -> [String: Any] in
+            let durationSeconds = duration * 60
+            return [
+                "name": prayer.name,
+                "date": prayer.date.timeIntervalSince1970,
+                "duration": durationSeconds
+            ]
+        }
+        
+        groupDefaults.set(schedules, forKey: "PrayerTimeSchedules")
     }
 } 

@@ -277,8 +277,8 @@ struct DhikrInputField: View {
                             // Small delay to avoid conflicting with system keyboard management
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                 isFocused = true
+                                }
                             }
-                        }
                         .onSubmit { commitEdit() }
                         .onChange(of: isFocused) { focused in if !focused { commitEdit() } }
                 } else {

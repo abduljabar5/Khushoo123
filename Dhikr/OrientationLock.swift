@@ -16,4 +16,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return .portrait
     }
+    
+    /// Handles early stop when app is about to terminate
+    func applicationWillTerminate(_ application: UIApplication) {
+        // Perform final early stop check when app is about to close
+        Task { @MainActor in
+            BlockingStateService.shared.forceCheck()
+        }
+    }
 } 

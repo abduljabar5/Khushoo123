@@ -4,19 +4,27 @@ import Combine
 import UIKit
 
 class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+    static let shared = BluetoothService()
     // MARK: - Published Properties
     @Published var dhikrCount: Int = 0
     @Published var connectionStatus: String = "Initializing..."
     @Published var isConnected: Bool = false
     @Published var activeDhikrType: DhikrType = .astaghfirullah
+    @Published var isScanning: Bool = false
+    @Published var discoveredRings: [DiscoveredRing] = []
+    @Published var savedPeripheralId: String? = UserDefaults.standard.string(forKey: "zikrPeripheralId")
 
     // MARK: - Core Bluetooth Properties
     private var centralManager: CBCentralManager!
+    private let bluetoothQueue = DispatchQueue(label: "fm.mrc.dhikr.bluetooth")
     private var zikrPeripheral: CBPeripheral?
     private var tasbihCharacteristic: CBCharacteristic?
+    private var discoveredMap: [UUID: CBPeripheral] = [:]
+    private var retainedPeripherals: [UUID: CBPeripheral] = [:]
 
     // Correct UUIDs for the iQibla Zikr 1 Lite ring
     private let zikrServiceUUID = CBUUID(string: "D0FF")
+    private let zikrAltServiceUUID = CBUUID(string: "FEE7") // Seen in logs for Zikr Ring Lite
     private let commandCharacteristicUUID = CBUUID(string: "D001")
     private let countCharacteristicUUID = CBUUID(string: "D002")
     private let unlockCommand = Data([0xF1])
@@ -28,13 +36,17 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     private var ringCount: Int = 0
     private var lastProcessedCount: Int = 0
     private var updateTimer: Timer?
+    private var debounceWorkItem: DispatchWorkItem?
+    private var firstValueAfterConnect: Bool = true
+    private var lastDiscoveryAt: Date?
 
     // MARK: - Initialization
     override init() {
         super.init()
         let restoreIdentifier = "fm.mrc.dhikr.bluetoothRestoreKey"
         let options = [CBCentralManagerOptionRestoreIdentifierKey: restoreIdentifier]
-        centralManager = CBCentralManager(delegate: self, queue: nil, options: options)
+        centralManager = CBCentralManager(delegate: self, queue: bluetoothQueue, options: options)
+        lastProcessedCount = UserDefaults.standard.integer(forKey: "zikrLastProcessedCount")
         print("🔵 [BluetoothService] Initialized with restore key: \(restoreIdentifier)")
     }
 
@@ -47,14 +59,45 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
 
         connectionStatus = "Scanning..."
-        print("🔍 Starting scan...")
-        centralManager.scanForPeripherals(withServices: nil, options: nil)
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-            if !self.isConnected && self.connectionStatus == "Scanning..." {
+        print("🔍 [BLE] Preparing scan…")
+        discoveredMap.removeAll()
+        DispatchQueue.main.async {
+            self.discoveredRings.removeAll()
+            self.isScanning = true
+        }
+        lastDiscoveryAt = nil
+        let debugAll = UserDefaults.standard.bool(forKey: "bleDebugScanAll")
+        if debugAll {
+            print("🧪 [BLE] Debug scan (ALL devices) for 3s…")
+            centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let self = self else { return }
                 self.centralManager.stopScan()
-                self.connectionStatus = "Scan timed out. Try again."
-                print("⏰ Scan timed out.")
+                print("🧪 [BLE] Debug scan complete. Switching to filtered Zikr scan…")
+                self.centralManager.scanForPeripherals(withServices: [self.zikrServiceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+            }
+        } else {
+            print("🔎 [BLE] Scanning filtered to Zikr services (D0FF/FEE7)…")
+            centralManager.scanForPeripherals(withServices: [zikrServiceUUID, zikrAltServiceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+            // Fallback: if no discoveries in 3s, widen the scan to ALL
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let self = self else { return }
+                if self.isScanning && self.lastDiscoveryAt == nil {
+                    print("⚠️ [BLE] No devices discovered yet. Falling back to ALL-device scan for 8s…")
+                    self.centralManager.stopScan()
+                    self.centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                        if self.isScanning {
+                            self.stopScanning(withMessage: "Scan finished")
+                        }
+                    }
+                }
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+            if !self.isConnected && self.isScanning {
+                self.stopScanning(withMessage: "Scan finished")
             }
         }
     }
@@ -64,22 +107,50 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         centralManager.cancelPeripheralConnection(peripheral)
     }
 
+    // Backwards-compatible alias used by ProfileView
+    func disconnectActive() { disconnect() }
+
+    func stopScanning(withMessage message: String? = nil) {
+        centralManager.stopScan()
+        DispatchQueue.main.async {
+            if let message = message { self.connectionStatus = message }
+            self.isScanning = false
+        }
+    }
+
+    func connectToDiscoveredRing(id: UUID) {
+        guard let peripheral = discoveredMap[id] else { return }
+        stopScanning()
+        DispatchQueue.main.async { self.connectionStatus = "Connecting to \(peripheral.name ?? "device")..." }
+        // Strongly retain and set as active before connecting to avoid API MISUSE
+        zikrPeripheral = peripheral
+        zikrPeripheral?.delegate = self
+        retainedPeripherals[id] = peripheral
+        print("🔗 [BLE] Connecting to peripheral: id=\(id.uuidString), name=\(peripheral.name ?? "Unknown")")
+        let connectOpts: [String: Any] = [
+            CBConnectPeripheralOptionNotifyOnConnectionKey: true,
+            CBConnectPeripheralOptionNotifyOnDisconnectionKey: true,
+            CBConnectPeripheralOptionNotifyOnNotificationKey: true
+        ]
+        centralManager.connect(peripheral, options: connectOpts)
+    }
+
     // MARK: - Dhikr Integration Methods
     private func handleRingCountUpdate(_ newCount: Int) {
-        // Just store the latest count. The timer will handle processing.
+        // Store latest count and debounce processing for smoother UI
         self.ringCount = newCount
+        debounceWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.processRingCount()
+        }
+        debounceWorkItem = work
+        bluetoothQueue.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
     
     // MARK: - Throttling Logic
     private func startUpdateTimer() {
-        stopUpdateTimer() // Invalidate any existing timer
-        // Reduced frequency to improve performance - once per second instead of 4 times
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            DispatchQueue.global(qos: .background).async {
-                self?.processRingCount()
-            }
-        }
-        print("⏱️ Throttling timer started.")
+        // Debounce on notify updates; no periodic timer needed
+        stopUpdateTimer()
     }
     
     private func stopUpdateTimer() {
@@ -89,60 +160,66 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
     
     @objc private func processRingCount() {
-        // This now runs on background thread for better performance
-        guard ringCount != lastProcessedCount else { return }
-
         let newCount = ringCount
         let lastCount = lastProcessedCount
 
-        print("⚙️ [Throttled Update] Processing count. Current: \(newCount), Last Processed: \(lastCount)")
+        // First value after notifications enabled: treat as baseline only
+        if firstValueAfterConnect {
+            firstValueAfterConnect = false
+            DispatchQueue.main.async {
+                self.dhikrCount = newCount
+                self.lastProcessedCount = newCount
+                UserDefaults.standard.set(newCount, forKey: "zikrLastProcessedCount")
+            }
+            return
+        }
+
+        guard newCount != lastCount else { return }
 
         // Condition 1: Ring was reset to 0.
         if newCount == 0 && lastCount > 0 {
-            switch activeDhikrType {
-            case .astaghfirullah:
-                activeDhikrType = .alhamdulillah
-                updateStatus("Switched to Alhamdulillah")
-            case .alhamdulillah:
-                activeDhikrType = .subhanAllah
-                updateStatus("Switched to SubhanAllah")
-            case .subhanAllah:
-                activeDhikrType = .astaghfirullah
-                updateStatus("Switched to Astaghfirullah")
-            default:
-                activeDhikrType = .astaghfirullah
-                updateStatus("Switched to Astaghfirullah")
+            if UserDefaults.standard.object(forKey: "autoCycleOnRingReset") as? Bool ?? true {
+                switch activeDhikrType {
+                case .astaghfirullah:
+                    activeDhikrType = .alhamdulillah
+                    updateStatus("Switched to Alhamdulillah")
+                case .alhamdulillah:
+                    activeDhikrType = .subhanAllah
+                    updateStatus("Switched to SubhanAllah")
+                case .subhanAllah:
+                    activeDhikrType = .astaghfirullah
+                    updateStatus("Switched to Astaghfirullah")
+                default:
+                    activeDhikrType = .astaghfirullah
+                    updateStatus("Switched to Astaghfirullah")
+                }
             }
-            print("💍 Ring reset detected. Switched active Dhikr to: \(activeDhikrType.rawValue)")
             showHapticFeedback(style: .medium)
-        }
-        // Condition 2: Ring count has increased.
-        else if newCount > lastCount {
+        } else if newCount > lastCount {
+            // Condition 2: Ring count has increased.
             let increments = newCount - lastCount
-            print("➕ Ring count increased by \(increments). Adding to \(activeDhikrType.rawValue).")
-            for _ in 0..<increments {
-                dhikrService.incrementDhikr(activeDhikrType)
-            }
-            // Only provide haptics for user-initiated taps, not rapid holds.
-            if increments < 5 { // Heuristic: many increments at once is a hold.
+            dhikrService.incrementDhikr(activeDhikrType, by: increments)
+            // Haptic for single deliberate tap only
+            if increments == 1 {
                 showHapticFeedback(style: .light)
             }
         }
 
-        // Update the published count and the last processed count on main thread
+        // Update the published count and the last processed count
         DispatchQueue.main.async {
             self.dhikrCount = newCount
             self.lastProcessedCount = newCount
+            UserDefaults.standard.set(newCount, forKey: "zikrLastProcessedCount")
         }
     }
 
     // MARK: - Helper Methods
     private func updateStatus(_ status: String) {
-        connectionStatus = status
+        DispatchQueue.main.async { self.connectionStatus = status }
         // Reset status message after a couple of seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self = self, self.connectionStatus == status else { return }
-            self.connectionStatus = "Connected and listening"
+            DispatchQueue.main.async { self.connectionStatus = "Connected and listening" }
         }
     }
 
@@ -157,91 +234,141 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         
         switch central.state {
         case .poweredOn:
-            connectionStatus = "Bluetooth Ready"
-            print("✅ Bluetooth is powered on. Triggering initial scan.")
-            startScanning()
+            DispatchQueue.main.async { self.connectionStatus = "Bluetooth Ready" }
+            print("✅ Bluetooth is powered on. Attempting fast reconnect…")
+            // Try fast reconnects first
+        let connected = central.retrieveConnectedPeripherals(withServices: [zikrServiceUUID, zikrAltServiceUUID])
+            if let p = connected.first {
+                self.zikrPeripheral = p
+                self.zikrPeripheral?.delegate = self
+                central.connect(p, options: nil)
+            } else if let idString = UserDefaults.standard.string(forKey: "zikrPeripheralId"), let uuid = UUID(uuidString: idString) {
+                let known = central.retrievePeripherals(withIdentifiers: [uuid])
+                if let p = known.first {
+                    self.zikrPeripheral = p
+                    self.zikrPeripheral?.delegate = self
+                    central.connect(p, options: nil)
+                } else {
+                    startScanning()
+                }
+            } else {
+                startScanning()
+            }
         case .poweredOff:
-            connectionStatus = "Bluetooth is Off"
+            DispatchQueue.main.async { self.connectionStatus = "Bluetooth is Off" }
             print("❌ Bluetooth is powered off.")
-            isConnected = false
+            DispatchQueue.main.async { self.isConnected = false }
             stopUpdateTimer()
+            firstValueAfterConnect = true
         case .unauthorized:
-            connectionStatus = "Permission Denied"
+            DispatchQueue.main.async { self.connectionStatus = "Permission Denied" }
             print("❌ Bluetooth permission was denied by the user.")
         default:
-            connectionStatus = "Bluetooth not ready (\(central.state.rawValue))"
+            DispatchQueue.main.async { self.connectionStatus = "Bluetooth not ready (\(central.state.rawValue))" }
             print("⚠️ Bluetooth state is not ready: \(central.state.rawValue)")
         }
     }
 
     @objc func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         let peripheralName = peripheral.name ?? "Unknown Device"
-        print("🟢 Discovered peripheral: \(peripheralName) | RSSI: \(RSSI)")
-        
-        if let name = peripheral.name, name.lowercased().contains("zikr") {
-            print("✨ Found a Zikr ring: \(name)")
-            self.zikrPeripheral = peripheral
-            self.zikrPeripheral?.delegate = self
-            
-            print("🛑 Stopping scan.")
-            centralManager.stopScan()
-            
-            connectionStatus = "Connecting to \(name)..."
-            print("🔗 Connecting to \(name)...")
-            centralManager.connect(peripheral, options: nil)
+        lastDiscoveryAt = Date()
+        let serviceUUIDs = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID])?.map { $0.uuidString } ?? []
+        var mfgHex = ""
+        if let mfg = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
+            mfgHex = mfg.map { String(format: "%02hhx", $0) }.joined()
+        }
+        print("🔍 [BLE-ALL] name=\(peripheralName), id=\(peripheral.identifier.uuidString), RSSI=\(RSSI), services=\(serviceUUIDs), mfg=\(mfgHex)")
+
+        // Identify Zikr candidates
+        let isZikrByService = serviceUUIDs.contains(where: { $0.caseInsensitiveCompare("D0FF") == .orderedSame })
+        let isZikrByName = peripheral.name?.lowercased().contains("zikr") == true
+        if isZikrByService || isZikrByName {
+            print("💍 [BLE-ZIKR] Candidate ring: name=\(peripheralName), id=\(peripheral.identifier.uuidString), RSSI=\(RSSI)")
+        }
+
+        // Track all devices for user selection
+        discoveredMap[peripheral.identifier] = peripheral
+        let ring = DiscoveredRing(id: peripheral.identifier, name: peripheralName, rssi: RSSI.intValue)
+        DispatchQueue.main.async {
+            if !self.discoveredRings.contains(where: { $0.id == ring.id }) {
+                self.discoveredRings.append(ring)
+            } else if let idx = self.discoveredRings.firstIndex(where: { $0.id == ring.id }) {
+                self.discoveredRings[idx] = ring
+            }
         }
     }
 
     @objc func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        connectionStatus = "Connected to \(peripheral.name ?? "device")"
-        isConnected = true
-        print("✅ Successfully connected to \(peripheral.name ?? "Unknown")! Discovering services...")
-        peripheral.discoverServices([zikrServiceUUID])
+        DispatchQueue.main.async {
+            self.connectionStatus = "Connected to \(peripheral.name ?? "device")"
+            self.isConnected = true
+        }
+        print("✅ [BLE] Connected: name=\(peripheral.name ?? "Unknown"), id=\(peripheral.identifier.uuidString). Discovering services (all)…")
+        UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: "zikrPeripheralId")
+        DispatchQueue.main.async { self.savedPeripheralId = peripheral.identifier.uuidString }
+        firstValueAfterConnect = true
+        peripheral.delegate = self
+        retainedPeripherals[peripheral.identifier] = peripheral
+        peripheral.discoverServices(nil)
     }
 
     @objc func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        connectionStatus = "Failed to connect"
-        isConnected = false
+        DispatchQueue.main.async {
+            self.connectionStatus = "Failed to connect"
+            self.isConnected = false
+        }
         print("❌ Failed to connect to \(peripheral.name ?? "Unknown"): \(error?.localizedDescription ?? "Unknown error")")
     }
 
     @objc func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        connectionStatus = "Disconnected"
-        isConnected = false
-        dhikrCount = 0
+        DispatchQueue.main.async {
+            self.connectionStatus = "Disconnected"
+            self.isConnected = false
+            self.dhikrCount = 0
+        }
         // Reset state
         stopUpdateTimer()
         ringCount = 0
         lastProcessedCount = 0
+        firstValueAfterConnect = true
         activeDhikrType = .astaghfirullah
         zikrPeripheral = nil
         tasbihCharacteristic = nil
+        retainedPeripherals.removeValue(forKey: peripheral.identifier)
         print("🔌 Disconnected from \(peripheral.name ?? "Unknown"). Error: \(error?.localizedDescription ?? "No error")")
     }
 
     // MARK: - CBPeripheralDelegate
     @objc func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        if let error = error { print("❌ Service discovery failed: \(error.localizedDescription)"); return }
-        guard let services = peripheral.services else { return }
-
-        for service in services where service.uuid == zikrServiceUUID {
-            print("✅ Found Zikr service (\(service.uuid)). Discovering characteristics...")
-            peripheral.discoverCharacteristics([commandCharacteristicUUID, countCharacteristicUUID], for: service)
+        if let error = error { print("❌ [BLE] Service discovery failed: \(error.localizedDescription)"); return }
+        guard let services = peripheral.services, !services.isEmpty else {
+            print("⚠️ [BLE] No services found on peripheral: \(peripheral.identifier.uuidString)")
+            return
         }
+        print("🔧 [BLE] Discovered services: \(services.map { $0.uuid.uuidString })")
+        var foundZikr = false
+        for service in services {
+            if service.uuid == zikrServiceUUID || service.uuid == zikrAltServiceUUID { foundZikr = true }
+            // Discover all characteristics so we can subscribe to notify ones even on alt service
+            peripheral.discoverCharacteristics(nil, for: service)
+        }
+        if !foundZikr { print("⚠️ [BLE] D0FF not present; attempting to find characteristics across all services.") }
     }
 
     @objc func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        if let error = error { print("❌ Characteristic discovery failed: \(error.localizedDescription)"); return }
+        if let error = error { print("❌ [BLE] Char discovery failed for service \(service.uuid): \(error.localizedDescription)"); return }
         guard let characteristics = service.characteristics else { return }
-        
-        print("🔑 Found \(characteristics.count) characteristics for service \(service.uuid).")
-        
+        print("🔑 [BLE] Service \(service.uuid) characteristics: \(characteristics.map { $0.uuid.uuidString })")
+
         if let commandChar = characteristics.first(where: { $0.uuid == commandCharacteristicUUID }) {
-            print("✅ Found command characteristic. Writing unlock command...")
-            connectionStatus = "Unlocking ring..."
+            print("✅ [BLE] Found command char; sending unlock…")
+            DispatchQueue.main.async { self.connectionStatus = "Unlocking ring..." }
             peripheral.writeValue(unlockCommand, for: commandChar, type: .withResponse)
-        } else {
-            print("❌ Could not find the command characteristic needed to unlock the ring.")
+        }
+        // Strictly subscribe only to D002 (count) to avoid firmware disconnects
+        if let countChar = characteristics.first(where: { $0.uuid == countCharacteristicUUID }) {
+            print("📡 [BLE] Subscribing to count char: \(countChar.uuid)")
+            peripheral.setNotifyValue(true, for: countChar)
         }
     }
     
@@ -286,8 +413,9 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         
         if characteristic.isNotifying {
             print("✅ Notifications enabled for characteristic: \(characteristic.uuid)")
-            connectionStatus = "Connected and listening"
-            startUpdateTimer() // Start processing updates
+            DispatchQueue.main.async { self.connectionStatus = "Connected and listening" }
+            firstValueAfterConnect = true
+            startUpdateTimer() // Using debounce-based processing
         } else {
             print("⚠️ Notifications disabled for characteristic: \(characteristic.uuid)")
             stopUpdateTimer() // Stop processing updates
@@ -333,3 +461,12 @@ extension Data {
         return map { String(format: "%02hhx", $0) }.joined()
     }
 } 
+
+// MARK: - Models
+extension BluetoothService {
+    struct DiscoveredRing: Identifiable, Equatable {
+        let id: UUID
+        let name: String
+        let rssi: Int
+    }
+}

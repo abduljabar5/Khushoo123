@@ -6,6 +6,7 @@ struct PrayerTimeBlockerView: View {
     @StateObject private var viewModel = PrayerTimeViewModel()
     @State private var isPulsing = false
     @EnvironmentObject var audioPlayerService: AudioPlayerService
+    
 
     var body: some View {
         ZStack {
@@ -23,7 +24,6 @@ struct PrayerTimeBlockerView: View {
                     .padding()
                 } else {
                     HeaderView()
-                    
                     // The main card now displays either the current or next prayer
                     if let prayer = viewModel.currentPrayer ?? viewModel.nextPrayer {
                         CurrentPrayerCard(
@@ -57,6 +57,7 @@ struct PrayerTimeBlockerView: View {
         }
     }
 }
+// (Early Unlock banner removed from Prayer tab)
 
 // MARK: - Reusable Components
 

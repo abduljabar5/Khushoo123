@@ -1000,7 +1000,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                                 print("⚠️ [AudioPlayerService] Seek failed, starting from beginning")
                                 self?.play()
                             }
-                        }
+                    }
                     } else {
                         self.play() // Start playing immediately if no seek needed
                     }

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QariVerse - Gen Z Home</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700;900&family=Poppins:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="prayer_dark_theme_1.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    body { background: linear-gradient(135deg, #232526 0%, #1C1C1E 100%) !important; color: #fff; font-family: 'Poppins', 'Inter', sans-serif; min-height: 100vh; }
+    .safe-area { max-width: 430px; margin: 0 auto; border-radius: 32px; overflow: hidden; box-shadow: 0 8px 32px 0 rgba(0,0,0,0.25); background: rgba(28,28,30,0.95); min-height: 100vh; position: relative; }
+    .header { position: relative; padding: 24px 20px 0 20px; background: rgba(40,40,50,0.7); backdrop-filter: blur(12px); border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; }
+    .app-title { font-size: 2.1rem; font-weight: 900; letter-spacing: -1px; background: linear-gradient(90deg, #34C759 30%, #AF52DE 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-icons { display: flex; gap: 18px; }
+    .header-icons i { color: #fff; font-size: 1.5rem; cursor: pointer; transition: color 0.2s; }
+    .header-icons i:hover { color: #34C759; }
+    .hero-banner { margin: 28px 0 0 0; position: relative; }
+    .hero-swiper { display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; }
+    .hero-card { min-width: 320px; height: 200px; border-radius: 24px; background: linear-gradient(120deg, #AF52DE 0%, #34C759 100%); position: relative; overflow: hidden; box-shadow: 0 4px 32px 0 rgba(175,82,222,0.18); scroll-snap-align: center; display: flex; flex-direction: column; justify-content: flex-end; }
+    .hero-card img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.7; z-index: 1; }
+    .hero-card-content { position: relative; z-index: 2; padding: 20px; background: linear-gradient(0deg, rgba(0,0,0,0.7) 80%, rgba(0,0,0,0.0) 100%); border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
+    .hero-badge { display: inline-block; background: rgba(255,255,255,0.18); color: #fff; font-size: 0.9rem; font-weight: 700; padding: 4px 12px; border-radius: 16px; margin-bottom: 8px; }
+    .hero-title { font-size: 1.3rem; font-weight: 900; margin-bottom: 4px; }
+    .hero-country { font-size: 1rem; font-weight: 700; color: #34C759; margin-bottom: 8px; }
+    .hero-play-btn { display: inline-flex; align-items: center; gap: 8px; background: #fff; color: #232526; font-weight: 800; font-size: 1.1rem; border-radius: 20px; padding: 10px 22px; box-shadow: 0 2px 12px 0 rgba(52,199,89,0.18); border: none; cursor: pointer; transition: transform 0.12s; }
+    .hero-play-btn:active { transform: scale(0.96); }
+    /* Quick Actions */
+    .quick-actions { display: flex; gap: 18px; margin: 32px 0 0 0; justify-content: center; }
+    .quick-action { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 80px; height: 80px; border-radius: 24px; background: linear-gradient(135deg, #34C759 0%, #AF52DE 100%); color: #fff; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 12px 0 rgba(175,82,222,0.12); cursor: pointer; transition: transform 0.13s, box-shadow 0.13s; position: relative; }
+    .quick-action:active { transform: scale(0.95); box-shadow: 0 1px 4px 0 rgba(52,199,89,0.18); }
+    .quick-action i { font-size: 2rem; margin-bottom: 8px; }
+    .quick-action-badge { position: absolute; top: 10px; right: 10px; background: #FF9500; color: #fff; font-size: 0.8rem; font-weight: 800; border-radius: 10px; padding: 2px 8px; }
+    /* Carousels */
+    .carousel-section { margin: 38px 0 0 0; }
+    .carousel-title { font-size: 1.2rem; font-weight: 900; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .carousel-title .emoji { font-size: 1.3rem; }
+    .carousel { display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; }
+    .carousel-card { min-width: 140px; background: rgba(255,255,255,0.10); border-radius: 18px; box-shadow: 0 2px 12px 0 rgba(52,199,89,0.10); padding: 16px 12px 12px 12px; display: flex; flex-direction: column; align-items: center; scroll-snap-align: center; transition: transform 0.13s; cursor: pointer; }
+    .carousel-card:active { transform: scale(1.04); }
+    .carousel-card img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; border: 3px solid #AF52DE; }
+    .carousel-card .reciter-name { font-size: 1rem; font-weight: 700; text-align: center; color: #fff; margin-bottom: 2px; }
+    .carousel-card .reciter-country { font-size: 0.85rem; color: #34C759; font-weight: 600; }
+    /* Player Bar */
+    .player-bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(28,28,30,0.98); box-shadow: 0 -2px 12px 0 rgba(52,199,89,0.10); display: flex; align-items: center; gap: 16px; padding: 14px 24px; z-index: 100; }
+    .player-art { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; background: #232526; }
+    .player-info { flex: 1; }
+    .player-title { font-size: 1.1rem; font-weight: 800; color: #fff; }
+    .player-subtitle { font-size: 0.95rem; color: #AF52DE; font-weight: 600; }
+    .player-controls { display: flex; gap: 16px; align-items: center; }
+    .player-controls i { font-size: 1.7rem; color: #34C759; cursor: pointer; transition: color 0.2s; }
+    .player-controls i:active { color: #AF52DE; }
+    @media (max-width: 500px) { .safe-area { border-radius: 0; } .player-bar { padding: 10px 8px; } }
+  </style>
+</head>
+<body>
+  <div class="safe-area">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <span class="app-title">QariVerse</span>
+        <div class="header-icons">
+          <i data-lucide="bell"></i>
+          <i data-lucide="user"></i>
+        </div>
+      </div>
+      <!-- Hero Banner: Swipeable Stories -->
+      <div class="hero-banner">
+        <div class="hero-swiper">
+          <div class="hero-card">
+            <img src="https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=800&q=80" alt="Reciter" />
+            <div class="hero-card-content">
+              <span class="hero-badge">Featured Reciter</span>
+              <div class="hero-title">Mishary Rashid Alafasy</div>
+              <div class="hero-country">Kuwait</div>
+              <button class="hero-play-btn"><i data-lucide="play"></i> Listen Now</button>
+            </div>
+          </div>
+          <div class="hero-card">
+            <img src="https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80" alt="Reciter" />
+            <div class="hero-card-content">
+              <span class="hero-badge">Soothing Voice</span>
+              <div class="hero-title">Islam Sobhi</div>
+              <div class="hero-country">Egypt</div>
+              <button class="hero-play-btn"><i data-lucide="play"></i> Listen Now</button>
+            </div>
+          </div>
+          <div class="hero-card">
+            <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80" alt="Reciter" />
+            <div class="hero-card-content">
+              <span class="hero-badge">Trending</span>
+              <div class="hero-title">Abdur Rahman As-Sudais</div>
+              <div class="hero-country">Saudi Arabia</div>
+              <button class="hero-play-btn"><i data-lucide="play"></i> Listen Now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <div class="quick-action"><i data-lucide="heart"></i>Dhikr <span class="quick-action-badge">+12</span></div>
+      <div class="quick-action"><i data-lucide="play"></i>Continue</div>
+      <div class="quick-action"><i data-lucide="star"></i>Liked</div>
+      <div class="quick-action"><i data-lucide="clock"></i>Recent</div>
+    </div>
+    <!-- Carousels -->
+    <div class="carousel-section">
+      <div class="carousel-title"><span class="emoji">🔥</span> Most Popular Reciters</div>
+      <div class="carousel">
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="Reciter" />
+          <div class="reciter-name">Saad al-Ghamdi</div>
+          <div class="reciter-country">Saudi Arabia</div>
+        </div>
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/33.jpg" alt="Reciter" />
+          <div class="reciter-name">Saud Al-Shuraim</div>
+          <div class="reciter-country">Saudi Arabia</div>
+        </div>
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/34.jpg" alt="Reciter" />
+          <div class="reciter-name">Ahmed Al Ajmi</div>
+          <div class="reciter-country">Saudi Arabia</div>
+        </div>
+      </div>
+    </div>
+    <div class="carousel-section">
+      <div class="carousel-title"><span class="emoji">🌙</span> Most Soothing Reciters</div>
+      <div class="carousel">
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/35.jpg" alt="Reciter" />
+          <div class="reciter-name">Hazza Al Balushi</div>
+          <div class="reciter-country">Oman</div>
+        </div>
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/36.jpg" alt="Reciter" />
+          <div class="reciter-name">Noreen Muhammad Siddique</div>
+          <div class="reciter-country">Pakistan</div>
+        </div>
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/37.jpg" alt="Reciter" />
+          <div class="reciter-name">Raad Muhammad Al-Kurdi</div>
+          <div class="reciter-country">Iraq</div>
+        </div>
+      </div>
+    </div>
+    <div class="carousel-section">
+      <div class="carousel-title"><span class="emoji">💖</span> Favorite Reciters</div>
+      <div class="carousel">
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/38.jpg" alt="Reciter" />
+          <div class="reciter-name">Bandar Baleela</div>
+          <div class="reciter-country">Saudi Arabia</div>
+        </div>
+        <div class="carousel-card">
+          <img src="https://randomuser.me/api/portraits/men/39.jpg" alt="Reciter" />
+          <div class="reciter-name">Yasser Al Dossari</div>
+          <div class="reciter-country">Saudi Arabia</div>
+        </div>
+      </div>
+    </div>
+    <!-- Player Bar -->
+    <div class="player-bar">
+      <img src="https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=80&q=80" class="player-art" alt="Now Playing" />
+      <div class="player-info">
+        <div class="player-title">Surah Al-Fatiha</div>
+        <div class="player-subtitle">Mishary Rashid Alafasy</div>
+      </div>
+      <div class="player-controls">
+        <i data-lucide="skip-back"></i>
+        <i data-lucide="play-circle"></i>
+        <i data-lucide="skip-forward"></i>
+      </div>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
