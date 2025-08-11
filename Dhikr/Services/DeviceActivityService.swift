@@ -48,38 +48,24 @@ class DeviceActivityService: ObservableObject {
     
     /// Schedule blocking for multiple prayer times (up to 20 schedules)
     func schedulePrayerTimeBlocking(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>) {
-        // Silenced: verbose scheduler debug
-        // Check and clean up past prayers
-        let (removedCount, currentFutureCount) = cleanupPassedPrayersOnly()
-        // Silenced: counts
-        
-        // Check if we already have 20 future prayers
-        if currentFutureCount >= 20 {
-            return
-        }
-        
-        let slotsAvailable = 20 - currentFutureCount
-        // Silenced: slots available log
-        
-        // Filter to future prayers that we need to add
+        // Simplified: always compute next up-to-20 selected future prayers from now and try to schedule them.
+        // Avoid relying on saved schedules to decide capacity, since UI may persist previews.
         let now = Date()
-        let futurePrayers = prayerTimes.filter { $0.date > now }
-        let prayersToAdd = Array(futurePrayers.filter { selectedPrayers.contains($0.name) }.prefix(slotsAvailable))
-        // Silenced: counts
-        
+        let prayersToAdd = Array(
+            prayerTimes
+                .filter { $0.date > now && selectedPrayers.contains($0.name) }
+                .prefix(20)
+        )
         guard !prayersToAdd.isEmpty else { return }
         
-        var successfullyScheduled = 0
         var newActivityNames: [DeviceActivityName] = []
-        
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
         
         for prayer in prayersToAdd {
             // Skip past prayers
-            let now = Date()
-            if prayer.date <= now {
+            if prayer.date <= Date() {
                 // Silenced: skip past log
                 continue
             }
@@ -102,16 +88,17 @@ class DeviceActivityService: ObservableObject {
             do {
                 try center.startMonitoring(activityName, during: deviceSchedule)
                 newActivityNames.append(activityName)
-                successfullyScheduled += 1
-                // Optional: success log
             } catch {
+                // If already scheduled, ignore; otherwise log
                 print("❌ [Scheduler] Failed to schedule \(prayer.name): \(error.localizedDescription)")
             }
         }
         
         // Add new activities to tracked list (don't replace, append)
         activeActivityNames.append(contentsOf: newActivityNames)
-        // Silenced: counts
+        
+        // Persist the schedules we attempted to schedule, so other components have consistent view
+        saveScheduleToUserDefaults(prayersToAdd, duration: duration)
     }
     
     /// Stop current blocking session
