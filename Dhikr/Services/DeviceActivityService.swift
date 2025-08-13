@@ -32,9 +32,15 @@ class DeviceActivityService: ObservableObject {
         let startTime = Date().addingTimeInterval(30)
         let endTime = startTime.addingTimeInterval(duration)
         
+        // Use full date components to ensure the schedule targets an absolute date, not just a time of day
+        var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: startTime)
+        var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: endTime)
+        startComponents.calendar = Calendar.current
+        endComponents.calendar = Calendar.current
+
         let schedule = DeviceActivitySchedule(
-            intervalStart: Calendar.current.dateComponents([.hour, .minute, .second], from: startTime),
-            intervalEnd: Calendar.current.dateComponents([.hour, .minute, .second], from: endTime),
+            intervalStart: startComponents,
+            intervalEnd: endComponents,
             repeats: false
         )
         
@@ -79,9 +85,15 @@ class DeviceActivityService: ObservableObject {
             let endTime = startTime.addingTimeInterval(deviceActivityDurationSeconds)
             let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(Int(startTime.timeIntervalSince1970))")
             
+            // Use full date components so each prayer schedules on the correct absolute date
+            var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: startTime)
+            var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: endTime)
+            startComponents.calendar = Calendar.current
+            endComponents.calendar = Calendar.current
+
             let deviceSchedule = DeviceActivitySchedule(
-                intervalStart: Calendar.current.dateComponents([.hour, .minute, .second], from: startTime),
-                intervalEnd: Calendar.current.dateComponents([.hour, .minute, .second], from: endTime),
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
                 repeats: false
             )
             
@@ -395,9 +407,14 @@ class DeviceActivityService: ObservableObject {
             let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(timestamp)")
             
             // Create schedule
+            var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerStartTime)
+            var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerEndTime)
+            startComponents.calendar = Calendar.current
+            endComponents.calendar = Calendar.current
+
             let schedule = DeviceActivitySchedule(
-                intervalStart: Calendar.current.dateComponents([.hour, .minute, .second], from: prayerStartTime),
-                intervalEnd: Calendar.current.dateComponents([.hour, .minute, .second], from: prayerEndTime),
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
                 repeats: false
             )
             

@@ -90,6 +90,10 @@ class BlockingStateService: ObservableObject {
             let strictModeGroup = groupDefaults.bool(forKey: "focusStrictMode")
             isStrictModeEnabled = strictModeStandard || strictModeGroup
 
+            // Restore persisted early-unlock target if present
+            if let availTs = groupDefaults.object(forKey: "earlyUnlockAvailableAt") as? TimeInterval {
+                earlyUnlockAvailableAt = Date(timeIntervalSince1970: availTs)
+            }
             // Debug: initialization state (silenced to reduce console noise)
         }
         
@@ -141,6 +145,15 @@ class BlockingStateService: ObservableObject {
             groupDefaults.synchronize()
         }
 
+        // If countdown has already reached zero, freeze it for this interval so it
+        // doesn't remap to the next prayer on relaunch. We only clear this when
+        // the interval ends or when apps are no longer blocked.
+        if let target = earlyUnlockAvailableAt, now >= target {
+            // Lock state: keep earlyUnlockAvailableAt as-is; do not recompute mapping
+        } else {
+            // We will update earlyUnlockAvailableAt below as needed
+        }
+
         // Debug: high-level heartbeat only (commented out verbose schedule logs)
         // let earlyUnlockTs = groupDefaults.object(forKey: "earlyUnlockedUntil") as? TimeInterval
         // print("🔍 [EarlyUnlockDebug] check — now=\(now), strict=\(strictMode), schedules=\(prayerSchedules.count), start=\(String(describing: blockingStartTime)), end=\(String(describing: blockingEndTime)), earlyUnlockedUntil=\(String(describing: earlyUnlockTs)), appsBlocked=\(appsActuallyBlocked)")
@@ -167,16 +180,30 @@ class BlockingStateService: ObservableObject {
         }
 
         // As soon as apps are blocked (even if before prayer start), set early-unlock target
-        // to 5 minutes after the upcoming/active prayer start, so countdown begins immediately
-        if appsActuallyBlocked {
-            let targetStart = activeStart ?? nextStart
-            if let s = targetStart {
-                let avail = s.addingTimeInterval(5 * 60)
-                if earlyUnlockAvailableAt == nil || abs((earlyUnlockAvailableAt ?? .distantPast).timeIntervalSince1970 - avail.timeIntervalSince1970) > 0.5 {
-                    earlyUnlockAvailableAt = avail
-                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                        groupDefaults.set(avail.timeIntervalSince1970, forKey: "earlyUnlockAvailableAt")
+        // to 5 minutes after the CURRENT prayer's start (never the next one).
+        // We derive the current prayer as the latest schedule start that is <= blockingStartTime,
+        // falling back to the detected activeStart within this function.
+        if appsActuallyBlocked, !(earlyUnlockAvailableAt != nil && now >= earlyUnlockAvailableAt!) {
+            var mappedStart: Date? = nil
+            if let blkStart = blockingStartTime {
+                // Choose the most recent prayer start at or before the time shields were applied
+                mappedStart = prayerSchedules
+                    .compactMap { schedule -> Date? in
+                        guard let ts = schedule["date"] as? TimeInterval else { return nil }
+                        return Date(timeIntervalSince1970: ts)
                     }
+                    .filter { $0 <= blkStart }
+                    .sorted(by: { $0 > $1 })
+                    .first
+            }
+            if mappedStart == nil {
+                mappedStart = activeStart
+            }
+            if let currentStart = mappedStart {
+                let target = currentStart.addingTimeInterval(5 * 60)
+                earlyUnlockAvailableAt = target
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(target.timeIntervalSince1970, forKey: "earlyUnlockAvailableAt")
                 }
             }
         }
