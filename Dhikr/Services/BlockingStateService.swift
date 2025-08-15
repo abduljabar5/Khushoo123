@@ -57,6 +57,7 @@ class BlockingStateService: ObservableObject {
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var isInitializing = true
+    private var lastMonitoredActivitiesSignature = ""
     
     private init() {
         // Load persisted state
@@ -113,15 +114,98 @@ class BlockingStateService: ObservableObject {
                 self?.checkBlockingStatus()
             }
         }
+
+        // Also observe a nonce the monitor updates to immediately mirror monitored list without waiting 5s
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: UserDefaults(suiteName: "group.fm.mrc.Dhikr"), queue: .main) { [weak self] _ in
+            self?.checkBlockingStatus()
+        }
     }
     
     func checkBlockingStatus() {
-        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
-              let prayerSchedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] else {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
             updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
             return
         }
-        
+        let prayerSchedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] ?? []
+
+        // Mirror and log the activities that the monitor extension says are CURRENTLY being monitored
+        // so logs are visible from the main app console as well.
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .medium
+        let nowDate = Date()
+        let tsNow = formatter.string(from: nowDate)
+        var activeNames = groupDefaults.stringArray(forKey: "currentlyMonitoredActivityNames") ?? []
+
+        // Prune stale entries whose planned end has passed by more than 2 minutes
+        var pruned: [String] = []
+        var removedCount = 0
+        for raw in activeNames {
+            let parts = raw.split(separator: "_")
+            guard parts.count >= 3, let startTs = TimeInterval(parts.last!) else {
+                pruned.append(raw)
+                continue
+            }
+            let nameStr = String(parts[1])
+            // Try to find matching schedule within ±5 minutes of the activity name timestamp
+            var plannedEndTs: TimeInterval? = nil
+            if let match = prayerSchedules.first(where: { sched in
+                guard let n = sched["name"] as? String, let ts = sched["date"] as? TimeInterval else { return false }
+                return n == nameStr && abs(ts - startTs) <= 300
+            }), let dur = match["duration"] as? Double, let schedStart = match["date"] as? TimeInterval {
+                plannedEndTs = schedStart + dur
+            } else {
+                // Fallback to configured duration using the activity name timestamp
+                let durMin = groupDefaults.object(forKey: "focusBlockingDuration") as? Double ?? UserDefaults.standard.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
+                plannedEndTs = startTs + durMin * 60.0
+            }
+            if let endTs = plannedEndTs {
+                if nowDate.timeIntervalSince1970 > endTs + 120 { // 2-minute grace
+                    removedCount += 1
+                    continue // drop stale
+                }
+            }
+            pruned.append(raw)
+        }
+        if removedCount > 0 {
+            groupDefaults.set(pruned, forKey: "currentlyMonitoredActivityNames")
+        }
+
+        // Log the current (pruned) monitored list with tolerant end-time resolution
+        var lines: [String] = []
+        lines.append("count=\(pruned.count)")
+        for raw in pruned {
+            let parts = raw.split(separator: "_")
+            var startStr = ""
+            var endStr = "?"
+            var nameStr: String = raw
+            if parts.count >= 3, let startTs = TimeInterval(parts.last!) {
+                let startDate = Date(timeIntervalSince1970: startTs)
+                startStr = formatter.string(from: startDate)
+                nameStr = String(parts[1])
+                if let match = prayerSchedules.first(where: { sched in
+                    guard let n = sched["name"] as? String, let ts = sched["date"] as? TimeInterval else { return false }
+                    return n == nameStr && abs(ts - startTs) <= 300
+                }), let dur = match["duration"] as? Double, let schedStart = match["date"] as? TimeInterval {
+                    let endDate = Date(timeIntervalSince1970: schedStart).addingTimeInterval(dur)
+                    endStr = formatter.string(from: endDate)
+                } else {
+                    let durMin = groupDefaults.object(forKey: "focusBlockingDuration") as? Double ?? UserDefaults.standard.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
+                    let endDate = Date(timeIntervalSince1970: startTs + durMin * 60.0)
+                    endStr = formatter.string(from: endDate)
+                }
+            }
+            lines.append(" • activity=\(raw) | prayer=\(nameStr) | start=\(startStr) | end=\(endStr)")
+        }
+        let signature = lines.joined(separator: "\n")
+        print("📡 [\(tsNow)] Currently monitored (from monitor):\n\(signature)")
+
+        // If we have no prayer schedules, we cannot compute active windows; bail after logging
+        guard !prayerSchedules.isEmpty else {
+            updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
+            return
+        }
+
         
         let now = Date()
         // Read strict mode from both sources to ensure consistency

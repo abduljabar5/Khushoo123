@@ -18,6 +18,8 @@ class DeviceActivityService: ObservableObject {
     private let center = DeviceActivityCenter()
     private let prayerScheduleKey = "PrayerTimeSchedules"
     private var activeActivityNames: [DeviceActivityName] = []
+    private var lastScheduleInvocationAt: Date? = nil
+    private var sessionScheduledActivityNames: Set<String> = []
     
     private init() {}
     
@@ -47,8 +49,18 @@ class DeviceActivityService: ObservableObject {
         do {
             try center.startMonitoring(activityName, during: schedule)
             activeActivityNames = [activityName]
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .medium
+            let startStr = formatter.string(from: startTime)
+            let endStr = formatter.string(from: endTime)
+            print("📅 [Scheduler] Scheduled manual block: start=\(startStr), end=\(endStr), activity=\(activityName.rawValue)")
         } catch {
-            print("❌ Failed to schedule blocking: \(error.localizedDescription)")
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .medium
+            let ts = formatter.string(from: startTime)
+            print("❌ [\(ts)] Failed to schedule blocking: \(error.localizedDescription)")
         }
     }
     
@@ -57,18 +69,49 @@ class DeviceActivityService: ObservableObject {
         // Simplified: always compute next up-to-20 selected future prayers from now and try to schedule them.
         // Avoid relying on saved schedules to decide capacity, since UI may persist previews.
         let now = Date()
-        let prayersToAdd = Array(
-            prayerTimes
-                .filter { $0.date > now && selectedPrayers.contains($0.name) }
-                .prefix(20)
-        )
+        if let last = lastScheduleInvocationAt {
+            let delta = now.timeIntervalSince(last)
+            if delta < 3 {
+                let fmt = DateFormatter(); fmt.dateStyle = .short; fmt.timeStyle = .medium
+                print("⚠️ [\(fmt.string(from: now))] [Scheduler] Back-to-back scheduling detected (Δ=\(String(format: "%.2f", delta))s). You may be invoking scheduling from multiple places.")
+            }
+        }
+        lastScheduleInvocationAt = now
+        // Ensure stable ordering by start date, then keep at most one of each prayer per day
+        let sortedFutureSelected = prayerTimes
+            .filter { $0.date > now && selectedPrayers.contains($0.name) }
+            .sorted(by: { $0.date < $1.date })
+
+        var uniquePerDay: [PrayerTime] = []
+        var seenKeys = Set<String>()
+        let calendar = Calendar.current
+        for pt in sortedFutureSelected {
+            let day = calendar.startOfDay(for: pt.date)
+            let key = "\(day.timeIntervalSince1970)_\(pt.name)"
+            if !seenKeys.contains(key) {
+                seenKeys.insert(key)
+                uniquePerDay.append(pt)
+            }
+        }
+        let prayersToAdd = Array(uniquePerDay.prefix(20))
         guard !prayersToAdd.isEmpty else { return }
         
         var newActivityNames: [DeviceActivityName] = []
+        var scheduledCount = 0
+        var failedCount = 0
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
         
+        // Plan log: show which activity names we are about to request
+        do {
+            let planned = prayersToAdd.map { prayer in
+                let ts = Int(prayer.date.timeIntervalSince1970)
+                return "Prayer_\(prayer.name)_\(ts)"
+            }
+            print("🗺️ [\(formatter.string(from: now))] [Scheduler] Planning to schedule: \(planned)")
+        }
+
         for prayer in prayersToAdd {
             // Skip past prayers
             if prayer.date <= Date() {
@@ -78,12 +121,15 @@ class DeviceActivityService: ObservableObject {
             
             // Calculate standard duration (no early stop logic)
             let deviceActivityDurationSeconds = duration * 60
-            
+
+            // Normalize activityName to minute precision for stability across runs
             let startTime = prayer.date
+            let minuteStart = Calendar.current.date(bySetting: .second, value: 0, of: startTime) ?? startTime
             
             // Schedule a single activity for the full duration
             let endTime = startTime.addingTimeInterval(deviceActivityDurationSeconds)
-            let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(Int(startTime.timeIntervalSince1970))")
+            let normalizedTs = Int(minuteStart.timeIntervalSince1970)
+            let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
             
             // Use full date components so each prayer schedules on the correct absolute date
             var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: startTime)
@@ -96,13 +142,34 @@ class DeviceActivityService: ObservableObject {
                 intervalEnd: endComponents,
                 repeats: false
             )
+
+            // Preemptively stop near-duplicate monitors for this prayer within ±5 minutes of the normalized minute
+            let offsets = stride(from: -300, through: 300, by: 60)
+            let namesToStop = offsets.map { DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs + $0)") }
+            center.stopMonitoring(namesToStop)
             
             do {
                 try center.startMonitoring(activityName, during: deviceSchedule)
                 newActivityNames.append(activityName)
+                scheduledCount += 1
+                let startStr = formatter.string(from: startTime)
+                let endStr = formatter.string(from: endTime)
+                print("📅 [Scheduler] Scheduled \(prayer.name): start=\(startStr), end=\(endStr), activity=\(activityName.rawValue)")
+                sessionScheduledActivityNames.insert(activityName.rawValue)
             } catch {
-                // If already scheduled, ignore; otherwise log
-                print("❌ [Scheduler] Failed to schedule \(prayer.name): \(error.localizedDescription)")
+                // If already scheduled, ignore; otherwise log with scheduled start time
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .medium
+                let ts = formatter.string(from: startTime)
+                failedCount += 1
+                let reason: String
+                if sessionScheduledActivityNames.contains(activityName.rawValue) {
+                    reason = "duplicate activity name already scheduled this session"
+                } else {
+                    reason = "system refused (limit/rate/duplicate from prior run)"
+                }
+                print("❌ [\(ts)] [Scheduler] Failed to schedule \(prayer.name): \(error.localizedDescription) | activity=\(activityName.rawValue) | reason=\(reason)")
             }
         }
         
@@ -111,6 +178,40 @@ class DeviceActivityService: ObservableObject {
         
         // Persist the schedules we attempted to schedule, so other components have consistent view
         saveScheduleToUserDefaults(prayersToAdd, duration: duration)
+
+        // Summary log to show how many the OS accepted vs attempted
+        let fmt = DateFormatter(); fmt.dateStyle = .short; fmt.timeStyle = .medium
+        print("🧮 [\(fmt.string(from: Date()))] [Scheduler] Summary: attempted=\(prayersToAdd.count), scheduled=\(scheduledCount), failed=\(failedCount)")
+
+        // Log what is currently monitored according to the monitor extension (ground truth)
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            let activeNames = groupDefaults.stringArray(forKey: "currentlyMonitoredActivityNames") ?? []
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .medium
+            let ts = formatter.string(from: Date())
+            print("📡 [\(ts)] Currently monitored (from monitor): count=\(activeNames.count)")
+            for raw in activeNames {
+                let parts = raw.split(separator: "_")
+                var startStr = ""
+                var endStr = "?"
+                var nameStr: String = raw
+                if parts.count >= 3, let startTs = TimeInterval(parts.last!) {
+                    let startDate = Date(timeIntervalSince1970: startTs)
+                    startStr = formatter.string(from: startDate)
+                    nameStr = String(parts[1])
+                    if let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]],
+                       let match = schedules.first(where: { sched in
+                           guard let n = sched["name"] as? String, let ts2 = sched["date"] as? TimeInterval else { return false }
+                           return n == nameStr && Int(ts2) == Int(startTs)
+                       }), let dur = match["duration"] as? Double {
+                        let endDate = Date(timeIntervalSince1970: startTs).addingTimeInterval(dur)
+                        endStr = formatter.string(from: endDate)
+                    }
+                }
+                print("   • activity=\(raw) | prayer=\(nameStr) | start=\(startStr) | end=\(endStr)")
+            }
+        }
     }
     
     /// Stop current blocking session
@@ -427,7 +528,11 @@ class DeviceActivityService: ObservableObject {
                 print("✅ \(prayer.name) at \(formatter.string(from: prayerStartTime))")
                 
             } catch {
-                print("❌ \(prayer.name) failed: \(error.localizedDescription)")
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .medium
+                let ts = formatter.string(from: prayerStartTime)
+                print("❌ [\(ts)] \(prayer.name) failed: \(error.localizedDescription)")
             }
         }
         
