@@ -50,6 +50,18 @@ struct SearchView: View {
         return prayers
     }
     
+    private func syncPrayerSelectionsToAppGroup() {
+        // Sync prayer selections to App Group for extension to read
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            groupDefaults.set(selectedFajr, forKey: "focusSelectedFajr")
+            groupDefaults.set(selectedDhuhr, forKey: "focusSelectedDhuhr")
+            groupDefaults.set(selectedAsr, forKey: "focusSelectedAsr")
+            groupDefaults.set(selectedMaghrib, forKey: "focusSelectedMaghrib")
+            groupDefaults.set(selectedIsha, forKey: "focusSelectedIsha")
+            groupDefaults.synchronize()
+        }
+    }
+    
     @AppStorage("focusBlockingDuration") private var blockingDuration: Double = 15
     
     @AppStorage("focusStrictMode") private var strictMode = false
@@ -159,15 +171,22 @@ struct SearchView: View {
             }
             .ignoresSafeArea(edges: .top)
         }
-        .onChange(of: blockingDuration) { _ in
+        .onChange(of: blockingDuration) { newValue in
             // Clamp to 15..60 in 5-min steps
-            let clamped = min(60, max(15, round(blockingDuration / 5) * 5))
-            if clamped != blockingDuration {
+            let clamped = min(60, max(15, round(newValue / 5) * 5))
+            if clamped != newValue {
                 blockingDuration = clamped
+            }
+            // Sync to App Group
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                groupDefaults.set(blockingDuration, forKey: "focusBlockingDuration")
+                groupDefaults.synchronize()
             }
             scheduleUpdate()
         }
         .onChange(of: selectedPrayers) { _ in
+            // Sync to App Group first
+            syncPrayerSelectionsToAppGroup()
             scheduleUpdate()
         }
         .onChange(of: strictMode) { newValue in
@@ -226,9 +245,16 @@ struct SearchView: View {
                 defaults.set(selectedIsha, forKey: "focusSelectedIsha")
                 defaults.set(blockingDuration, forKey: "focusBlockingDuration")
                 
-                // Sync strict mode to App Group
+                // Sync ALL settings to App Group for extension access
                 if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
                     groupDefaults.set(strictMode, forKey: "focusStrictMode")
+                    groupDefaults.set(selectedFajr, forKey: "focusSelectedFajr")
+                    groupDefaults.set(selectedDhuhr, forKey: "focusSelectedDhuhr")
+                    groupDefaults.set(selectedAsr, forKey: "focusSelectedAsr")
+                    groupDefaults.set(selectedMaghrib, forKey: "focusSelectedMaghrib")
+                    groupDefaults.set(selectedIsha, forKey: "focusSelectedIsha")
+                    groupDefaults.set(blockingDuration, forKey: "focusBlockingDuration")
+                    groupDefaults.synchronize()
                 }
             }
         }
@@ -970,7 +996,15 @@ private struct AdditionalSettingsView: View {
             SectionHeader(title: "Additional Settings", icon: "gearshape.fill")
             
             VStack {
-                Toggle(isOn: $strictMode) {
+                Toggle(isOn: Binding(
+                    get: { strictMode },
+                    set: { newValue in
+                        // Only allow toggling when not actively blocking
+                        if blocking.canToggleStrictMode {
+                            strictMode = newValue
+                        }
+                    }
+                )) {
                     VStack(alignment: .leading) {
                         Text("Strict Mode")
                         Text("Prevent early unblocking").font(.caption).foregroundColor(.secondary)
@@ -978,7 +1012,7 @@ private struct AdditionalSettingsView: View {
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .green))
                 // Disable strict-mode toggle while apps are blocked, during early unlock, or while waiting for voice confirmation
-                .disabled(blocking.appsActuallyBlocked || blocking.isEarlyUnlockedActive || blocking.isWaitingForVoiceConfirmation)
+                .disabled(!blocking.canToggleStrictMode)
                 
                 Divider().background(Color.secondary.opacity(0.3))
                 

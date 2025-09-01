@@ -9,6 +9,7 @@ import DeviceActivity
 import FamilyControls
 import ManagedSettings
 import Foundation
+import UserNotifications
 
 class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let store = ManagedSettingsStore()
@@ -27,10 +28,12 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         // Parse activity name (format: "Prayer_<Name>_<UnixTimestamp>") to log the actual scheduled block
         let parts = activity.rawValue.split(separator: "_")
+        var prayerName: String? = nil
         if parts.count >= 3, let startTs = TimeInterval(parts.last!) {
             let startDate = Date(timeIntervalSince1970: startTs)
             let startStr = formatter.string(from: startDate)
             let nameStr = String(parts[1])
+            prayerName = nameStr
             var endStr = "?"
             if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
                let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]],
@@ -44,6 +47,51 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             print("🗓️ [\(ts)] Scheduled block started → prayer=\(nameStr), start=\(startStr), end=\(endStr)")
         } else {
             print("🗓️ [\(ts)] Scheduled block started → activity=\(activity.rawValue)")
+        }
+        
+        // Check if this prayer is actually selected for blocking
+        // Skip this check for ManualBlocking (test blocking)
+        if let prayerName = prayerName, activity.rawValue != "ManualBlocking" {
+            let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+            let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? true
+            let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? true
+            let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? true
+            let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? true
+            let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? true
+            
+            var isPrayerSelected = false
+            switch prayerName {
+            case "Fajr":
+                isPrayerSelected = selectedFajr
+            case "Dhuhr":
+                isPrayerSelected = selectedDhuhr
+            case "Asr":
+                isPrayerSelected = selectedAsr
+            case "Maghrib":
+                isPrayerSelected = selectedMaghrib
+            case "Isha":
+                isPrayerSelected = selectedIsha
+            default:
+                isPrayerSelected = false
+            }
+            
+            if !isPrayerSelected {
+                print("⏭️ [\(ts)] Prayer \(prayerName) is not selected for blocking, skipping restrictions")
+                // Update the monitoring list but don't apply restrictions
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    var activeNames = groupDefaults.stringArray(forKey: "currentlyMonitoredActivityNames") ?? []
+                    if activeNames.count > 30 {
+                        activeNames = Array(activeNames.suffix(25))
+                    }
+                    if !activeNames.contains(activity.rawValue) {
+                        activeNames.append(activity.rawValue)
+                        groupDefaults.set(activeNames, forKey: "currentlyMonitoredActivityNames")
+                    }
+                }
+                return
+            }
+            
+            print("✅ [\(ts)] Prayer \(prayerName) is selected for blocking, applying restrictions")
         }
         
         // Check what's currently blocked before we apply new restrictions
@@ -75,7 +123,41 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         
         if selection.applicationTokens.isEmpty && selection.categoryTokens.isEmpty && selection.webDomainTokens.isEmpty {
             print("⚠️ [\(ts)] No apps selected for blocking - prayer blocking will not work")
+            
+            // Send notification to user about missing app selection
+            let content = UNMutableNotificationContent()
+            content.title = "Dhikr - Setup Required"
+            content.body = "No apps selected for blocking. Please select apps in Focus Settings to enable prayer time blocking."
+            content.sound = .default
+            content.categoryIdentifier = "DHIKR_SETUP"
+            
+            let request = UNNotificationRequest(
+                identifier: "no-apps-selected-\(activity.rawValue)",
+                content: content,
+                trigger: nil // Deliver immediately
+            )
+            
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("❌ [\(ts)] Failed to send notification: \(error.localizedDescription)")
+                } else {
+                    print("📬 [\(ts)] Notification sent: No apps selected")
+                }
+            }
+            
+            // Also set a flag in UserDefaults for the main app to detect
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                groupDefaults.set(true, forKey: "noAppsSelectedWarning")
+                groupDefaults.set(Date().timeIntervalSince1970, forKey: "noAppsSelectedWarningTime")
+            }
+            
             return
+        }
+        
+        // Clear any previous warning since apps are now selected
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            groupDefaults.removeObject(forKey: "noAppsSelectedWarning")
+            groupDefaults.removeObject(forKey: "noAppsSelectedWarningTime")
         }
         
         // Apply the restrictions
@@ -112,8 +194,14 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             print("🔒 [\(ts)] [BlockingMonitor] FINAL: Apps actually blocked = true")
             print("📝 [\(ts)] Updated UserDefaults: appsActuallyBlocked=true")
 
-            // Track currently monitored activities for logging only
+            // Track currently monitored activities for logging only (limit array size to prevent memory issues)
             var activeNames = groupDefaults.stringArray(forKey: "currentlyMonitoredActivityNames") ?? []
+            
+            // Keep only last 30 activities to prevent unbounded growth
+            if activeNames.count > 30 {
+                activeNames = Array(activeNames.suffix(25))
+            }
+            
             if !activeNames.contains(activity.rawValue) {
                 activeNames.append(activity.rawValue)
                 groupDefaults.set(activeNames, forKey: "currentlyMonitoredActivityNames")
@@ -200,6 +288,19 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             var activeNames = groupDefaults.stringArray(forKey: "currentlyMonitoredActivityNames") ?? []
             activeNames.removeAll { $0 == activity.rawValue }
+            
+            // Clean up old entries that may have been missed
+            let now = Date()
+            activeNames = activeNames.filter { raw in
+                let parts = raw.split(separator: "_")
+                guard parts.count >= 3, let startTs = TimeInterval(parts.last!) else {
+                    return true // Keep non-prayer activities
+                }
+                // Remove activities older than 24 hours
+                let activityDate = Date(timeIntervalSince1970: startTs)
+                return now.timeIntervalSince(activityDate) < 86400 // 24 hours
+            }
+            
             groupDefaults.set(activeNames, forKey: "currentlyMonitoredActivityNames")
 
             let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] ?? []

@@ -54,6 +54,11 @@ class BlockingStateService: ObservableObject {
     // Early-unlock availability moment (5 minutes after prayer start)
     @Published var earlyUnlockAvailableAt: Date?
     
+    /// Whether strict mode can be toggled safely (not during active blocking)
+    var canToggleStrictMode: Bool {
+        return !isCurrentlyBlocking && !appsActuallyBlocked && !isWaitingForVoiceConfirmation
+    }
+    
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var isInitializing = true
@@ -121,11 +126,49 @@ class BlockingStateService: ObservableObject {
         }
     }
     
+    /// Validate and recover from state mismatches between extension and main app
+    private func validateAndRecoverBlockingState() {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+        
+        let appsBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")
+        let store = ManagedSettingsStore()
+        
+        // Check if ManagedSettings has any restrictions applied
+        let hasRestrictions = (store.shield.applications?.count ?? 0) > 0 ||
+                            store.shield.applicationCategories != nil ||
+                            (store.shield.webDomains?.count ?? 0) > 0
+        
+        // Detect state mismatch
+        if appsBlocked != hasRestrictions {
+            print("⚠️ State mismatch detected: appsActuallyBlocked=\(appsBlocked), hasRestrictions=\(hasRestrictions)")
+            
+            // Trust the ManagedSettings state as ground truth
+            if hasRestrictions {
+                groupDefaults.set(true, forKey: "appsActuallyBlocked")
+                appsActuallyBlocked = true
+                print("🔧 Recovery: Set appsActuallyBlocked=true based on active restrictions")
+            } else {
+                groupDefaults.set(false, forKey: "appsActuallyBlocked")
+                appsActuallyBlocked = false
+                // Clear any lingering blocking state
+                groupDefaults.removeObject(forKey: "blockingStartTime")
+                groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+                blockingStartTime = nil
+                earlyUnlockAvailableAt = nil
+                print("🔧 Recovery: Cleared blocking state - no active restrictions found")
+            }
+        }
+    }
+    
     func checkBlockingStatus() {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
             updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
             return
         }
+        
+        // Validate state before proceeding
+        validateAndRecoverBlockingState()
+        
         let prayerSchedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] ?? []
 
         // Mirror and log the activities that the monitor extension says are CURRENTLY being monitored
@@ -263,52 +306,81 @@ class BlockingStateService: ObservableObject {
             }
         }
 
-        // As soon as apps are blocked (even if before prayer start), set early-unlock target
-        // to 5 minutes after the CURRENT prayer's start (never the next one).
-        // We derive the current prayer as the latest schedule start that is <= blockingStartTime,
-        // falling back to the detected activeStart within this function.
-        if appsActuallyBlocked, !(earlyUnlockAvailableAt != nil && now >= earlyUnlockAvailableAt!) {
-            var mappedStart: Date? = nil
+        // Lock early unlock to the original prayer that triggered this blocking session
+        // Only set it once when apps first become blocked, and persist the prayer name
+        if appsActuallyBlocked && earlyUnlockAvailableAt == nil {
             if let blkStart = blockingStartTime {
-                // Choose the most recent prayer start at or before the time shields were applied
-                mappedStart = prayerSchedules
-                    .compactMap { schedule -> Date? in
-                        guard let ts = schedule["date"] as? TimeInterval else { return nil }
-                        return Date(timeIntervalSince1970: ts)
+                // Find the prayer that best matches when blocking started
+                let mappedPrayer = prayerSchedules
+                    .compactMap { schedule -> (name: String, start: Date, duration: Double)? in
+                        guard let name = schedule["name"] as? String,
+                              let ts = schedule["date"] as? TimeInterval,
+                              let duration = schedule["duration"] as? Double else { return nil }
+                        return (name, Date(timeIntervalSince1970: ts), duration)
                     }
-                    .filter { $0 <= blkStart }
-                    .sorted(by: { $0 > $1 })
-                    .first
-            }
-            if mappedStart == nil {
-                mappedStart = activeStart
-            }
-            if let currentStart = mappedStart {
-                let target = currentStart.addingTimeInterval(5 * 60)
-                earlyUnlockAvailableAt = target
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(target.timeIntervalSince1970, forKey: "earlyUnlockAvailableAt")
+                    .filter { prayer in
+                        // Prayer must have started before or at blocking time
+                        // and blocking must be within the prayer window
+                        let prayerEnd = prayer.start.addingTimeInterval(prayer.duration)
+                        return prayer.start <= blkStart && blkStart <= prayerEnd
+                    }
+                    .min(by: { abs($0.start.timeIntervalSince(blkStart)) < abs($1.start.timeIntervalSince(blkStart)) })
+                
+                if let prayer = mappedPrayer {
+                    let target = prayer.start.addingTimeInterval(5 * 60)
+                    earlyUnlockAvailableAt = target
+                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                        groupDefaults.set(target.timeIntervalSince1970, forKey: "earlyUnlockAvailableAt")
+                        groupDefaults.set(prayer.name, forKey: "earlyUnlockPrayerName")
+                        groupDefaults.set(prayer.start.timeIntervalSince1970, forKey: "earlyUnlockPrayerStart")
+                    }
+                } else if let activeStart = activeStart, let activeName = activeName {
+                    // Fallback: use the currently active prayer window
+                    let target = activeStart.addingTimeInterval(5 * 60)
+                    earlyUnlockAvailableAt = target
+                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                        groupDefaults.set(target.timeIntervalSince1970, forKey: "earlyUnlockAvailableAt")
+                        groupDefaults.set(activeName, forKey: "earlyUnlockPrayerName")
+                        groupDefaults.set(activeStart.timeIntervalSince1970, forKey: "earlyUnlockPrayerStart")
+                    }
                 }
             }
         }
 
-        // If user has performed an early unlock, consider it only for the matching active window
+        // If user has performed an early unlock, validate it matches the current prayer window
         if let earlyUnlockedUntilTs = groupDefaults.object(forKey: "earlyUnlockedUntil") as? TimeInterval {
             let earlyUnlockedUntil = Date(timeIntervalSince1970: earlyUnlockedUntilTs)
             currentEarlyUnlockedUntil = earlyUnlockedUntil
-            if let aStart = activeStart, let aEnd = activeEnd {
-                if earlyUnlockedUntil >= aStart && earlyUnlockedUntil <= aEnd {
+            
+            // Validate early unlock with saved prayer information
+            let savedPrayerName = groupDefaults.string(forKey: "earlyUnlockPrayerName")
+            let savedPrayerStartTs = groupDefaults.object(forKey: "earlyUnlockPrayerStart") as? TimeInterval
+            
+            if let aStart = activeStart, let aEnd = activeEnd, let aName = activeName {
+                // Check if early unlock matches current active window
+                let matchesPrayer: Bool
+                if let savedName = savedPrayerName, let savedStartTs = savedPrayerStartTs {
+                    // Both values exist, check if they match current window
+                    matchesPrayer = (savedName == aName) && (abs(aStart.timeIntervalSince1970 - savedStartTs) < 60)
+                } else {
+                    // Legacy early unlock without saved prayer info - allow it for backward compatibility
+                    matchesPrayer = true
+                }
+                
+                if matchesPrayer && earlyUnlockedUntil >= aStart && earlyUnlockedUntil <= aEnd {
                     if now < earlyUnlockedUntil {
                         isInActiveScheduleWindow = true
                         isEarlyUnlockedActive = true
                         // Do NOT force strict mode off; UI disables toggle separately
                         // Not blocking during early unlock
-                        updateBlockingState(isBlocking: false, prayerName: activeName ?? "", endTime: aEnd)
+                        updateBlockingState(isBlocking: false, prayerName: aName, endTime: aEnd)
                         return
                     }
                 } else {
-                    // Early unlock belongs to a previous interval; clear it
+                    // Early unlock doesn't match current interval; clear it
                     groupDefaults.removeObject(forKey: "earlyUnlockedUntil")
+                    groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
+                    groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
                     currentEarlyUnlockedUntil = nil
                     isEarlyUnlockedActive = false
                     // Silenced: mismatched early unlock log
@@ -317,6 +389,8 @@ class BlockingStateService: ObservableObject {
                 // No active window; if early unlock time passed, clear it
                 if now >= earlyUnlockedUntil {
                     groupDefaults.removeObject(forKey: "earlyUnlockedUntil")
+                    groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
+                    groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
                     currentEarlyUnlockedUntil = nil
                     isEarlyUnlockedActive = false
                     // Silenced: expired early unlock log
@@ -403,7 +477,12 @@ class BlockingStateService: ObservableObject {
         blockingStartTime = nil
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.removeObject(forKey: "blockingStartTime")
+            // Clear early unlock tracking when no longer blocking
+            groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+            groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
+            groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
         }
+        earlyUnlockAvailableAt = nil
     }
     
     private func updateBlockingState(isBlocking: Bool, prayerName: String, endTime: Date?) {
@@ -434,12 +513,17 @@ class BlockingStateService: ObservableObject {
             groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
             groupDefaults.removeObject(forKey: "earlyUnlockedUntil")
             groupDefaults.set(false, forKey: "appsActuallyBlocked")
+            // Clear early unlock prayer tracking
+            groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+            groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
+            groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
         }
         
         // Update local state
         isWaitingForVoiceConfirmation = false
         isEarlyUnlockedActive = false
         appsActuallyBlocked = false
+        earlyUnlockAvailableAt = nil
         updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.removeObject(forKey: "blockingStartTime")
@@ -475,6 +559,11 @@ class BlockingStateService: ObservableObject {
             groupDefaults.set(endTime.timeIntervalSince1970, forKey: "earlyUnlockedUntil")
             groupDefaults.set(false, forKey: "appsActuallyBlocked")
             groupDefaults.removeObject(forKey: "blockingStartTime")
+            
+            // Keep the prayer tracking info for validation
+            // Don't remove earlyUnlockPrayerName and earlyUnlockPrayerStart
+            // They will be cleared when the interval ends or a new prayer starts
+            
             currentEarlyUnlockedUntil = endTime
             isEarlyUnlockedActive = true
             appsActuallyBlocked = false

@@ -23,6 +23,14 @@ class DeviceActivityService: ObservableObject {
     
     private init() {}
     
+    /// Normalize a date to minute precision for consistent activity naming
+    private func normalizeTimestamp(_ date: Date) -> Int {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let normalized = calendar.date(from: components) ?? date
+        return Int(normalized.timeIntervalSince1970)
+    }
+    
     /// Schedule app blocking for a specified duration with a 30-second delay
     func scheduleBlocking(for duration: TimeInterval) {
         // Stop any existing monitoring first to ensure a clean state
@@ -93,8 +101,22 @@ class DeviceActivityService: ObservableObject {
                 uniquePerDay.append(pt)
             }
         }
-        let prayersToAdd = Array(uniquePerDay.prefix(20))
-        guard !prayersToAdd.isEmpty else { return }
+        // Check current capacity before scheduling
+        let maxSchedules = 20
+        let currentActiveCount = activeActivityNames.count
+        let availableSlots = max(0, maxSchedules - currentActiveCount)
+        
+        if availableSlots == 0 {
+            print("⚠️ Schedule capacity reached (\(currentActiveCount)/\(maxSchedules)). Clearing old schedules...")
+            // Clear some old activities to make room
+            performAggressiveCleanup()
+        }
+        
+        let prayersToAdd = Array(uniquePerDay.prefix(min(availableSlots > 0 ? availableSlots : 10, 20)))
+        guard !prayersToAdd.isEmpty else {
+            print("❌ No capacity to schedule new prayers")
+            return
+        }
         
         var newActivityNames: [DeviceActivityName] = []
         var scheduledCount = 0
@@ -122,13 +144,10 @@ class DeviceActivityService: ObservableObject {
             // Calculate standard duration (no early stop logic)
             let deviceActivityDurationSeconds = duration * 60
 
-            // Normalize activityName to minute precision for stability across runs
+            // Use normalized timestamp for consistent activity naming
             let startTime = prayer.date
-            let minuteStart = Calendar.current.date(bySetting: .second, value: 0, of: startTime) ?? startTime
-            
-            // Schedule a single activity for the full duration
             let endTime = startTime.addingTimeInterval(deviceActivityDurationSeconds)
-            let normalizedTs = Int(minuteStart.timeIntervalSince1970)
+            let normalizedTs = normalizeTimestamp(startTime)
             let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
             
             // Use full date components so each prayer schedules on the correct absolute date
@@ -241,7 +260,8 @@ class DeviceActivityService: ObservableObject {
             for schedule in existingSchedules {
                 if let name = schedule["name"] as? String,
                    let timestamp = schedule["date"] as? TimeInterval {
-                    let activityName = DeviceActivityName("Prayer_\(name)_\(Int(timestamp))")
+                    let normalizedTs = normalizeTimestamp(Date(timeIntervalSince1970: timestamp))
+                    let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
                     allActivitiesToStop.insert(activityName)
                 }
             }
@@ -264,13 +284,15 @@ class DeviceActivityService: ObservableObject {
             for prayerName in ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"] {
                 // Try multiple timestamp formats
                 let dayStart = calendar.startOfDay(for: targetDate)
+                // Generate normalized timestamps for possible prayer times
                 let possibleTimestamps = [
-                    Int(targetDate.timeIntervalSince1970),
-                    Int(dayStart.timeIntervalSince1970),
-                    Int(targetDate.timeIntervalSince1970) - Int(targetDate.timeIntervalSince1970.truncatingRemainder(dividingBy: 60))
+                    normalizeTimestamp(targetDate),
+                    normalizeTimestamp(dayStart),
+                    normalizeTimestamp(targetDate.addingTimeInterval(3600)), // +1 hour
+                    normalizeTimestamp(targetDate.addingTimeInterval(-3600)) // -1 hour
                 ]
                 
-                for timestamp in possibleTimestamps {
+                for timestamp in Set(possibleTimestamps) { // Use Set to avoid duplicates
                     allActivitiesToStop.insert(DeviceActivityName("Prayer_\(prayerName)_\(timestamp)"))
                 }
             }
@@ -377,7 +399,8 @@ class DeviceActivityService: ObservableObject {
                 return schedule
             } else {
                 passedCount += 1
-                let activityName = DeviceActivityName("Prayer_\(name)_\(Int(timestamp))")
+                let normalizedTs = normalizeTimestamp(Date(timeIntervalSince1970: timestamp))
+                let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
                 passedActivityNames.append(activityName)
                 // Silenced
                 return nil
@@ -417,7 +440,8 @@ class DeviceActivityService: ObservableObject {
             for schedule in existingSchedules {
                 if let name = schedule["name"] as? String,
                    let timestamp = schedule["date"] as? TimeInterval {
-                    let activityName = DeviceActivityName("Prayer_\(name)_\(Int(timestamp))")
+                    let normalizedTs = normalizeTimestamp(Date(timeIntervalSince1970: timestamp))
+                    let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
                     activitiesToStop.append(activityName)
                 }
             }
@@ -503,9 +527,9 @@ class DeviceActivityService: ObservableObject {
             let prayerStartTime = prayer.date
             let prayerEndTime = prayerStartTime.addingTimeInterval(deviceActivityDurationSeconds)
             
-            // Create unique activity name
-            let timestamp = Int(prayerStartTime.timeIntervalSince1970)
-            let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(timestamp)")
+            // Create unique activity name with normalized timestamp
+            let normalizedTs = normalizeTimestamp(prayerStartTime)
+            let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
             
             // Create schedule
             var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerStartTime)
@@ -553,11 +577,12 @@ class DeviceActivityService: ObservableObject {
         let schedules = prayerTimes.map { prayer -> [String: Any] in
             let deviceActivityDurationSeconds = duration * 60
             
+            let normalizedTs = normalizeTimestamp(prayer.date)
             let schedule: [String: Any] = [
                 "name": prayer.name,
                 "date": prayer.date.timeIntervalSince1970,
                 "duration": deviceActivityDurationSeconds,
-                "activityName": "Prayer_\(prayer.name)_\(Int(prayer.date.timeIntervalSince1970))"
+                "activityName": "Prayer_\(prayer.name)_\(normalizedTs)"
             ]
             
             return schedule

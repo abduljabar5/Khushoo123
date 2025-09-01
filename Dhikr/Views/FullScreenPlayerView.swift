@@ -241,7 +241,7 @@ struct FullScreenPlayerView: View {
         HStack {
             Button(action: {
                 print("🔀 [Shuffle] Toggling shuffle. Current: \(audioPlayerService.isShuffleEnabled)")
-                audioPlayerService.isShuffleEnabled.toggle()
+                audioPlayerService.toggleShuffle()
             }) {
                 Image(systemName: "shuffle")
                     .font(.body)
