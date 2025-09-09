@@ -477,8 +477,21 @@ class DeviceActivityService: ObservableObject {
         return uniqueActivities.count
     }
     
+    private var lastRescheduleTime: Date = Date.distantPast
+    private let rescheduleDebounceInterval: TimeInterval = 1.0
+    
     /// Force complete clear and reschedule all prayers with current settings
     func forceCompleteReschedule(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>) {
+        let now = Date()
+        
+        // Debounce to prevent duplicate scheduling within 1 second
+        if now.timeIntervalSince(lastRescheduleTime) < rescheduleDebounceInterval {
+            print("⏭️ [ForceReschedule] Skipping duplicate call (debounced)")
+            return
+        }
+        
+        lastRescheduleTime = now
+        print("🔄 [ForceReschedule] Starting reschedule...")
         
         // Stop ALL existing monitoring
         stopAllMonitoring()
@@ -496,12 +509,12 @@ class DeviceActivityService: ObservableObject {
         let store = ManagedSettingsStore()
         store.clearAllSettings()
         
-        // Wait for activities to fully stop
-        Thread.sleep(forTimeInterval: 2.0)
+        // Brief pause to allow activities to stop (reduced from 2 seconds)
+        Thread.sleep(forTimeInterval: 0.1)
         
         // Now schedule fresh with current settings
-        let now = Date()
-        let futurePrayers = prayerTimes.filter { $0.date > now }
+        let currentTime = Date()
+        let futurePrayers = prayerTimes.filter { $0.date > currentTime }
         let prayersToSchedule = Array(futurePrayers.filter { selectedPrayers.contains($0.name) }.prefix(20))
         
         guard !prayersToSchedule.isEmpty else {
@@ -515,53 +528,75 @@ class DeviceActivityService: ObservableObject {
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
         
+        // Schedule all prayers concurrently for faster performance
+        let dispatchGroup = DispatchGroup()
+        let queue = DispatchQueue(label: "prayer-scheduling", qos: .userInitiated, attributes: .concurrent)
+        let lockQueue = DispatchQueue(label: "prayer-scheduling-lock")
+        
         for prayer in prayersToSchedule {
-            // Skip past prayers
-            let now = Date()
-            if prayer.date <= now {
-                continue
-            }
-            
-            // Calculate standard duration (no early stop logic)
-            let deviceActivityDurationSeconds = duration * 60
-            let prayerStartTime = prayer.date
-            let prayerEndTime = prayerStartTime.addingTimeInterval(deviceActivityDurationSeconds)
-            
-            // Create unique activity name with normalized timestamp
-            let normalizedTs = normalizeTimestamp(prayerStartTime)
-            let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
-            
-            // Create schedule
-            var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerStartTime)
-            var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerEndTime)
-            startComponents.calendar = Calendar.current
-            endComponents.calendar = Calendar.current
+            dispatchGroup.enter()
+            queue.async {
+                defer { dispatchGroup.leave() }
+                
+                // Skip past prayers
+                let checkTime = Date()
+                if prayer.date <= checkTime {
+                    return
+                }
+                
+                // Calculate standard duration (no early stop logic)
+                let deviceActivityDurationSeconds = duration * 60
+                let prayerStartTime = prayer.date
+                let prayerEndTime = prayerStartTime.addingTimeInterval(deviceActivityDurationSeconds)
+                
+                // Create unique activity name with normalized timestamp
+                let normalizedTs = self.normalizeTimestamp(prayerStartTime)
+                let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
+                
+                // Create schedule
+                var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerStartTime)
+                var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerEndTime)
+                startComponents.calendar = Calendar.current
+                endComponents.calendar = Calendar.current
 
-            let schedule = DeviceActivitySchedule(
-                intervalStart: startComponents,
-                intervalEnd: endComponents,
-                repeats: false
-            )
-            
-            do {
-                try center.startMonitoring(activityName, during: schedule)
-                newActivityNames.append(activityName)
-                successfullyScheduled += 1
+                let schedule = DeviceActivitySchedule(
+                    intervalStart: startComponents,
+                    intervalEnd: endComponents,
+                    repeats: false
+                )
                 
-                // Log only successfully scheduled prayers
-                print("✅ \(prayer.name) at \(formatter.string(from: prayerStartTime))")
-                
-            } catch {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .short
-                formatter.timeStyle = .medium
-                let ts = formatter.string(from: prayerStartTime)
-                print("❌ [\(ts)] \(prayer.name) failed: \(error.localizedDescription)")
+                do {
+                    try self.center.startMonitoring(activityName, during: schedule)
+                    
+                    // Thread-safe updates
+                    lockQueue.sync {
+                        newActivityNames.append(activityName)
+                        successfullyScheduled += 1
+                    }
+                    
+                    // Log only successfully scheduled prayers
+                    print("✅ \(prayer.name) at \(formatter.string(from: prayerStartTime))")
+                    
+                } catch {
+                    let formatter = DateFormatter()
+                    formatter.dateStyle = .short
+                    formatter.timeStyle = .medium
+                    let ts = formatter.string(from: prayerStartTime)
+                    print("❌ [\(ts)] \(prayer.name) failed: \(error.localizedDescription)")
+                }
             }
         }
         
+        // Wait for all scheduling to complete
+        dispatchGroup.wait()
+        
         // Update tracked activities
         activeActivityNames = newActivityNames
+        
+        // Summary log to match the format from regular scheduling
+        let attemptedCount = prayersToSchedule.count
+        let failedCount = attemptedCount - successfullyScheduled
+        print("🧮 [ForceReschedule] Summary: attempted=\(attemptedCount), scheduled=\(successfullyScheduled), failed=\(failedCount)")
         
         // Save the new schedule to UserDefaults for future cleanup
         saveScheduleToUserDefaults(prayersToSchedule, duration: duration)

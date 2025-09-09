@@ -10,6 +10,7 @@ import FamilyControls
 import ManagedSettings
 import Foundation
 import UserNotifications
+import UIKit
 
 class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     let store = ManagedSettingsStore()
@@ -160,10 +161,14 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             groupDefaults.removeObject(forKey: "noAppsSelectedWarningTime")
         }
         
-        // Apply the restrictions
+        // Apply the restrictions with custom shield
         store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
         store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
         store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
+        
+        // Force the system to use our custom shield extension
+        // The custom UI should now appear automatically when apps are blocked
+        print("🛡️ [\(ts)] Custom shield extension should now be active for blocked apps")
         
         // Verify what's actually blocked after applying
         let nowBlockedApps = store.shield.applications?.count ?? 0

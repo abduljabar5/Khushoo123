@@ -295,26 +295,26 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     func play() {
         if player?.currentItem != nil {
-        print("🎵 [AudioPlayerService] Play requested")
-        
-        guard let player = player else {
-            print("❌ [AudioPlayerService] No player available")
-            return
-        }
-        
-        // Ensure audio session is active
-        if !isAudioSessionActive {
-            print("🎵 [AudioPlayerService] Reactivating audio session for playback")
-            setupAudioSession()
-        } else {
-            print("🎵 [AudioPlayerService] Audio session is already active")
-        }
-        print("🎵 [AudioPlayerService] Audio session active: \(isAudioSessionActive)")
-        player.play()
-        isPlaying = true
-        lastRecordedTime = currentTime // Reset tracking when playback starts
-        updateNowPlayingInfo()
-        print("✅ [AudioPlayerService] Playback started")
+            print("🎵 [AudioPlayerService] Play requested")
+            
+            guard let player = player else {
+                print("❌ [AudioPlayerService] No player available")
+                return
+            }
+            
+            // Ensure audio session is active
+            if !isAudioSessionActive {
+                print("🎵 [AudioPlayerService] Reactivating audio session for playback")
+                setupAudioSession()
+            } else {
+                print("🎵 [AudioPlayerService] Audio session is already active")
+            }
+            print("🎵 [AudioPlayerService] Audio session active: \(isAudioSessionActive)")
+            player.play()
+            isPlaying = true
+            lastRecordedTime = currentTime // Reset tracking when playback starts
+            updateNowPlayingInfo()
+            print("✅ [AudioPlayerService] Playback started")
         }
     }
     

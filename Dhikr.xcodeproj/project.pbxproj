@@ -14,6 +14,8 @@
 		814326C62E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 815731EF2E14EACE00DD29EF /* Kingfisher */; };
 		815736292E1744DD00DD29EF /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 815736282E1744DD00DD29EF /* SwiftSoup */; };
+		81F4B8C82E6550E10089E266 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81432C092E3EFBCC00BCCEF2 /* ManagedSettings.framework */; };
+		81F4B8D02E6550E10089E266 /* DhikrShieldAction.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 81F4B8C72E6550E00089E266 /* DhikrShieldAction.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +47,13 @@
 			remoteGlobalIDString = 814326BB2E3888DF00BCCEF2;
 			remoteInfo = PrayerBlockerMonitor;
 		};
+		81F4B8CE2E6550E10089E266 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 81254FC82E07941E0035AD52 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 81F4B8C62E6550E00089E266;
+			remoteInfo = DhikrShieldAction;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,6 +63,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				81F4B8D02E6550E10089E266 /* DhikrShieldAction.appex in Embed Foundation Extensions */,
 				8125502F2E079D0D0035AD52 /* DhikrtrackerExtension.appex in Embed Foundation Extensions */,
 				814326C62E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex in Embed Foundation Extensions */,
 			);
@@ -73,6 +83,7 @@
 		814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PrayerBlockerMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		814326BD2E3888DF00BCCEF2 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		81432C092E3EFBCC00BCCEF2 /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
+		81F4B8C72E6550E00089E266 /* DhikrShieldAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DhikrShieldAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -103,6 +114,13 @@
 				Models/AppSelectionModel.swift,
 			);
 			target = 814326BB2E3888DF00BCCEF2 /* PrayerBlockerMonitor */;
+		};
+		81F4B8D42E6550E10089E266 /* Exceptions for "DhikrShieldAction" folder in "DhikrShieldAction" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 81F4B8C62E6550E00089E266 /* DhikrShieldAction */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -140,6 +158,14 @@
 				814326CA2E3888DF00BCCEF2 /* Exceptions for "PrayerBlockerMonitor" folder in "PrayerBlockerMonitor" target */,
 			);
 			path = PrayerBlockerMonitor;
+			sourceTree = "<group>";
+		};
+		81F4B8C92E6550E10089E266 /* DhikrShieldAction */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				81F4B8D42E6550E10089E266 /* Exceptions for "DhikrShieldAction" folder in "DhikrShieldAction" target */,
+			);
+			path = DhikrShieldAction;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -185,6 +211,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		81F4B8C42E6550E00089E266 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				81F4B8C82E6550E10089E266 /* ManagedSettings.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -197,6 +231,7 @@
 				81254FEA2E0794200035AD52 /* DhikrUITests */,
 				8125501F2E079D0C0035AD52 /* Dhikrtracker */,
 				814326BF2E3888DF00BCCEF2 /* PrayerBlockerMonitor */,
+				81F4B8C92E6550E10089E266 /* DhikrShieldAction */,
 				8125501A2E079D0B0035AD52 /* Frameworks */,
 				81254FD12E07941E0035AD52 /* Products */,
 			);
@@ -210,6 +245,7 @@
 				81254FE72E0794200035AD52 /* DhikrUITests.xctest */,
 				812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */,
 				814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */,
+				81F4B8C72E6550E00089E266 /* DhikrShieldAction.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -242,6 +278,7 @@
 			dependencies = (
 				8125502E2E079D0D0035AD52 /* PBXTargetDependency */,
 				814326C52E3888DF00BCCEF2 /* PBXTargetDependency */,
+				81F4B8CF2E6550E10089E266 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				81254FD22E07941E0035AD52 /* Dhikr */,
@@ -345,6 +382,28 @@
 			productReference = 814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		81F4B8C62E6550E00089E266 /* DhikrShieldAction */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81F4B8D12E6550E10089E266 /* Build configuration list for PBXNativeTarget "DhikrShieldAction" */;
+			buildPhases = (
+				81F4B8C32E6550E00089E266 /* Sources */,
+				81F4B8C42E6550E00089E266 /* Frameworks */,
+				81F4B8C52E6550E00089E266 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				81F4B8C92E6550E10089E266 /* DhikrShieldAction */,
+			);
+			name = DhikrShieldAction;
+			packageProductDependencies = (
+			);
+			productName = DhikrShieldAction;
+			productReference = 81F4B8C72E6550E00089E266 /* DhikrShieldAction.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -372,6 +431,9 @@
 					814326BB2E3888DF00BCCEF2 = {
 						CreatedOnToolsVersion = 16.4;
 					};
+					81F4B8C62E6550E00089E266 = {
+						CreatedOnToolsVersion = 16.4;
+					};
 				};
 			};
 			buildConfigurationList = 81254FCB2E07941E0035AD52 /* Build configuration list for PBXProject "Dhikr" */;
@@ -397,6 +459,7 @@
 				81254FE62E0794200035AD52 /* DhikrUITests */,
 				812550182E079D0B0035AD52 /* DhikrtrackerExtension */,
 				814326BB2E3888DF00BCCEF2 /* PrayerBlockerMonitor */,
+				81F4B8C62E6550E00089E266 /* DhikrShieldAction */,
 			);
 		};
 /* End PBXProject section */
@@ -431,6 +494,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		814326BA2E3888DF00BCCEF2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		81F4B8C52E6550E00089E266 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -475,6 +545,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		81F4B8C32E6550E00089E266 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -497,6 +574,11 @@
 			isa = PBXTargetDependency;
 			target = 814326BB2E3888DF00BCCEF2 /* PrayerBlockerMonitor */;
 			targetProxy = 814326C42E3888DF00BCCEF2 /* PBXContainerItemProxy */;
+		};
+		81F4B8CF2E6550E10089E266 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 81F4B8C62E6550E00089E266 /* DhikrShieldAction */;
+			targetProxy = 81F4B8CE2E6550E10089E266 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -871,6 +953,58 @@
 			};
 			name = Release;
 		};
+		81F4B8D22E6550E10089E266 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = DhikrShieldAction/DhikrShieldAction.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DhikrShieldAction/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DhikrShieldAction;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr.DhikrShieldAction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		81F4B8D32E6550E10089E266 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = DhikrShieldAction/DhikrShieldAction.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3LJM4T74C5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DhikrShieldAction/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DhikrShieldAction;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr.DhikrShieldAction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -924,6 +1058,15 @@
 			buildConfigurations = (
 				814326C72E3888DF00BCCEF2 /* Debug */,
 				814326C82E3888DF00BCCEF2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		81F4B8D12E6550E10089E266 /* Build configuration list for PBXNativeTarget "DhikrShieldAction" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81F4B8D22E6550E10089E266 /* Debug */,
+				81F4B8D32E6550E10089E266 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

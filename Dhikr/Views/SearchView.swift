@@ -15,8 +15,6 @@ import Combine
 struct SearchView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var screenTimeAuth: ScreenTimeAuthorizationService
-    @State private var showingFullScreenPlayer = false
-    @State private var isBlocking = false
     @State private var showingAppPicker = false
     @State private var appSelection = FamilyActivitySelection()
     
@@ -27,6 +25,7 @@ struct SearchView: View {
     @State private var lastPrayerTimeFetch: Date?
     @State private var hasInitializedSettings = false
     @State private var reschedulingTimer: Timer?
+    @State private var isUpdatingSchedule = false
     
     // Persistent flag to track if we've ever scheduled blocking (survives app restarts)
     private var hasScheduledInitialBlocking: Bool {
@@ -52,13 +51,15 @@ struct SearchView: View {
     
     private func syncPrayerSelectionsToAppGroup() {
         // Sync prayer selections to App Group for extension to read
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.set(selectedFajr, forKey: "focusSelectedFajr")
-            groupDefaults.set(selectedDhuhr, forKey: "focusSelectedDhuhr")
-            groupDefaults.set(selectedAsr, forKey: "focusSelectedAsr")
-            groupDefaults.set(selectedMaghrib, forKey: "focusSelectedMaghrib")
-            groupDefaults.set(selectedIsha, forKey: "focusSelectedIsha")
-            groupDefaults.synchronize()
+        Task.detached(priority: .background) {
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                groupDefaults.set(await self.selectedFajr, forKey: "focusSelectedFajr")
+                groupDefaults.set(await self.selectedDhuhr, forKey: "focusSelectedDhuhr")
+                groupDefaults.set(await self.selectedAsr, forKey: "focusSelectedAsr")
+                groupDefaults.set(await self.selectedMaghrib, forKey: "focusSelectedMaghrib")
+                groupDefaults.set(await self.selectedIsha, forKey: "focusSelectedIsha")
+                groupDefaults.synchronize()
+            }
         }
     }
     
@@ -88,6 +89,22 @@ struct SearchView: View {
                     HeaderImageView()
                     
                     VStack(alignment: .leading, spacing: 24) {
+                        // Show loading overlay when updating schedule
+                        if isUpdatingSchedule {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Updating schedule...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                        
                         // Voice confirmation section (appears when blocking is active in strict mode)
                         VoiceConfirmationView(blockingState: blockingStateService)
                         
@@ -152,16 +169,7 @@ struct SearchView: View {
                             strictMode: $strictMode,
                             prePrayerNotification: $prePrayerNotification,
                             allowEmergencyCalls: $allowEmergencyCalls,
-                            showingConfirmationSheet: $showingUnlockConfirmation,
-                            onRefreshSchedule: refreshPrayerSchedule
-                        )
-                        
-                        TestBlockingView(
-                            isBlocking: $isBlocking,
-                            onBlockTapped: handleBlockButtonTap,
-                            onForceUpdateSchedule: {
-                                performScheduleUpdate()
-                            }
+                            showingConfirmationSheet: $showingUnlockConfirmation
                         )
                         
 
@@ -177,25 +185,30 @@ struct SearchView: View {
             if clamped != newValue {
                 blockingDuration = clamped
             }
-            // Sync to App Group
-            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                groupDefaults.set(blockingDuration, forKey: "focusBlockingDuration")
-                groupDefaults.synchronize()
+            // Sync to App Group in background
+            Task.detached(priority: .background) {
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(await self.blockingDuration, forKey: "focusBlockingDuration")
+                    groupDefaults.synchronize()
+                }
             }
-            scheduleUpdate()
+            scheduleUserTriggeredUpdate()
         }
         .onChange(of: selectedPrayers) { _ in
             // Sync to App Group first
             syncPrayerSelectionsToAppGroup()
-            scheduleUpdate()
+            scheduleUserTriggeredUpdate()
         }
         .onChange(of: strictMode) { newValue in
-            // Sync strict mode immediately to App Group
-            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                groupDefaults.set(newValue, forKey: "focusStrictMode")
+            // Sync strict mode to App Group in background
+            Task.detached(priority: .background) {
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(newValue, forKey: "focusStrictMode")
+                    groupDefaults.synchronize()
+                }
             }
             // Do not interrupt current block; update future schedule only
-            performScheduleUpdate()
+            performUserTriggeredScheduleUpdate()
         }
         .foregroundColor(.white)
 
@@ -205,10 +218,6 @@ struct SearchView: View {
                     AppPickerView()
                 }
             }
-        }
-        .fullScreenCover(isPresented: $showingFullScreenPlayer) {
-            FullScreenPlayerView(onMinimize: { showingFullScreenPlayer = false })
-                .environmentObject(audioPlayerService)
         }
         .sheet(isPresented: $showingUnlockConfirmation) {
             SpeechConfirmationView(isPresented: $showingUnlockConfirmation) {
@@ -224,36 +233,47 @@ struct SearchView: View {
                 blockingDuration = clamped
             }
             
-            // Removed per-second forceCheck to reduce I/O; UI sections manage their own lightweight ticks
-
             // Check Screen Time authorization status
             screenTimeAuth.updateAuthorizationStatus()
             
+            // Fetch prayer times
             fetchPrayerTimesIfNeeded()
             
-            // Sync settings to UserDefaults after initialization
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                // Mark as initialized first to prevent triggering updates
-                hasInitializedSettings = true
+            // Sync settings to UserDefaults in background after initialization
+            Task.detached(priority: .background) {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
-                // Sync current settings to UserDefaults
+                await MainActor.run {
+                    // Mark as initialized first to prevent triggering updates
+                    self.hasInitializedSettings = true
+                }
+                
+                // Sync current settings to UserDefaults in background
                 let defaults = UserDefaults.standard
-                defaults.set(selectedFajr, forKey: "focusSelectedFajr")
-                defaults.set(selectedDhuhr, forKey: "focusSelectedDhuhr")
-                defaults.set(selectedAsr, forKey: "focusSelectedAsr")
-                defaults.set(selectedMaghrib, forKey: "focusSelectedMaghrib")
-                defaults.set(selectedIsha, forKey: "focusSelectedIsha")
-                defaults.set(blockingDuration, forKey: "focusBlockingDuration")
+                let fajr = await self.selectedFajr
+                let dhuhr = await self.selectedDhuhr
+                let asr = await self.selectedAsr
+                let maghrib = await self.selectedMaghrib
+                let isha = await self.selectedIsha
+                let duration = await self.blockingDuration
+                let strict = await self.strictMode
+                
+                defaults.set(fajr, forKey: "focusSelectedFajr")
+                defaults.set(dhuhr, forKey: "focusSelectedDhuhr")
+                defaults.set(asr, forKey: "focusSelectedAsr")
+                defaults.set(maghrib, forKey: "focusSelectedMaghrib")
+                defaults.set(isha, forKey: "focusSelectedIsha")
+                defaults.set(duration, forKey: "focusBlockingDuration")
                 
                 // Sync ALL settings to App Group for extension access
                 if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(strictMode, forKey: "focusStrictMode")
-                    groupDefaults.set(selectedFajr, forKey: "focusSelectedFajr")
-                    groupDefaults.set(selectedDhuhr, forKey: "focusSelectedDhuhr")
-                    groupDefaults.set(selectedAsr, forKey: "focusSelectedAsr")
-                    groupDefaults.set(selectedMaghrib, forKey: "focusSelectedMaghrib")
-                    groupDefaults.set(selectedIsha, forKey: "focusSelectedIsha")
-                    groupDefaults.set(blockingDuration, forKey: "focusBlockingDuration")
+                    groupDefaults.set(strict, forKey: "focusStrictMode")
+                    groupDefaults.set(fajr, forKey: "focusSelectedFajr")
+                    groupDefaults.set(dhuhr, forKey: "focusSelectedDhuhr")
+                    groupDefaults.set(asr, forKey: "focusSelectedAsr")
+                    groupDefaults.set(maghrib, forKey: "focusSelectedMaghrib")
+                    groupDefaults.set(isha, forKey: "focusSelectedIsha")
+                    groupDefaults.set(duration, forKey: "focusBlockingDuration")
                     groupDefaults.synchronize()
                 }
             }
@@ -262,16 +282,6 @@ struct SearchView: View {
     }
     
     // MARK: - Private Methods
-    
-    private func refreshPrayerSchedule() {
-        // Clear and refetch prayer times
-        lastPrayerTimeFetch = nil
-        prayerTimes = []
-        fetchPrayerTimesIfNeeded()
-        
-        // Schedule update will happen after fetch completes
-    }
-    
     
     // Save prayer schedule for cleanup tracking
     private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime]) {
@@ -393,10 +403,7 @@ struct SearchView: View {
                                 self.isLoadingPrayerTimes = false
                                 self.prayerTimesError = nil
                                 self.lastPrayerTimeFetch = Date()
-                                // After cache load, schedule update if settings initialized
-                                if self.hasInitializedSettings {
-                                    self.performScheduleUpdate()
-                                }
+                                // Cache loaded - no automatic scheduling on first load
                             }
                             return
                         }
@@ -423,10 +430,7 @@ struct SearchView: View {
                     self.prayerTimesError = nil
                     self.lastPrayerTimeFetch = Date()
                     
-                    // Only schedule if settings are initialized (not on first load)
-                    if self.hasInitializedSettings {
-                        self.performScheduleUpdate()
-                    }
+                    // Prayer times fetched - no automatic scheduling on first load
                 }
                 
                 // Save cache (once per day per approx location)
@@ -485,50 +489,81 @@ struct SearchView: View {
         // Cancel any existing timer to debounce rapid changes
         reschedulingTimer?.invalidate()
         
-        // Schedule update with 0.5 second delay to batch multiple changes
-        reschedulingTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+        // Schedule update with reduced delay to batch multiple changes
+        reschedulingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
             self.performScheduleUpdate()
         }
     }
     
-    private func performScheduleUpdate() {
-        // Silenced periodic schedule update log
+    private func scheduleUserTriggeredUpdate() {
+        // Ignore updates until settings are initialized
+        guard hasInitializedSettings, !prayerTimes.isEmpty else { return }
         
-        // IMPORTANT: Do not interrupt current blocking. Only clean past and add new future entries up to 20.
-        DeviceActivityService.shared.schedulePrayerTimeBlocking(
-            prayerTimes: prayerTimes,
-            duration: blockingDuration,
-            selectedPrayers: selectedPrayers
-        )
+        // Cancel any existing timer to debounce rapid changes
+        reschedulingTimer?.invalidate()
         
-        // Save filtered schedule for tracking
-        let filteredPrayerTimes = prayerTimes.filter { selectedPrayers.contains($0.name) }
-        saveScheduleToUserDefaults(filteredPrayerTimes)
+        // Schedule update with reduced delay to batch multiple changes
+        reschedulingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
+            self.performUserTriggeredScheduleUpdate()
+        }
     }
     
-    private func handleBlockButtonTap() {
-        if isBlocking {
-            // If already blocking, stop it. This is a quick operation.
-            DeviceActivityService.shared.stopBlocking()
-            self.isBlocking = false
-        } else {
-            // If not blocking, request permission and start.
-            // Use a MainActor task to orchestrate UI and background work safely.
-            Task { @MainActor in
-                do {
-                    try await screenTimeAuth.requestAuthorizationIfNeeded()
-                    
-                    self.isBlocking = true
-                    
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        DeviceActivityService.shared.scheduleBlocking(for: 900) // 900 seconds = 15 minutes
-                    }
-                } catch {
-                    // Handle authorization error on the main thread.
-                }
+    private func performScheduleUpdate() {
+        // Set loading state
+        isUpdatingSchedule = true
+        
+        // Perform heavy operations in background
+        Task.detached(priority: .background) {
+            // Use regular scheduling for initial loads, only force reschedule for user changes
+            let times = await self.prayerTimes
+            let duration = await self.blockingDuration
+            let selected = await self.selectedPrayers
+            
+            DeviceActivityService.shared.schedulePrayerTimeBlocking(
+                prayerTimes: times,
+                duration: duration,
+                selectedPrayers: selected
+            )
+            
+            // Save filtered schedule for tracking
+            let filteredPrayerTimes = times.filter { selected.contains($0.name) }
+            await self.saveScheduleToUserDefaults(filteredPrayerTimes)
+            
+            // Clear loading state on main thread
+            await MainActor.run {
+                self.isUpdatingSchedule = false
             }
         }
     }
+    
+    private func performUserTriggeredScheduleUpdate() {
+        // Set loading state
+        isUpdatingSchedule = true
+        
+        // Perform heavy operations in background
+        Task.detached(priority: .background) {
+            // Use forceCompleteReschedule for user-triggered changes
+            let times = await self.prayerTimes
+            let duration = await self.blockingDuration
+            let selected = await self.selectedPrayers
+            
+            DeviceActivityService.shared.forceCompleteReschedule(
+                prayerTimes: times,
+                duration: duration,
+                selectedPrayers: selected
+            )
+            
+            // Save filtered schedule for tracking
+            let filteredPrayerTimes = times.filter { selected.contains($0.name) }
+            await self.saveScheduleToUserDefaults(filteredPrayerTimes)
+            
+            // Clear loading state on main thread
+            await MainActor.run {
+                self.isUpdatingSchedule = false
+            }
+        }
+    }
+    
 }
 // MARK: - Early Unlock Inline Section (Focus page)
 private struct EarlyUnlockInlineSection: View {
@@ -589,7 +624,9 @@ private struct EarlyUnlockInlineSection: View {
                     // Start a timer to keep the UI updated while this section is visible
                     refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
                         // The @StateObject will automatically update the UI when properties change
-                        blocking.forceCheck()
+                        Task { @MainActor in
+                            blocking.forceCheck()
+                        }
                     }
                 }
                 .onDisappear {
@@ -603,50 +640,6 @@ private struct EarlyUnlockInlineSection: View {
 
 // MARK: - UI Components
 
-private struct UnlockSectionView: View {
-    let timeRemaining: TimeInterval
-    var onUnlockTapped: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Strict Mode Active", icon: "lock.fill")
-            
-            VStack(spacing: 16) {
-                Text(timeRemaining > 0 ? "Apps are currently blocked. You may unlock them with voice confirmation after the blocking duration ends." : "Blocking duration has ended. You may now unlock your apps.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                if timeRemaining > 0 {
-                    HStack {
-                        Text("Time remaining:")
-                            .fontWeight(.medium)
-                        Spacer()
-                        Text(timeRemaining.formattedForCountdown)
-                            .font(.headline.monospacedDigit())
-                            .foregroundColor(.orange)
-                    }
-                }
-                
-                Button(action: onUnlockTapped) {
-                    HStack {
-                        Image(systemName: "mic.fill")
-                        Text("Unlock with Voice Confirmation")
-                    }
-                    .font(.headline.bold())
-                    .foregroundColor(timeRemaining > 0 ? .white.opacity(0.5) : .white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(timeRemaining > 0 ? Color.gray : Color.orange)
-                    .cornerRadius(12)
-                }
-                .disabled(timeRemaining > 0)
-            }
-            .padding()
-            .background(Color.secondary.opacity(0.15))
-            .cornerRadius(12)
-        }
-    }
-}
 
 private struct HeaderImageView: View {
     var body: some View {
@@ -829,6 +822,7 @@ private struct SelectPrayersView: View {
     @Binding var selectedAsr: Bool
     @Binding var selectedMaghrib: Bool
     @Binding var selectedIsha: Bool
+    @State private var isUpdating = false
     
     private let allPrayers = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
     
@@ -865,9 +859,22 @@ private struct SelectPrayersView: View {
                             Image(systemName: prayerIcon(forName: prayer))
                                 .frame(width: 25)
                             Text(prayer)
+                            if isUpdating {
+                                Spacer()
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                            }
                         }
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .green))
+                    .disabled(isUpdating)
+                    .onChange(of: bindingForPrayer(prayer).wrappedValue) { _ in
+                        // Show loading for a brief moment
+                        isUpdating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isUpdating = false
+                        }
+                    }
                     if prayer != allPrayers.last {
                         Divider().background(Color.secondary.opacity(0.3))
                     }
@@ -883,6 +890,7 @@ private struct SelectPrayersView: View {
 private struct BlockingDurationView: View {
     @Binding var duration: Double
     @Binding var useCustom: Bool
+    @State private var isUpdating = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -892,11 +900,22 @@ private struct BlockingDurationView: View {
                 HStack {
                     Text("Set duration for all prayers")
                     Spacer()
+                    if isUpdating {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                    }
                     Text("\(Int(duration)) min").bold()
                 }
                 
                 Slider(value: $duration, in: 15...60, step: 5)
                     .tint(.green)
+                    .disabled(isUpdating)
+                    .onChange(of: duration) { _ in
+                        isUpdating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isUpdating = false
+                        }
+                    }
                 
                 Toggle("Custom duration per prayer", isOn: $useCustom)
                     .toggleStyle(SwitchToggleStyle(tint: .green))
@@ -988,7 +1007,6 @@ private struct AdditionalSettingsView: View {
     @Binding var prePrayerNotification: Bool
     @Binding var allowEmergencyCalls: Bool
     @Binding var showingConfirmationSheet: Bool
-    let onRefreshSchedule: () -> Void
     @StateObject private var blocking = BlockingStateService.shared
 
     var body: some View {
@@ -1033,20 +1051,6 @@ private struct AdditionalSettingsView: View {
                     }
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .green))
-                
-                Divider().background(Color.secondary.opacity(0.3))
-                
-                Button(action: onRefreshSchedule) {
-                    HStack {
-                        Image(systemName: "arrow.clockwise")
-                        VStack(alignment: .leading) {
-                            Text("Refresh Prayer Schedule")
-                            Text("Update times after device time changes").font(.caption).foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .foregroundColor(.primary)
-                }
             }
             .padding()
             .background(Color.secondary.opacity(0.15))
@@ -1055,54 +1059,6 @@ private struct AdditionalSettingsView: View {
     }
 }
 
-private struct TestBlockingView: View {
-    @Binding var isBlocking: Bool
-    var onBlockTapped: () -> Void
-    var onForceUpdateSchedule: (() -> Void)?
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Test Blocking", icon: "hammer.fill")
-            
-            VStack(spacing: 16) {
-                Button(action: onBlockTapped) {
-                    HStack {
-                        Image(systemName: isBlocking ? "shield.slash.fill" : "shield.fill")
-                        Text(isBlocking ? "Stop Blocking" : "Block in 30 Seconds")
-                    }
-                    .font(.headline.bold())
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(isBlocking ? Color.red : Color.purple)
-                    .cornerRadius(12)
-                }
-                
-                if let onForceUpdateSchedule = onForceUpdateSchedule {
-                    Button(action: onForceUpdateSchedule) {
-                        HStack {
-                            Image(systemName: "arrow.clockwise")
-                            Text("Force Update Schedule")
-                        }
-                        .font(.headline.bold())
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange)
-                        .cornerRadius(12)
-                    }
-                }
-                
-                Text("Test the blocking functionality. Apps will be blocked 30 seconds after pressing the button for 15 minutes. You can close the app after pressing the button.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color.secondary.opacity(0.15))
-            .cornerRadius(12)
-        }
-    }
-}
 
 private struct SpeechConfirmationView: View {
     @Binding var isPresented: Bool

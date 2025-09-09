@@ -136,8 +136,7 @@ class PrayerTimeViewModel: ObservableObject {
                         if !cached.isEmpty {
                             await MainActor.run { self.prayerTimes = cached }
                             print("✅ [PrayerTimeViewModel] Loaded prayer times from cache")
-                            // Kick off scheduling and timer as usual
-                            Task.detached { await self.schedulePrayerBlocking() }
+                            // Start timer only - no automatic scheduling
                             self.startUpdateTimer()
                             isLoading = false
                             return
@@ -188,10 +187,7 @@ class PrayerTimeViewModel: ObservableObject {
                     print("      📅 \(prayer.name) at \(formatter.string(from: prayer.date))")
                 }
                 
-                // Automatically schedule prayer blocking on app launch (background task)
-                Task.detached {
-                    await self.schedulePrayerBlocking()
-                }
+                // Prayer time page should never schedule blocks - only display prayer times
                 
                 // Start the timer to update the UI every second.
                 self.startUpdateTimer()
@@ -309,93 +305,5 @@ class PrayerTimeViewModel: ObservableObject {
         return parsedTimes.sorted { $0.date < $1.date }
     }
     
-    // Schedule prayer blocking automatically on app launch
-    private func schedulePrayerBlocking() async {
-        // First request Screen Time authorization if needed
-        do {
-            try await ScreenTimeAuthorizationService.shared.requestAuthorizationIfNeeded()
-        } catch {
-            print("❌ Screen Time authorization failed: \(error.localizedDescription)")
-            return
-        }
-        
-        // Get user settings
-        let selectedPrayers = getSelectedPrayers()
-        let blockingDuration = getBlockingDuration()
-        
-        guard !selectedPrayers.isEmpty else {
-            return
-        }
-        
-        // Filter to future prayers only and limit to 20
-        let now = Date()
-        let futurePrayers = prayerTimes.filter { $0.date > now }
-        let selectedPrayerTimes = Array(futurePrayers.filter { selectedPrayers.contains($0.name) }.prefix(20))
-        
-        guard !selectedPrayerTimes.isEmpty else {
-            return
-        }
-        
-        // Save schedule and schedule in DeviceActivity
-        saveScheduleToUserDefaults(selectedPrayerTimes, duration: blockingDuration)
-        
-        // Schedule with DeviceActivityService on main actor to avoid threading issues
-        await MainActor.run {
-            let deviceActivityService = DeviceActivityService.shared
-            deviceActivityService.schedulePrayerTimeBlocking(
-                prayerTimes: selectedPrayerTimes,
-                duration: blockingDuration,
-                selectedPrayers: selectedPrayers
-            )
-        }
-    }
-    
-    // Get selected prayers from settings
-    private func getSelectedPrayers() -> Set<String> {
-        var selectedPrayers: Set<String> = []
-        
-        // Check both App Group and standard UserDefaults
-        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-        
-        // Read prayer selections with proper defaults (same as SearchView UI)
-        let selectedFajr = groupDefaults?.object(forKey: "focusSelectedFajr") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedFajr") as? Bool ?? true
-        let selectedDhuhr = groupDefaults?.object(forKey: "focusSelectedDhuhr") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedDhuhr") as? Bool ?? true
-        let selectedAsr = groupDefaults?.object(forKey: "focusSelectedAsr") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedAsr") as? Bool ?? true
-        let selectedMaghrib = groupDefaults?.object(forKey: "focusSelectedMaghrib") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedMaghrib") as? Bool ?? true
-        let selectedIsha = groupDefaults?.object(forKey: "focusSelectedIsha") as? Bool ?? UserDefaults.standard.object(forKey: "focusSelectedIsha") as? Bool ?? true
-        
-        if selectedFajr { selectedPrayers.insert("Fajr") }
-        if selectedDhuhr { selectedPrayers.insert("Dhuhr") }
-        if selectedAsr { selectedPrayers.insert("Asr") }
-        if selectedMaghrib { selectedPrayers.insert("Maghrib") }
-        if selectedIsha { selectedPrayers.insert("Isha") }
-        
-        return selectedPrayers
-    }
-    
-    // Get blocking duration from settings
-    private func getBlockingDuration() -> Double {
-        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-        // Read duration with proper default (same as SearchView UI)
-        let raw = groupDefaults?.object(forKey: "focusBlockingDuration") as? Double ?? UserDefaults.standard.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
-        // Clamp to 15..60 in 5-min steps
-        let clamped = min(60, max(15, round(raw / 5) * 5))
-        return clamped
-    }
-    
-    // Save prayer schedule for cleanup tracking
-    private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime], duration: Double) {
-        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
-        
-        let schedules = prayerTimes.map { prayer -> [String: Any] in
-            let durationSeconds = duration * 60
-            return [
-                "name": prayer.name,
-                "date": prayer.date.timeIntervalSince1970,
-                "duration": durationSeconds
-            ]
-        }
-        
-        groupDefaults.set(schedules, forKey: "PrayerTimeSchedules")
-    }
+    // Prayer time page should only display prayer times, never schedule blocks
 } 

@@ -28,7 +28,6 @@ class SpeechRecognitionService: ObservableObject {
                     self?.requestMicrophonePermission()
                 case .denied, .restricted, .notDetermined:
                     self?.isAuthorized = false
-                    print("❌ [SpeechRecognition] Speech recognition not authorized: \(authStatus)")
                 @unknown default:
                     self?.isAuthorized = false
                 }
@@ -40,18 +39,12 @@ class SpeechRecognitionService: ObservableObject {
         AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
                 self?.hasPermissions = granted && (self?.isAuthorized ?? false)
-                if granted {
-                    print("✅ [SpeechRecognition] Microphone permission granted")
-                } else {
-                    print("❌ [SpeechRecognition] Microphone permission denied")
-                }
             }
         }
     }
     
     func startRecording() {
         guard hasPermissions else {
-            print("❌ [SpeechRecognition] No permissions to start recording")
             return
         }
         
@@ -70,14 +63,12 @@ class SpeechRecognitionService: ObservableObject {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            print("❌ [SpeechRecognition] Audio session setup failed: \(error)")
             return
         }
         
         // Create recognition request
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else {
-            print("❌ [SpeechRecognition] Unable to create recognition request")
             return
         }
         
@@ -90,14 +81,11 @@ class SpeechRecognitionService: ObservableObject {
             "prayed", "prayer", "salah"
         ]
         
-        print("✅ [SpeechRecognition] Added Arabic vocabulary hints to improve recognition")
-        
         // Create recognition task
         recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             DispatchQueue.main.async {
                 if let result = result {
                     self?.transcript = result.bestTranscription.formattedString
-                    print("🎤 [SpeechRecognition] Transcript: \(result.bestTranscription.formattedString)")
                 }
                 
                 if error != nil || result?.isFinal == true {
@@ -112,12 +100,8 @@ class SpeechRecognitionService: ObservableObject {
         
         // Validate the format before using it
         guard recordingFormat.sampleRate > 0 && recordingFormat.channelCount > 0 else {
-            print("❌ [SpeechRecognition] Invalid audio format: \(recordingFormat)")
-            print("❌ [SpeechRecognition] Sample rate: \(recordingFormat.sampleRate), Channels: \(recordingFormat.channelCount)")
             return
         }
-        
-        print("✅ [SpeechRecognition] Using audio format: \(recordingFormat)")
         
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
             recognitionRequest.append(buffer)
@@ -129,9 +113,8 @@ class SpeechRecognitionService: ObservableObject {
             try audioEngine.start()
             isRecording = true
             transcript = ""
-            print("🎤 [SpeechRecognition] Started recording")
         } catch {
-            print("❌ [SpeechRecognition] Audio engine failed to start: \(error)")
+            // Audio engine failed to start
         }
     }
     
@@ -155,13 +138,12 @@ class SpeechRecognitionService: ObservableObject {
         recognitionTask = nil
         
         isRecording = false
-        print("🛑 [SpeechRecognition] Stopped recording")
         
         // Deactivate audio session
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
-            print("⚠️ [SpeechRecognition] Failed to deactivate audio session: \(error)")
+            // Failed to deactivate audio session
         }
     }
     
@@ -171,7 +153,6 @@ class SpeechRecognitionService: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "[^a-z ]", with: "", options: .regularExpression)
         
-        print("🔍 [SpeechRecognition] Checking transcript: '\(normalizedTranscript)'")
         
         // We only check for complete phrases, not individual word variations
         
@@ -189,20 +170,12 @@ class SpeechRecognitionService: ObservableObject {
             if normalizedTranscript.contains(phrase) {
                 isCorrect = true
                 matchedPhrase = phrase
-                print("🎯 [SpeechRecognition] Found complete phrase: '\(phrase)'")
                 break
             }
         }
         
         // Additional strict validation: ensure the phrase contains both wallahi AND prayed elements
         // but only accept if found as complete phrases, not individual words
-        if isCorrect {
-            print("✅ [SpeechRecognition] Valid complete phrase detected: '\(matchedPhrase)' in '\(transcript)'")
-        }
-        
-        if !isCorrect {
-            print("❌ [SpeechRecognition] Phrase not recognized: '\(transcript)' - must say complete phrase like 'Wallahi I prayed'")
-        }
         
         return isCorrect
     }
