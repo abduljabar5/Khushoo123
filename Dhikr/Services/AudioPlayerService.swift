@@ -40,6 +40,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     private var timeObserver: Any?
     private var sleepTimer: Timer?
     private var isAudioSessionActive = false
+    private var wasPlayingBeforeInterruption = false
     private var allSurahs: [Surah] = []
     private var currentPlaylist: [Surah] = []
     private var currentSurahIndex: Int = -1
@@ -76,6 +77,9 @@ class AudioPlayerService: NSObject, ObservableObject {
     private override init() {
         super.init()
         print("🎵 [AudioPlayerService] Initialized")
+        
+        // Setup audio interruption handling
+        setupAudioInterruptionHandling()
 
         // Load liked items from UserDefaults on initialization
         if let data = UserDefaults.standard.data(forKey: likedItemsKey) {
@@ -131,6 +135,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         commandCenter.previousTrackCommand.removeTarget(nil)
         commandCenter.changePlaybackPositionCommand.removeTarget(nil)
         
+        // Remove interruption observers
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        
         print("🎵 [AudioPlayerService] Audio service deactivated")
     }
     
@@ -158,6 +166,92 @@ class AudioPlayerService: NSObject, ObservableObject {
         } catch {
             print("❌ [AudioPlayerService] Failed to setup audio session: \(error)")
             print("❌ [AudioPlayerService] Error details: \(error.localizedDescription)")
+        }
+    }
+    
+    private func setupAudioInterruptionHandling() {
+        print("🎵 [AudioPlayerService] Setting up audio interruption handling...")
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+        
+        print("✅ [AudioPlayerService] Audio interruption handling setup complete")
+    }
+    
+    @objc private func handleAudioSessionInterruption(notification: Notification) {
+        guard let info = notification.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            print("⚠️ [AudioPlayerService] Invalid interruption notification")
+            return
+        }
+        
+        switch type {
+        case .began:
+            print("🔇 [AudioPlayerService] Audio interruption began (call incoming)")
+            wasPlayingBeforeInterruption = isPlaying
+            if isPlaying {
+                pause()
+            }
+            
+        case .ended:
+            print("🔊 [AudioPlayerService] Audio interruption ended (call ended)")
+            
+            guard let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt else {
+                print("⚠️ [AudioPlayerService] No interruption options provided")
+                return
+            }
+            
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            
+            if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
+                print("▶️ [AudioPlayerService] Auto-resuming playback after interruption")
+                
+                // Small delay to ensure audio session is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.play()
+                }
+            } else {
+                print("⏸️ [AudioPlayerService] Not resuming - either not suggested by system or wasn't playing before")
+            }
+            
+            wasPlayingBeforeInterruption = false
+            
+        @unknown default:
+            print("❓ [AudioPlayerService] Unknown interruption type: \(type.rawValue)")
+        }
+    }
+    
+    @objc private func handleAudioSessionRouteChange(notification: Notification) {
+        guard let info = notification.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        
+        switch reason {
+        case .oldDeviceUnavailable:
+            print("🎧 [AudioPlayerService] Audio device disconnected")
+            if isPlaying {
+                pause()
+            }
+            
+        case .newDeviceAvailable:
+            print("🎧 [AudioPlayerService] New audio device connected")
+            
+        default:
+            break
         }
     }
     
@@ -722,6 +816,8 @@ class AudioPlayerService: NSObject, ObservableObject {
         player?.currentItem?.removeObserver(self, forKeyPath: #keyPath(AVPlayerItem.status))
         player?.currentItem?.removeObserver(self, forKeyPath: "loadedTimeRanges")
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
         deactivate()
     }
     
