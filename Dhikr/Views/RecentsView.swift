@@ -36,6 +36,10 @@ struct RecentsView: View {
 
 struct RecentItemRow: View {
     let item: RecentItem
+    
+    // Update relative time once per minute instead of constantly
+    @State private var currentTime = Date()
+    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
         HStack {
@@ -50,8 +54,12 @@ struct RecentItemRow: View {
             Text(item.playedAt, style: .relative)
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .id(currentTime) // Force refresh when currentTime updates
         }
         .padding(.vertical, 8)
+        .onReceive(timer) { _ in
+            currentTime = Date() // Update once per minute
+        }
     }
 }
 

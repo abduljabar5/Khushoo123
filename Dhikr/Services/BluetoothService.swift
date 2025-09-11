@@ -58,8 +58,8 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
 
-        connectionStatus = "Scanning..."
-        print("🔍 [BLE] Preparing scan…")
+        connectionStatus = "Scanning for Zikr rings..."
+        print("🔍 [BLE] Preparing scan for Zikr rings…")
         discoveredMap.removeAll()
         DispatchQueue.main.async {
             self.discoveredRings.removeAll()
@@ -77,18 +77,22 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                 self.centralManager.scanForPeripherals(withServices: [self.zikrServiceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
             }
         } else {
-            print("🔎 [BLE] Scanning filtered to Zikr services (D0FF/FEE7)…")
+            print("🔎 [BLE] Scanning for Zikr rings (D0FF/FEE7 services)…")
+            // First try with service filters
             centralManager.scanForPeripherals(withServices: [zikrServiceUUID, zikrAltServiceUUID], options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-            // Fallback: if no discoveries in 3s, widen the scan to ALL
+            
+            // Fallback: if no discoveries in 3s, scan all but still filter for Zikr only
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 guard let self = self else { return }
                 if self.isScanning && self.lastDiscoveryAt == nil {
-                    print("⚠️ [BLE] No devices discovered yet. Falling back to ALL-device scan for 8s…")
+                    print("⚠️ [BLE] No Zikr rings found with service filter. Scanning all devices but filtering for Zikr…")
                     self.centralManager.stopScan()
-                    self.centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+                    // Scan all devices, but we'll still filter in didDiscover to only show Zikr
+                    self.centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+                    
                     DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                         if self.isScanning {
-                            self.stopScanning(withMessage: "Scan finished")
+                            self.stopScanning(withMessage: self.discoveredRings.isEmpty ? "No Zikr rings found" : "Scan finished")
                         }
                     }
                 }
@@ -279,22 +283,30 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
         print("🔍 [BLE-ALL] name=\(peripheralName), id=\(peripheral.identifier.uuidString), RSSI=\(RSSI), services=\(serviceUUIDs), mfg=\(mfgHex)")
 
-        // Identify Zikr candidates
-        let isZikrByService = serviceUUIDs.contains(where: { $0.caseInsensitiveCompare("D0FF") == .orderedSame })
-        let isZikrByName = peripheral.name?.lowercased().contains("zikr") == true
+        // Identify Zikr candidates - ONLY show Zikr rings
+        let isZikrByService = serviceUUIDs.contains(where: { 
+            $0.caseInsensitiveCompare("D0FF") == .orderedSame || 
+            $0.caseInsensitiveCompare("FEE7") == .orderedSame 
+        })
+        let isZikrByName = peripheral.name?.lowercased().contains("zikr") == true || 
+                          peripheral.name?.lowercased().contains("iqibla") == true
+        
+        // ONLY add to discovered list if it's a Zikr ring
         if isZikrByService || isZikrByName {
-            print("💍 [BLE-ZIKR] Candidate ring: name=\(peripheralName), id=\(peripheral.identifier.uuidString), RSSI=\(RSSI)")
-        }
-
-        // Track all devices for user selection
-        discoveredMap[peripheral.identifier] = peripheral
-        let ring = DiscoveredRing(id: peripheral.identifier, name: peripheralName, rssi: RSSI.intValue)
-        DispatchQueue.main.async {
-            if !self.discoveredRings.contains(where: { $0.id == ring.id }) {
-                self.discoveredRings.append(ring)
-            } else if let idx = self.discoveredRings.firstIndex(where: { $0.id == ring.id }) {
-                self.discoveredRings[idx] = ring
+            print("💍 [BLE-ZIKR] Found Zikr ring: name=\(peripheralName), id=\(peripheral.identifier.uuidString), RSSI=\(RSSI)")
+            
+            // Track only Zikr devices
+            discoveredMap[peripheral.identifier] = peripheral
+            let ring = DiscoveredRing(id: peripheral.identifier, name: peripheralName, rssi: RSSI.intValue)
+            DispatchQueue.main.async {
+                if !self.discoveredRings.contains(where: { $0.id == ring.id }) {
+                    self.discoveredRings.append(ring)
+                } else if let idx = self.discoveredRings.firstIndex(where: { $0.id == ring.id }) {
+                    self.discoveredRings[idx] = ring
+                }
             }
+        } else {
+            print("⏭️ [BLE] Skipping non-Zikr device: \(peripheralName)")
         }
     }
 

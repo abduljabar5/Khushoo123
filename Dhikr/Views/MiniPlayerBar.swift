@@ -6,7 +6,7 @@ struct MiniPlayerBar: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Progress bar
+            // Progress bar with smooth animation
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Rectangle()
@@ -15,6 +15,7 @@ struct MiniPlayerBar: View {
                     Rectangle()
                         .fill(Color.accentColor)
                         .frame(width: geometry.size.width * progressPercentage)
+                        .animation(.linear(duration: 0.5), value: progressPercentage)
                 }
             }
             .frame(height: 2)

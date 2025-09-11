@@ -277,10 +277,22 @@ struct ProfileView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
 
+                    if !bluetoothService.isConnected && bluetoothService.isScanning && bluetoothService.discoveredRings.isEmpty {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .padding(.trailing, 8)
+                            Text("Looking for Zikr rings nearby...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 8)
+                    }
+                    
                     if !bluetoothService.isConnected && !bluetoothService.discoveredRings.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Available Rings")
+                                Text("Available Zikr Rings")
                                     .font(.subheadline).fontWeight(.semibold)
                                 Spacer()
                                 Button("Stop") { bluetoothService.stopScanning(withMessage: "Scan stopped") }
