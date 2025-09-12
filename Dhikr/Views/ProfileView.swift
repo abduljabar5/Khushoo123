@@ -11,10 +11,7 @@ struct ProfileView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var bluetoothService: BluetoothService
-    @EnvironmentObject var backTapService: BackTapService
     @State private var showingSettings = false
-    @State private var showingBackTapSettings = false
-    @State private var showingBackTapTest = false
     @State private var showingFullScreenPlayer = false
     @State private var showingHighestStreak = false
     
@@ -59,12 +56,6 @@ struct ProfileView: View {
                 .sheet(isPresented: $showingSettings) {
                     SettingsView()
                 }
-                .sheet(isPresented: $showingBackTapSettings) {
-                    BackTapSettingsView()
-                }
-                .sheet(isPresented: $showingBackTapTest) {
-                    BackTapTestView()
-            }
         }
         .fullScreenCover(isPresented: $showingFullScreenPlayer) {
             FullScreenPlayerView(onMinimize: { showingFullScreenPlayer = false })
@@ -441,23 +432,6 @@ struct ProfileView: View {
                     )
                 }
                 
-                Button(action: { showingBackTapSettings = true }) {
-                    EnhancedQuickActionRow(
-                        title: "Back Tap Settings",
-                        subtitle: "Configure device gestures",
-                        icon: "hand.tap.fill",
-                        gradient: [.indigo, .purple]
-                    )
-                }
-                
-                Button(action: { showingBackTapTest = true }) {
-                    EnhancedQuickActionRow(
-                        title: "Test Back Tap",
-                        subtitle: "Verify gesture functionality",
-                        icon: "checkmark.circle.fill",
-                        gradient: [.mint, .green]
-                    )
-                }
             }
         }
     }
@@ -1058,6 +1032,5 @@ struct ProfileView_Previews: PreviewProvider {
         .environmentObject(DhikrService.shared)
         .environmentObject(AudioPlayerService.shared)
         .environmentObject(BluetoothService())
-        .environmentObject(BackTapService.shared)
 } 
 } 

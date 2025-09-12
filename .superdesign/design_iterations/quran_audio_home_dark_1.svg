@@ -1,0 +1,98 @@
+<svg width="430" height="932" viewBox="0 0 430 932" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="430" height="932" rx="36" fill="#14232E"/>
+  <!-- Next Prayer Card -->
+  <rect x="24" y="32" width="382" height="70" rx="18" fill="url(#prayerGradient)" fill-opacity="0.95"/>
+  <text x="44" y="62" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="#FFD700">Next Prayer</text>
+  <text x="44" y="88" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#fff">Maghrib</text>
+  <text x="340" y="62" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#FFD700" text-anchor="end">6:45 PM</text>
+  <text x="340" y="88" font-family="Inter, sans-serif" font-size="14" font-weight="500" fill="#FFD700" text-anchor="end">Starts in 2h 13m</text>
+  <defs>
+    <linearGradient id="prayerGradient" x1="24" y1="32" x2="406" y2="102" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1B3A4B"/>
+      <stop offset="1" stop-color="#FFD700"/>
+    </linearGradient>
+  </defs>
+  <!-- Featured Reciter Card -->
+  <rect x="24" y="118" width="382" height="140" rx="24" fill="#1B3A4B" fill-opacity="0.7"/>
+  <rect x="24" y="118" width="382" height="140" rx="24" fill="#fff" fill-opacity="0.05"/>
+  <image href="https://randomuser.me/api/portraits/men/32.jpg" x="40" y="134" width="72" height="72" clip-path="url(#circle1)"/>
+  <clipPath id="circle1"><circle cx="76" cy="170" r="36"/></clipPath>
+  <text x="128" y="160" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="#fff">Mishary Rashid Alafasy</text>
+  <text x="128" y="182" font-family="Inter, sans-serif" font-size="14" font-weight="500" fill="#FFD700">🇰🇼 Kuwait</text>
+  <text x="128" y="202" font-family="Inter, sans-serif" font-size="14" font-weight="400" fill="#B0C4DE">Reciting: Al-Fatiha</text>
+  <rect x="128" y="212" width="120" height="8" rx="4" fill="#1B3A4B"/>
+  <rect x="128" y="212" width="60" height="8" rx="4" fill="#FFD700"/>
+  <rect x="270" y="170" width="110" height="36" rx="18" fill="#FFD700"/>
+  <text x="325" y="194" font-family="Inter, sans-serif" font-size="15" font-weight="700" fill="#1B3A4B" text-anchor="middle">Listen</text>
+  <!-- Quick Actions -->
+  <g>
+    <rect x="24" y="274" width="382" height="64" rx="18" fill="#1B3A4B" fill-opacity="0.7"/>
+    <g font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#FFD700">
+      <g>
+        <circle cx="70" cy="306" r="22" fill="#14232E" stroke="#FFD700" stroke-width="2"/>
+        <text x="70" y="311" text-anchor="middle" font-size="20">🧘‍♂️</text>
+        <text x="70" y="335" text-anchor="middle" fill="#fff">Dhikr</text>
+      </g>
+      <g>
+        <circle cx="154" cy="306" r="22" fill="#14232E" stroke="#FFD700" stroke-width="2"/>
+        <text x="154" y="311" text-anchor="middle" font-size="20">▶️</text>
+        <text x="154" y="335" text-anchor="middle" fill="#fff">Continue</text>
+      </g>
+      <g>
+        <circle cx="238" cy="306" r="22" fill="#14232E" stroke="#FFD700" stroke-width="2"/>
+        <text x="238" y="311" text-anchor="middle" font-size="20">❤️</text>
+        <text x="238" y="335" text-anchor="middle" fill="#fff">Liked</text>
+      </g>
+      <g>
+        <circle cx="322" cy="306" r="22" fill="#14232E" stroke="#FFD700" stroke-width="2"/>
+        <text x="322" y="311" text-anchor="middle" font-size="20">⏰</text>
+        <text x="322" y="335" text-anchor="middle" fill="#fff">Recent</text>
+      </g>
+    </g>
+  </g>
+  <!-- Carousels -->
+  <g>
+    <text x="36" y="370" font-family="Inter, sans-serif" font-size="16" font-weight="700" fill="#FFD700">Most Popular Reciters</text>
+    <g>
+      <rect x="36" y="382" width="80" height="120" rx="18" fill="#1B3A4B" fill-opacity="0.7"/>
+      <image href="https://randomuser.me/api/portraits/men/33.jpg" x="56" y="394" width="40" height="40" clip-path="url(#circle2)"/>
+      <clipPath id="circle2"><circle cx="76" cy="414" r="20"/></clipPath>
+      <text x="76" y="448" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Saad al-Ghamdi</text>
+      <text x="76" y="468" font-family="Inter, sans-serif" font-size="13" font-weight="500" fill="#FFD700" text-anchor="middle">🇸🇦</text>
+    </g>
+    <g>
+      <rect x="126" y="382" width="80" height="120" rx="18" fill="#1B3A4B" fill-opacity="0.7"/>
+      <image href="https://randomuser.me/api/portraits/men/34.jpg" x="146" y="394" width="40" height="40" clip-path="url(#circle3)"/>
+      <clipPath id="circle3"><circle cx="166" cy="414" r="20"/></clipPath>
+      <text x="166" y="448" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">Saud Al-Shuraim</text>
+      <text x="166" y="468" font-family="Inter, sans-serif" font-size="13" font-weight="500" fill="#FFD700" text-anchor="middle">🇸🇦</text>
+    </g>
+    <!-- ... more cards ... -->
+  </g>
+  <g>
+    <text x="36" y="520" font-family="Inter, sans-serif" font-size="16" font-weight="700" fill="#FFD700">Soothing Reciters</text>
+    <!-- ... similar cards ... -->
+  </g>
+  <g>
+    <text x="36" y="670" font-family="Inter, sans-serif" font-size="16" font-weight="700" fill="#FFD700">Your Favorite Reciters</text>
+    <!-- ... similar cards ... -->
+  </g>
+  <!-- Screen Time Card -->
+  <rect x="24" y="780" width="382" height="90" rx="18" fill="#1B3A4B" fill-opacity="0.7"/>
+  <circle cx="70" cy="825" r="32" fill="#14232E" stroke="#FFD700" stroke-width="4"/>
+  <path d="M70 793 a32 32 0 1 1 0 64 a32 32 0 1 1 0 -64" fill="none" stroke="#FFD700" stroke-width="6" stroke-dasharray="120 80"/>
+  <text x="70" y="830" font-family="Inter, sans-serif" font-size="15" font-weight="700" fill="#FFD700" text-anchor="middle">1h 20m</text>
+  <text x="120" y="815" font-family="Inter, sans-serif" font-size="15" font-weight="700" fill="#fff">Your Screen Time Today</text>
+  <text x="120" y="840" font-family="Inter, sans-serif" font-size="13" font-weight="500" fill="#FFD700">Apps blocked: 5 | Time saved: 1h 20m</text>
+  <!-- Bottom Nav -->
+  <g>
+    <rect x="0" y="892" width="430" height="60" fill="#1B3A4B" fill-opacity="0.7"/>
+    <g font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#FFD700">
+      <text x="44" y="928" text-anchor="middle">🏠</text>
+      <text x="120" y="928" text-anchor="middle">🔍</text>
+      <text x="196" y="928" text-anchor="middle">🧘‍♂️</text>
+      <text x="272" y="928" text-anchor="middle">📚</text>
+      <text x="348" y="928" text-anchor="middle">👤</text>
+    </g>
+  </g>
+</svg>

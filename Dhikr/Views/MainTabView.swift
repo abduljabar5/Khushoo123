@@ -388,7 +388,6 @@ struct MainTabView_Previews: PreviewProvider {
             .environmentObject(AudioPlayerService.shared)
                 .environmentObject(BluetoothService())
             .environmentObject(QuranAPIService.shared)
-                .environmentObject(BackTapService.shared)
                 .environmentObject(PrayerTimeViewModel())
                 .environmentObject(FavoritesManager.shared)
                 .environmentObject(LocationService())

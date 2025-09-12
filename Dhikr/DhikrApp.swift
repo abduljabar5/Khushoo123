@@ -16,7 +16,6 @@ struct DhikrApp: App {
     @StateObject private var audioPlayerService = AudioPlayerService.shared
     @StateObject private var bluetoothService = BluetoothService()
     @StateObject private var quranAPIService = QuranAPIService.shared
-    @StateObject private var backTapService = BackTapService.shared
     @StateObject private var prayerTimeViewModel = PrayerTimeViewModel()
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var locationService = LocationService()
@@ -33,7 +32,6 @@ struct DhikrApp: App {
                 .environmentObject(audioPlayerService)
                 .environmentObject(bluetoothService)
                 .environmentObject(quranAPIService)
-                .environmentObject(backTapService)
                 .environmentObject(prayerTimeViewModel)
                 .environmentObject(favoritesManager)
                 .environmentObject(locationService)
