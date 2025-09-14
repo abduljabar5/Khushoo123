@@ -3,6 +3,7 @@ import SwiftUI
 struct MiniPlayerBar: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @Binding var showingFullScreenPlayer: Bool
+    @StateObject private var themeManager = ThemeManager.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -64,7 +65,18 @@ struct MiniPlayerBar: View {
             .padding(.vertical, 8)
         }
         .frame(height: 70)
-        .background(Color(UIColor.secondarySystemBackground))
+        .background(
+            themeManager.theme.hasGlassEffect ?
+            AnyView(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.3)
+            ) :
+            AnyView(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(UIColor.secondarySystemBackground))
+            )
+        )
         .cornerRadius(12)
         .shadow(radius: 5)
         .padding(.horizontal, 8) // Reduced padding to make it wider

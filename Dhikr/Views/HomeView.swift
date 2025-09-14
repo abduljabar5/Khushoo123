@@ -15,6 +15,8 @@ struct HomeView: View {
     @EnvironmentObject var bluetoothService: BluetoothService
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var blockingState = BlockingStateService.shared
+    @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var prayerViewModel = PrayerTimeViewModel()
     @State private var earlyUnlockTickHome = 0
     
     @State private var featuredReciter: Reciter?
@@ -26,6 +28,10 @@ struct HomeView: View {
     @State private var showingRecents = false
     // Early-unlock countdown tick to drive UI updates
     @State private var earlyUnlockTick = 0
+    // Statistics slideshow current page
+    @State private var currentStatPage = 3 // Start at middle position for infinite scroll
+    // Timer for auto-switching slideshow
+    @State private var slideshowTimer: Timer?
     
     // Static lists of reciter names
     private let popularReciterNames = [
@@ -56,28 +62,51 @@ struct HomeView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Hero Banner
-                    heroBanner
-                    
-                    // Early Unlock Section (appears during an active block when strict mode is off)
-                    earlyUnlockSection
-
-                    // Quick Actions
-                    quickActionsSection
-                    
-                    // Category Rows
-                    categoryRows
+            ZStack {
+                // Background for themes
+                if themeManager.currentTheme == .liquidGlass {
+                    LiquidGlassBackgroundView(
+                        backgroundType: themeManager.liquidGlassBackground,
+                        backgroundImageURL: themeManager.selectedBackgroundImageURL
+                    )
+                } else {
+                    themeManager.theme.primaryBackground
+                        .ignoresSafeArea()
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, audioPlayerService.currentSurah != nil ? 130 : 80)
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Add top spacing
+                        Spacer()
+                            .frame(height: 20)
+                        
+                        // Prayer Time Card
+                        prayerTimeCard
+                        
+                        // Featured Reciter
+                        featuredReciterCard
+                        
+                        // Quick Actions
+                        quickActionsRow
+                        
+                        // Reciter Carousels
+                        reciterSections
+                        
+                        // Statistics Slideshow
+                        statisticsSlideshow
+                        
+                        // Early Unlock Section (if applicable)
+                        earlyUnlockSection
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, audioPlayerService.currentSurah != nil ? 130 : 80)
+                }
             }
-            .navigationTitle("QariVerse")
-            .navigationBarTitleDisplayMode(.large)
-            .background(Color(.systemBackground))
+            .navigationBarHidden(true)
+            .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
             .onAppear {
                 loadData()
+                prayerViewModel.start()
                 // Double-check blocking state on first appearance of Home
                 BlockingStateService.shared.forceCheck()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
@@ -106,6 +135,627 @@ struct HomeView: View {
             RecentsView()
                 .environmentObject(audioPlayerService)
         }
+    }
+    
+    // MARK: - Prayer Time Card
+    private var prayerTimeCard: some View {
+        Group {
+            if let nextPrayer = prayerViewModel.nextPrayer {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(nextPrayer.name)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white)
+                        Text(nextPrayer.timeString)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Starts in")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                        Text(formatTimeInterval(prayerViewModel.timeValue))
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(20)
+                .background(
+                    themeManager.currentTheme == .liquidGlass ?
+                    AnyView(Color.clear) :
+                    AnyView(
+                        LinearGradient(
+                            colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                )
+                .glassCard(theme: themeManager.theme)
+            } else {
+                // Loading placeholder for prayer time
+                HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.3))
+                            .frame(width: 100, height: 20)
+                            .shimmer()
+                        
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.5))
+                            .frame(width: 140, height: 32)
+                            .shimmer()
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 8) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white.opacity(0.3))
+                            .frame(width: 60, height: 14)
+                            .shimmer()
+                        
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.5))
+                            .frame(width: 80, height: 20)
+                            .shimmer()
+                    }
+                }
+                .padding(20)
+                .background(
+                    themeManager.currentTheme == .liquidGlass ?
+                    AnyView(Color.clear) :
+                    AnyView(
+                        LinearGradient(
+                            colors: [
+                                themeManager.theme.prayerGradientStart.opacity(0.7),
+                                themeManager.theme.prayerGradientEnd.opacity(0.7)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                )
+                .glassCard(theme: themeManager.theme)
+            }
+        }
+    }
+    
+    // MARK: - Featured Reciter Card
+    private var featuredReciterCard: some View {
+        VStack(spacing: 0) {
+            if let reciter = featuredReciter {
+                ZStack(alignment: .bottom) {
+                    // Background with reciter image
+                    KFImage(reciter.artworkURL)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 220)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0),
+                                    Color.black.opacity(0.7)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    
+                    // Content overlay
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Featured Reciter")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                            Spacer()
+                        }
+                        
+                        HStack(alignment: .bottom) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(reciter.englishName)
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                HStack(spacing: 8) {
+                                    if let country = reciter.country {
+                                        Text(countryFlag(for: country))
+                                            .font(.system(size: 18))
+                                    }
+                                    Text("Surah Al-Fatihah")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.9))
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                Task {
+                                    await playRandomSurah(for: reciter)
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 14))
+                                    Text("Listen")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundColor(themeManager.theme.primaryText)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(
+                                    themeManager.currentTheme == .liquidGlass ?
+                                    AnyView(
+                                        Group {
+                                            if #available(iOS 26, *) {
+                                                RoundedRectangle(cornerRadius: 20)
+                                                    .fill(Color.white.opacity(0.2))
+                                                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
+                                            } else {
+                                                ZStack {
+                                                    Color.clear
+                                                    Rectangle()
+                                                        .fill(.ultraThinMaterial)
+                                                        .opacity(0.4)
+                                                }
+                                            }
+                                        }
+                                    ) :
+                                    AnyView(Color.white)
+                                )
+                                .cornerRadius(20)
+                            }
+                        }
+                        
+                        // Audio waveform visualization
+                        HStack(spacing: 3) {
+                            ForEach(0..<35) { i in
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(
+                                        audioPlayerService.currentReciter?.identifier == reciter.identifier && audioPlayerService.isPlaying ?
+                                        Color.white : Color.white.opacity(0.3)
+                                    )
+                                    .frame(width: 3, height: CGFloat.random(in: 8...25))
+                                    .animation(
+                                        audioPlayerService.isPlaying ?
+                                        Animation.easeInOut(duration: 0.5).repeatForever(autoreverses: true).delay(Double(i) * 0.05) :
+                                        .default,
+                                        value: audioPlayerService.isPlaying
+                                    )
+                            }
+                        }
+                        .frame(height: 25)
+                    }
+                    .padding(20)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.black.opacity(0), Color.black.opacity(0.8)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+                .glassCard(theme: themeManager.theme)
+            } else {
+                // Loading state
+                RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                    .fill(themeManager.theme.secondaryBackground)
+                    .frame(height: 220)
+                    .overlay(
+                        ProgressView()
+                            .scaleEffect(1.5)
+                    )
+                    .glassCard(theme: themeManager.theme)
+            }
+        }
+    }
+    
+    // MARK: - Quick Actions Row
+    private var quickActionsRow: some View {
+        HStack(spacing: 15) {
+            NavigationLink(destination: 
+                DhikrWidgetView()
+                    .environmentObject(dhikrService)
+                    .environmentObject(bluetoothService)
+            ) {
+                QuickActionButtonView(
+                    icon: "sparkles",
+                    label: "Dhikr",
+                    value: "\(dhikrService.getTodayStats().total)",
+                    theme: themeManager.theme
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            QuickActionButton(
+                icon: "play.circle.fill",
+                label: "Continue",
+                value: audioPlayerService.currentSurah != nil ? "Playing" : "Resume",
+                theme: themeManager.theme,
+                action: {
+                    _ = audioPlayerService.continueLastPlayed()
+                }
+            )
+            
+            NavigationLink(destination: LikedSurahsView()) {
+                QuickActionButtonView(
+                    icon: "heart.fill",
+                    label: "Liked",
+                    value: "\(audioPlayerService.likedItems.count)",
+                    theme: themeManager.theme
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            QuickActionButton(
+                icon: "clock.fill",
+                label: "Recent",
+                value: "\(RecentsManager.shared.recentItems.count)",
+                theme: themeManager.theme,
+                action: {
+                    showingRecents = true
+                }
+            )
+        }
+    }
+    
+    // MARK: - Reciter Sections
+    private var reciterSections: some View {
+        VStack(spacing: 24) {
+            ReciterCarousel(
+                title: "Most Popular Reciters",
+                reciters: popularReciters,
+                theme: themeManager.theme,
+                onReciterTap: { reciter in
+                    Task {
+                        await playRandomSurah(for: reciter)
+                    }
+                }
+            )
+            
+            ReciterCarousel(
+                title: "Soothing Reciters",
+                reciters: soothingReciters,
+                theme: themeManager.theme,
+                onReciterTap: { reciter in
+                    Task {
+                        await playRandomSurah(for: reciter)
+                    }
+                }
+            )
+            
+            if !favoritesManager.favoriteReciters.isEmpty {
+                let sortedFavoriteIdentifiers = favoritesManager.favoriteReciters
+                    .sorted { $0.dateAdded > $1.dateAdded }
+                    .map { $0.identifier }
+                let reciterDict = Dictionary(uniqueKeysWithValues: quranAPIService.reciters.map { ($0.identifier, $0) })
+                let favoriteReciters = sortedFavoriteIdentifiers.compactMap { reciterDict[$0] }
+                
+                ReciterCarousel(
+                    title: "Your Favorite Reciters",
+                    reciters: favoriteReciters,
+                    theme: themeManager.theme,
+                    onReciterTap: { reciter in
+                        Task {
+                            await playRandomSurah(for: reciter)
+                        }
+                    }
+                )
+            }
+        }
+    }
+    
+    // MARK: - Statistics Slideshow
+    private var statisticsSlideshow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Your Journey")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primaryText)
+                Spacer()
+                
+                // Page indicators
+                HStack(spacing: 6) {
+                    ForEach(0..<3) { index in
+                        Circle()
+                            .fill(getActualPageIndex() == index ? themeManager.theme.primaryAccent : themeManager.theme.tertiaryBackground)
+                            .frame(width: 6, height: 6)
+                            .animation(.easeInOut(duration: 0.3), value: currentStatPage)
+                    }
+                }
+            }
+            
+            TabView(selection: $currentStatPage) {
+                // Duplicate slides for infinite scrolling
+                // End slides (duplicates)
+                mostListenedToBanner
+                    .tag(0)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                listeningTimeBanner
+                    .tag(1)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                surahsProgressBanner
+                    .tag(2)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                // Main slides
+                listeningTimeBanner
+                    .tag(3)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                surahsProgressBanner
+                    .tag(4)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                mostListenedToBanner
+                    .tag(5)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                // Beginning slides (duplicates)
+                listeningTimeBanner
+                    .tag(6)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                surahsProgressBanner
+                    .tag(7)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+                
+                mostListenedToBanner
+                    .tag(8)
+                    .padding(.horizontal, 4)
+                    .frame(minHeight: 140, maxHeight: 140)
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            .frame(height: 160)
+            .onChange(of: currentStatPage) { newPage in
+                handlePageChange(newPage)
+            }
+            .onAppear {
+                startSlideshowTimer()
+            }
+            .onDisappear {
+                stopSlideshowTimer()
+            }
+        }
+    }
+    
+    // MARK: - Listening Time Banner
+    private var listeningTimeBanner: some View {
+        HStack(spacing: 20) {
+            // Icon and time
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "headphones.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(themeManager.theme.primaryAccent)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Total Listening")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                        Text(formatListeningTime(audioPlayerService.totalListeningTime))
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(themeManager.theme.primaryText)
+                    }
+                }
+                
+                // Weekly stats
+                HStack(spacing: 4) {
+                    ForEach(0..<7) { day in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(
+                                day < 4 ? 
+                                LinearGradient(
+                                    colors: [themeManager.theme.primaryAccent, themeManager.theme.secondaryAccent],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                ) :
+                                LinearGradient(
+                                    colors: [themeManager.theme.tertiaryBackground, themeManager.theme.tertiaryBackground],
+                                    startPoint: .bottom,
+                                    endPoint: .top
+                                )
+                            )
+                            .frame(width: 6, height: CGFloat.random(in: 15...40))
+                    }
+                }
+                .padding(.top, 8)
+                
+                Text("Keep up the great progress!")
+                    .font(.system(size: 11))
+                    .foregroundColor(themeManager.theme.secondaryText)
+            }
+            
+            Spacer()
+            
+            // Decorative element
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                themeManager.theme.primaryAccent.opacity(0.2),
+                                themeManager.theme.secondaryAccent.opacity(0.2)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                
+                Image(systemName: "waveform.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(themeManager.theme.primaryAccent)
+            }
+        }
+        .padding(20)
+        .background(themeManager.theme.secondaryBackground)
+        .cornerRadius(themeManager.theme.cardCornerRadius)
+        .glassCard(theme: themeManager.theme)
+    }
+    
+    // MARK: - Surahs Progress Banner
+    private var surahsProgressBanner: some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(themeManager.theme.accentGreen)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Surahs Completed")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                        Text("\(audioPlayerService.completedSurahNumbers.count) of 114")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(themeManager.theme.primaryText)
+                    }
+                }
+                
+                // Progress bar - fixed height
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(themeManager.theme.tertiaryBackground)
+                        .frame(height: 8)
+                    
+                    GeometryReader { geometry in
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(
+                                LinearGradient(
+                                    colors: [themeManager.theme.accentGreen, themeManager.theme.primaryAccent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: geometry.size.width * (Double(audioPlayerService.completedSurahNumbers.count) / 114.0), height: 8)
+                            .animation(.spring(), value: audioPlayerService.completedSurahNumbers.count)
+                    }
+                }
+                .frame(height: 8)
+                
+                Text("\(Int((Double(audioPlayerService.completedSurahNumbers.count) / 114.0) * 100))% Complete")
+                    .font(.system(size: 11))
+                    .foregroundColor(themeManager.theme.secondaryText)
+                
+                // Add spacer to fill remaining height
+                Spacer(minLength: 0)
+            }
+            
+            Spacer()
+            
+            // Visual indicator
+            ZStack {
+                Circle()
+                    .stroke(themeManager.theme.tertiaryBackground, lineWidth: 6)
+                    .frame(width: 80, height: 80)
+                
+                Circle()
+                    .trim(from: 0, to: Double(audioPlayerService.completedSurahNumbers.count) / 114.0)
+                    .stroke(
+                        LinearGradient(
+                            colors: [themeManager.theme.accentGreen, themeManager.theme.primaryAccent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    )
+                    .frame(width: 80, height: 80)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(), value: audioPlayerService.completedSurahNumbers.count)
+                
+                Text("\(audioPlayerService.completedSurahNumbers.count)")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(themeManager.theme.primaryText)
+            }
+        }
+        .padding(20)
+        .background(themeManager.theme.secondaryBackground)
+        .cornerRadius(themeManager.theme.cardCornerRadius)
+        .glassCard(theme: themeManager.theme)
+    }
+    
+    // MARK: - Most Listened To Banner
+    private var mostListenedToBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(themeManager.theme.accentTeal)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Most Listened To")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                    Text(getMostListenedReciterName())
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(themeManager.theme.primaryText)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+            }
+            
+            if let mostListenedReciter = getMostListenedReciter() {
+                HStack(spacing: 16) {
+                    // Reciter avatar
+                    KFImage(mostListenedReciter.artworkURL)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 2
+                                )
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(getListenCountForReciter(mostListenedReciter)) plays")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(themeManager.theme.primaryText)
+                        
+                        if let country = mostListenedReciter.country {
+                            Text(countryFlag(for: country) + " " + country)
+                                .font(.system(size: 12))
+                                .foregroundColor(themeManager.theme.secondaryText)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+            } else {
+                Text("Start listening to see your most played reciter")
+                    .font(.system(size: 12))
+                    .foregroundColor(themeManager.theme.secondaryText)
+                    .padding(.top, 8)
+            }
+        }
+        .padding(20)
+        .background(themeManager.theme.secondaryBackground)
+        .cornerRadius(themeManager.theme.cardCornerRadius)
+        .glassCard(theme: themeManager.theme)
     }
     
     // MARK: - Early Unlock Section
@@ -208,7 +858,138 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - Hero Banner
+    // MARK: - Helper Methods
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval) % 3600 / 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+    
+    private func formatListeningTime(_ seconds: TimeInterval) -> String {
+        let hours = Int(seconds) / 3600
+        let minutes = (Int(seconds) % 3600) / 60
+        
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if minutes > 0 {
+            return "\(minutes)m"
+        } else {
+            return "0m"
+        }
+    }
+    
+    // MARK: - Slideshow Timer Functions
+    private func startSlideshowTimer() {
+        slideshowTimer?.invalidate()
+        slideshowTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                advanceToNextSlide()
+            }
+        }
+    }
+    
+    private func stopSlideshowTimer() {
+        slideshowTimer?.invalidate()
+        slideshowTimer = nil
+    }
+    
+    // MARK: - Infinite Scroll Helper Functions
+    private func advanceToNextSlide() {
+        if currentStatPage >= 5 { // At last main slide, jump to first main slide
+            currentStatPage = 3
+        } else {
+            currentStatPage += 1
+        }
+    }
+    
+    private func handlePageChange(_ newPage: Int) {
+        // Reset timer only for manual changes
+        if abs(newPage - currentStatPage) != 1 {
+            startSlideshowTimer()
+        }
+        
+        // Handle infinite scroll wraparound for manual swipes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            if newPage <= 2 { // Swiped to beginning duplicates, jump to end of main section
+                self.currentStatPage = newPage + 3
+            } else if newPage >= 6 { // Swiped to end duplicates, jump to beginning of main section
+                self.currentStatPage = newPage - 3
+            }
+        }
+    }
+    
+    private func getActualPageIndex() -> Int {
+        // Map the current page to the actual page index (0, 1, 2)
+        switch currentStatPage {
+        case 0, 3, 6: return 0 // Listening Time
+        case 1, 4, 7: return 1 // Surahs Progress
+        case 2, 5, 8: return 2 // Most Listened To
+        default: return 0
+        }
+    }
+    
+    // MARK: - Most Listened To Functions
+    private func getMostListenedReciter() -> Reciter? {
+        let reciterCounts = Dictionary(grouping: RecentsManager.shared.recentItems, by: { $0.reciter.identifier })
+            .mapValues { $0.count }
+        
+        guard let mostPlayedIdentifier = reciterCounts.max(by: { $0.value < $1.value })?.key else {
+            return nil
+        }
+        
+        return quranAPIService.reciters.first { $0.identifier == mostPlayedIdentifier }
+    }
+    
+    private func getMostListenedReciterName() -> String {
+        if let reciter = getMostListenedReciter() {
+            return reciter.englishName
+        }
+        return "No plays yet"
+    }
+    
+    private func getListenCountForReciter(_ reciter: Reciter) -> Int {
+        return RecentsManager.shared.recentItems.filter { $0.reciter.identifier == reciter.identifier }.count
+    }
+    
+    private func formatMinutes(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        
+        if hours > 0 {
+            return "\(hours)h \(mins)m"
+        } else {
+            return "\(mins)m"
+        }
+    }
+    
+    private func countryFlag(for country: String) -> String {
+        let flags: [String: String] = [
+            "Saudi Arabia": "🇸🇦",
+            "Egypt": "🇪🇬",
+            "Kuwait": "🇰🇼",
+            "UAE": "🇦🇪",
+            "Jordan": "🇯🇴",
+            "Yemen": "🇾🇪",
+            "Sudan": "🇸🇩",
+            "Pakistan": "🇵🇰",
+            "India": "🇮🇳",
+            "Indonesia": "🇮🇩",
+            "Malaysia": "🇲🇾",
+            "Turkey": "🇹🇷",
+            "Iran": "🇮🇷",
+            "Morocco": "🇲🇦",
+            "Algeria": "🇩🇿",
+            "Tunisia": "🇹🇳"
+        ]
+        return flags[country] ?? "🌍"
+    }
+    
+    // MARK: - Hero Banner (keeping for compatibility)
     private var heroBanner: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let reciter = featuredReciter {

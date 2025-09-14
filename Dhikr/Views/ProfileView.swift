@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Kingfisher
 
 struct ProfileView: View {
     @EnvironmentObject var dhikrService: DhikrService
@@ -987,28 +988,187 @@ struct InteractiveStreakCard: View {
     }
 }
 
-// MARK: - Simple Settings View
+// MARK: - Enhanced Settings View with Theme Switcher
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var themeManager = ThemeManager.shared
     
     var body: some View {
         NavigationView {
             Form {
+                // Theme Section
+                Section {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Choose your theme")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 16) {
+                            ForEach(AppThemeStyle.allCases, id: \.self) { theme in
+                                ThemePreviewCard(
+                                    theme: theme,
+                                    isSelected: themeManager.currentTheme == theme,
+                                    action: {
+                                        withAnimation(.spring()) {
+                                            themeManager.currentTheme = theme
+                                        }
+                                    }
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                    .listRowBackground(Color.clear)
+                } header: {
+                    HStack {
+                        Image(systemName: "paintbrush.fill")
+                            .foregroundColor(.blue)
+                        Text("Theme")
+                    }
+                }
+                
+                // Liquid Glass Background Section - only show when liquid glass is selected
+                if themeManager.currentTheme == .liquidGlass {
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Background Style")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Picker("Background Style", selection: $themeManager.liquidGlassBackground) {
+                                ForEach(LiquidGlassBackground.allCases, id: \.self) { background in
+                                    Text(background.displayName).tag(background)
+                                }
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                            
+                            // Cover Image Selection - only show when cover image is selected
+                            if themeManager.liquidGlassBackground == .coverImage {
+                                Text("Choose Background Image")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                                
+                                let allAvailableImages = themeManager.getAvailableBackgroundImages()
+                                let availableImages = Array(allAvailableImages.prefix(5)) // Limit to 5 images
+                                if !availableImages.isEmpty {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 12) {
+                                            ForEach(availableImages, id: \.self) { imageURL in
+                                                BackgroundImageOption(
+                                                    imageURL: imageURL,
+                                                    isSelected: themeManager.selectedBackgroundImageURL == imageURL,
+                                                    onSelect: {
+                                                        themeManager.selectedBackgroundImageURL = imageURL
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        .padding(.horizontal, 4)
+                                    }
+                                    
+                                    if allAvailableImages.count > 5 {
+                                        Text("Showing 5 of \(allAvailableImages.count) available images")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .padding(.top, 4)
+                                    }
+                                } else {
+                                    Text("No background images available. Play some tracks to see cover images here.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.leading)
+                                        .padding(.vertical, 8)
+                                }
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                        .listRowBackground(Color.clear)
+                    } header: {
+                        HStack {
+                            Image(systemName: "photo.fill")
+                                .foregroundColor(.purple)
+                            Text("Liquid Glass Background")
+                        }
+                    }
+                }
+                
                 Section("Audio") {
-                    Text("Audio settings coming soon...")
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .foregroundColor(.blue)
+                            .frame(width: 24)
+                        Text("Auto-play next surah")
+                        Spacer()
+                        Toggle("", isOn: .constant(true))
+                            .labelsHidden()
+                    }
+                    
+                    HStack {
+                        Image(systemName: "moon.fill")
+                            .foregroundColor(.purple)
+                            .frame(width: 24)
+                        Text("Sleep timer")
+                        Spacer()
+                        Text("Off")
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Section("Notifications") {
-                    Text("Notification settings coming soon...")
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Image(systemName: "bell.fill")
+                            .foregroundColor(.orange)
+                            .frame(width: 24)
+                        Text("Prayer reminders")
+                        Spacer()
+                        Toggle("", isOn: .constant(true))
+                            .labelsHidden()
+                    }
+                    
+                    HStack {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(.green)
+                            .frame(width: 24)
+                        Text("Dhikr reminders")
+                        Spacer()
+                        Toggle("", isOn: .constant(false))
+                            .labelsHidden()
+                    }
                 }
                 
                 Section("About") {
                     HStack {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.gray)
+                            .frame(width: 24)
                         Text("Version")
                         Spacer()
-                        Text("1.0.0")
+                        Text("2.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "envelope.fill")
+                            .foregroundColor(.blue)
+                            .frame(width: 24)
+                        Text("Contact Support")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                            .frame(width: 24)
+                        Text("Rate Us")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -1023,6 +1183,59 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Background Image Option
+struct BackgroundImageOption: View {
+    let imageURL: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
+            ZStack {
+                if let url = URL(string: imageURL) {
+                    KFImage(url)
+                        .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 160, height: 160)))
+                        .cacheMemoryOnly()
+                        .fade(duration: 0.25)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 80, height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(
+                                    isSelected ? Color.blue : Color.clear,
+                                    lineWidth: 3
+                                )
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 80, height: 80)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
+                        )
+                }
+                
+                if isSelected {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.blue)
+                                .background(Color.white.clipShape(Circle()))
+                        }
+                        Spacer()
+                    }
+                    .padding(4)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

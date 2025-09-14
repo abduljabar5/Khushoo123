@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct MainTabView: View {
     @State private var selectedTab = 0
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var quranAPIService: QuranAPIService
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showingFullScreenPlayer = false
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
@@ -100,7 +102,7 @@ struct MainTabView: View {
     }
 
     var body: some View {
-            TabView(selection: $selectedTab) {
+        TabView(selection: $selectedTab) {
             // Home tab - always load immediately (no lazy loading)
                 HomeView()
                     .tabItem {
@@ -154,6 +156,13 @@ struct MainTabView: View {
         )
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
+        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : nil)
+        .onAppear {
+            configureTabBarAppearance()
+        }
+        .onChange(of: themeManager.currentTheme) { _ in
+            configureTabBarAppearance()
+        }
     }
 
     private func playerView() -> some View {
@@ -307,6 +316,31 @@ struct MainTabView: View {
                 dragOffset = 0
             }
         }
+    }
+    
+    // MARK: - Tab Bar Appearance Configuration
+    private func configureTabBarAppearance() {
+        let appearance = UITabBarAppearance()
+        
+        switch themeManager.currentTheme {
+        case .light:
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor.systemBackground
+            
+        case .dark:
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor(Color(hex: "1E3A5F"))
+            
+        case .liquidGlass:
+            // Since UIDesignRequiresCompatibility is enabled globally,
+            // we use transparent background which will work with our manual glass effects
+            appearance.configureWithTransparentBackground()
+            appearance.backgroundColor = UIColor.clear
+        }
+        
+        // Apply the appearance
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 }
 
