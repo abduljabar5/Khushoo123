@@ -106,7 +106,7 @@ struct HomeView: View {
             .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
             .onAppear {
                 loadData()
-                prayerViewModel.start()
+                // Prayer time fetching starts automatically in the view model
                 // Double-check blocking state on first appearance of Home
                 BlockingStateService.shared.forceCheck()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
@@ -146,7 +146,7 @@ struct HomeView: View {
                         Text(nextPrayer.name)
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.white)
-                        Text(nextPrayer.timeString)
+                        Text(nextPrayer.time)
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(.white)
                     }
@@ -157,7 +157,7 @@ struct HomeView: View {
                         Text("Starts in")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.white.opacity(0.9))
-                        Text(formatTimeInterval(prayerViewModel.timeValue))
+                        Text(prayerViewModel.timeUntilNextPrayer)
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
                     }

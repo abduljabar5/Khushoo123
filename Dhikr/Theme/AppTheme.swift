@@ -326,13 +326,13 @@ struct LiquidGlassBackgroundView: View {
     
     private var orbsBackground: some View {
         ZStack {
-            // Multi-layered animated background
+            // Multi-layered animated background - teal/cyan gradient matching Prayer card
             LinearGradient(
                 colors: [
-                    Color(hex: "667EEA"),
-                    Color(hex: "764BA2"),
-                    Color(hex: "F093FB"),
-                    Color(hex: "F5576C")
+                    Color(hex: "004D4D"),  // Dark teal
+                    Color(hex: "006B6B"),  // Medium teal
+                    Color(hex: "008B8B"),  // Dark cyan
+                    Color(hex: "00A5A5")   // Lighter teal
                 ],
                 startPoint: animateGradient ? .topLeading : .bottomTrailing,
                 endPoint: animateGradient ? .bottomTrailing : .topLeading
@@ -343,14 +343,14 @@ struct LiquidGlassBackgroundView: View {
                     .repeatForever(autoreverses: true),
                 value: animateGradient
             )
-            
-            // Floating orbs for depth
+
+            // Floating orbs for depth - matching teal/cyan color palette
             GeometryReader { geometry in
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color(hex: "00E5FF").opacity(0.6),
+                                Color(hex: "00CED1").opacity(0.4),  // Dark turquoise
                                 Color.clear
                             ],
                             center: .center,
@@ -369,12 +369,12 @@ struct LiquidGlassBackgroundView: View {
                             .repeatForever(autoreverses: true),
                         value: animateGradient
                     )
-                
+
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color(hex: "E91E63").opacity(0.5),
+                                Color(hex: "20B2AA").opacity(0.3),  // Light sea green
                                 Color.clear
                             ],
                             center: .center,

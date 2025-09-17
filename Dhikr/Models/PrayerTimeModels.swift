@@ -14,4 +14,16 @@ struct Timings: Decodable {
     let Asr: String
     let Maghrib: String
     let Isha: String
+}
+
+struct PrayerTime: Identifiable {
+    let id = UUID()
+    let name: String
+    let date: Date
+
+    var timeString: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 } 

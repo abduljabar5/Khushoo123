@@ -122,7 +122,7 @@ struct MainTabView: View {
                     .tag(0)
 
             LazyTabContent(selectedTab: selectedTab, targetTab: 1) {
-                PrayerTimeBlockerView()
+                PrayerTimeView()
             }
                     .tabItem {
                         Label("Prayer", systemImage: "timer")

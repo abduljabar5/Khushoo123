@@ -43,10 +43,9 @@ struct DhikrApp: App {
                     
                     // Prioritize audio service for immediate UI responsiveness
                     audioPlayerService.activate()
-                    
-                    // Start prayer time fetching and scheduling
-                    prayerTimeViewModel.start()
-                    
+
+                    // Prayer time fetching starts automatically in the view model
+
                     // Preload last played audio in background for instant continue
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         audioPlayerService.preloadLastPlayed()
