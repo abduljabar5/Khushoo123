@@ -8,6 +8,17 @@
 import SwiftUI
 import UIKit
 
+struct DragGestureActiveKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    var isDragGestureActive: Bool {
+        get { self[DragGestureActiveKey.self] }
+        set { self[DragGestureActiveKey.self] = newValue }
+    }
+}
+
 struct MainTabView: View {
     @State private var selectedTab = 0
     @EnvironmentObject var audioPlayerService: AudioPlayerService
@@ -143,8 +154,8 @@ struct MainTabView: View {
                     .tag(4)
             }
         .ignoresSafeArea(.keyboard)
-        .scaleEffect(backgroundScale) // Shrink background
         .opacity(backgroundOpacity) // Fade background
+        .animation(isDragging ? nil : .interpolatingSpring(stiffness: 300, damping: 28), value: showingFullScreenPlayer)
         .disabled(isDragging || showingFullScreenPlayer) // Disable interaction
         // Re-add connected player overlay (mini + full screen)
         .overlay(
@@ -238,6 +249,7 @@ struct MainTabView: View {
                 
                 // Mini Player Bar - connected to the full screen player
                 MiniPlayerBar(showingFullScreenPlayer: $showingFullScreenPlayer)
+                    .environment(\.isDragGestureActive, isDragging)
                     .onTapGesture {
                         openFullScreenPlayer()
             }
@@ -245,6 +257,7 @@ struct MainTabView: View {
             }
             .frame(height: geometry.size.height)
             .offset(y: playerOffset)
+            .animation(isDragging ? nil : .interpolatingSpring(stiffness: 300, damping: 28), value: playerOffset)
             .gesture(drag)
             .onChange(of: audioPlayerService.currentSurah) { _ in
                 withAnimation(.interpolatingSpring(stiffness: 300, damping: 28)) {

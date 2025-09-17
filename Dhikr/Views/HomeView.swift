@@ -164,17 +164,43 @@ struct HomeView: View {
                 }
                 .padding(20)
                 .background(
-                    themeManager.currentTheme == .liquidGlass ?
-                    AnyView(Color.clear) :
-                    AnyView(
-                        LinearGradient(
-                            colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    Group {
+                        if themeManager.theme.hasGlassEffect {
+                            // Enhanced liquid glass effect for iOS 26+
+                            if #available(iOS 26.0, *) {
+                                RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                                    .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                                    .overlay(
+                                        LinearGradient(
+                                            colors: [Color.black.opacity(0.2), Color.black.opacity(0.2)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            } else {
+                                // Fallback for older iOS versions
+                                RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                                    .fill(.ultraThinMaterial)
+                                    .opacity(0.3)
+                                    .overlay(
+                                        LinearGradient(
+                                            colors: [themeManager.theme.prayerGradientStart.opacity(0.3), themeManager.theme.prayerGradientEnd.opacity(0.3)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            }
+                        } else {
+                            // Standard gradient for light/dark themes
+                            LinearGradient(
+                                colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                    }
                 )
-                .glassCard(theme: themeManager.theme)
+                .cornerRadius(themeManager.theme.cardCornerRadius)
             } else {
                 // Loading placeholder for prayer time
                 HStack {
@@ -476,52 +502,52 @@ struct HomeView: View {
                 mostListenedToBanner
                     .tag(0)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 listeningTimeBanner
                     .tag(1)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 surahsProgressBanner
                     .tag(2)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 // Main slides
                 listeningTimeBanner
                     .tag(3)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 surahsProgressBanner
                     .tag(4)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 mostListenedToBanner
                     .tag(5)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 // Beginning slides (duplicates)
                 listeningTimeBanner
                     .tag(6)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 surahsProgressBanner
                     .tag(7)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
-                
+                    .frame(height: 120)
+
                 mostListenedToBanner
                     .tag(8)
                     .padding(.horizontal, 4)
-                    .frame(minHeight: 140, maxHeight: 140)
+                    .frame(height: 120)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            .frame(height: 160)
+            .frame(height: 140)
             .onChange(of: currentStatPage) { newPage in
                 handlePageChange(newPage)
             }
@@ -555,11 +581,11 @@ struct HomeView: View {
                 }
                 
                 // Weekly stats
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     ForEach(0..<7) { day in
                         RoundedRectangle(cornerRadius: 2)
                             .fill(
-                                day < 4 ? 
+                                day < 4 ?
                                 LinearGradient(
                                     colors: [themeManager.theme.primaryAccent, themeManager.theme.secondaryAccent],
                                     startPoint: .bottom,
@@ -571,14 +597,9 @@ struct HomeView: View {
                                     endPoint: .top
                                 )
                             )
-                            .frame(width: 6, height: CGFloat.random(in: 15...40))
+                            .frame(width: 5, height: CGFloat.random(in: 12...25))
                     }
                 }
-                .padding(.top, 8)
-                
-                Text("Keep up the great progress!")
-                    .font(.system(size: 11))
-                    .foregroundColor(themeManager.theme.secondaryText)
             }
             
             Spacer()
@@ -596,17 +617,35 @@ struct HomeView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 80, height: 80)
-                
+                    .frame(width: 60, height: 60)
+
                 Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 40))
+                    .font(.system(size: 30))
                     .foregroundColor(themeManager.theme.primaryAccent)
             }
         }
-        .padding(20)
-        .background(themeManager.theme.secondaryBackground)
+        .padding(16)
+        .frame(height: 120)
+        .background(
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                    } else {
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
+                    }
+                } else {
+                    // Standard background for light/dark themes
+                    themeManager.theme.secondaryBackground
+                }
+            }
+        )
         .cornerRadius(themeManager.theme.cardCornerRadius)
-        .glassCard(theme: themeManager.theme)
     }
     
     // MARK: - Surahs Progress Banner
@@ -662,9 +701,9 @@ struct HomeView: View {
             // Visual indicator
             ZStack {
                 Circle()
-                    .stroke(themeManager.theme.tertiaryBackground, lineWidth: 6)
-                    .frame(width: 80, height: 80)
-                
+                    .stroke(themeManager.theme.tertiaryBackground, lineWidth: 4)
+                    .frame(width: 60, height: 60)
+
                 Circle()
                     .trim(from: 0, to: Double(audioPlayerService.completedSurahNumbers.count) / 114.0)
                     .stroke(
@@ -673,89 +712,129 @@ struct HomeView: View {
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
                     )
-                    .frame(width: 80, height: 80)
+                    .frame(width: 60, height: 60)
                     .rotationEffect(.degrees(-90))
                     .animation(.spring(), value: audioPlayerService.completedSurahNumbers.count)
-                
+
                 Text("\(audioPlayerService.completedSurahNumbers.count)")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(themeManager.theme.primaryText)
             }
         }
-        .padding(20)
-        .background(themeManager.theme.secondaryBackground)
+        .padding(16)
+        .frame(height: 120)
+        .background(
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                    } else {
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
+                    }
+                } else {
+                    // Standard background for light/dark themes
+                    themeManager.theme.secondaryBackground
+                }
+            }
+        )
         .cornerRadius(themeManager.theme.cardCornerRadius)
-        .glassCard(theme: themeManager.theme)
     }
     
     // MARK: - Most Listened To Banner
     private var mostListenedToBanner: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(themeManager.theme.accentTeal)
-                
-                VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 16) {
+            if let mostListenedReciter = getMostListenedReciter() {
+                // Reciter avatar
+                KFImage(mostListenedReciter.artworkURL)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+
+                // Info section
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Most Listened To")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(themeManager.theme.secondaryText)
+
                     Text(getMostListenedReciterName())
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(themeManager.theme.primaryText)
                         .lineLimit(1)
-                }
-                
-                Spacer()
-            }
-            
-            if let mostListenedReciter = getMostListenedReciter() {
-                HStack(spacing: 16) {
-                    // Reciter avatar
-                    KFImage(mostListenedReciter.artworkURL)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 60, height: 60)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 2
-                                )
-                        )
-                    
-                    VStack(alignment: .leading, spacing: 4) {
+
+                    HStack(spacing: 10) {
                         Text("\(getListenCountForReciter(mostListenedReciter)) plays")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundColor(themeManager.theme.primaryText)
-                        
+
                         if let country = mostListenedReciter.country {
                             Text(countryFlag(for: country) + " " + country)
                                 .font(.system(size: 12))
                                 .foregroundColor(themeManager.theme.secondaryText)
                         }
                     }
-                    
-                    Spacer()
                 }
+
+                Spacer()
             } else {
-                Text("Start listening to see your most played reciter")
-                    .font(.system(size: 12))
-                    .foregroundColor(themeManager.theme.secondaryText)
-                    .padding(.top, 8)
+                // Empty state
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Most Listened To")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(themeManager.theme.secondaryText)
+
+                    Text("Start listening")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("Play surahs to track your favorites")
+                        .font(.system(size: 13))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+
+                Spacer()
             }
         }
-        .padding(20)
-        .background(themeManager.theme.secondaryBackground)
+        .padding(16)
+        .frame(height: 120)
+        .background(
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                    } else {
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
+                    }
+                } else {
+                    // Standard background for light/dark themes
+                    themeManager.theme.secondaryBackground
+                }
+            }
+        )
         .cornerRadius(themeManager.theme.cardCornerRadius)
-        .glassCard(theme: themeManager.theme)
     }
     
     // MARK: - Early Unlock Section
@@ -854,7 +933,6 @@ struct HomeView: View {
             .padding(.horizontal, 12)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
         }
     }
     

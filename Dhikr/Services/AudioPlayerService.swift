@@ -542,16 +542,15 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     private func setupTimeObserver() {
-        // Use background queue for time updates to avoid blocking main thread
+        // Use main queue to ensure thread safety with @Published properties
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        let queue = DispatchQueue(label: "fm.mrc.dhikr.timeObserver", qos: .utility)
-        
-        timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: queue) { [weak self] time in
+
+        timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self else { return }
-            
+
             let newTime = time.seconds
-            
-            // Track listening time during playback (on background queue)
+
+            // Track listening time during playback (already on main queue)
             if self.isPlaying {
                 let currentPlaybackTime = newTime
                 if self.lastRecordedTime > 0 {
@@ -563,14 +562,12 @@ class AudioPlayerService: NSObject, ObservableObject {
                 }
                 self.lastRecordedTime = currentPlaybackTime
             }
-            
+
             // Throttle UI updates - only update if time changed significantly
             let timeDiff = abs(newTime - self.currentTime)
             if timeDiff >= 0.45 { // Update roughly every 0.5 seconds
-                DispatchQueue.main.async { [weak self] in
-                    self?.currentTime = newTime
-                    self?.updatePlaybackTime()
-                }
+                self.currentTime = newTime
+                self.updatePlaybackTime()
             }
         }
     }

@@ -178,7 +178,6 @@ struct ReciterCardModern: View {
                         .frame(width: 75, height: 75)
                         .clipShape(Circle())
                 }
-                .shadow(color: theme.shadowColor, radius: theme.shadowRadius / 2, x: 0, y: 2)
                 
                 Text(reciter.englishName)
                     .font(.system(size: 12, weight: .medium))

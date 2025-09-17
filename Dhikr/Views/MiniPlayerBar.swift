@@ -4,6 +4,7 @@ struct MiniPlayerBar: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @Binding var showingFullScreenPlayer: Bool
     @StateObject private var themeManager = ThemeManager.shared
+    @Environment(\.isDragGestureActive) private var isDragging
     
     var body: some View {
         VStack(spacing: 0) {
@@ -16,11 +17,12 @@ struct MiniPlayerBar: View {
                     Rectangle()
                         .fill(Color.accentColor)
                         .frame(width: geometry.size.width * progressPercentage)
-                        .animation(.linear(duration: 0.5), value: progressPercentage)
+                        .animation(isDragging ? nil : .linear(duration: 0.5), value: progressPercentage)
                 }
             }
             .frame(height: 2)
             .padding(.top, 0)
+            .padding(.horizontal, themeManager.theme.hasGlassEffect ? 8 : 0)
             
             // Player controls
             HStack {
@@ -66,19 +68,38 @@ struct MiniPlayerBar: View {
         }
         .frame(height: 70)
         .background(
-            themeManager.theme.hasGlassEffect ?
-            AnyView(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.3)
-            ) :
-            AnyView(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(UIColor.secondarySystemBackground))
-            )
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .glassEffect( in: .rect(cornerRadius: 16.0))
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.ultraThinMaterial)
+                                    .opacity(0.1)
+                            )
+                    } else {
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
+                    }
+                } else {
+                    // Standard background for light/dark themes
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.secondarySystemBackground))
+                }
+            }
         )
-        .cornerRadius(12)
-        .shadow(radius: 5)
+        .shadow(
+            color: themeManager.theme.hasGlassEffect ?
+                Color.black.opacity(0.15) :
+                Color.black.opacity(0.1),
+            radius: themeManager.theme.hasGlassEffect ? 10 : 5,
+            x: 0,
+            y: themeManager.theme.hasGlassEffect ? 5 : 2
+        )
         .padding(.horizontal, 8) // Reduced padding to make it wider
         .padding(.bottom, 8)
         .animation(.spring(), value: audioPlayerService.currentSurah?.id)
