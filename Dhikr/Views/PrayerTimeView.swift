@@ -4,36 +4,68 @@ import CoreLocation
 struct PrayerTimeView: View {
     @StateObject private var viewModel = PrayerTimeViewModel()
     @ObservedObject var themeManager = ThemeManager.shared
-    @State private var selectedPrayer: String? = nil
     @State private var animateProgress = false
+    @State private var showingDatePicker = false
 
     private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         ZStack {
-            backgroundView
+            // Background
+            mosqueBackgroundView
 
-            ScrollView {
-                VStack(spacing: 20) {
-                    locationHeader
-                    nextPrayerCard
-                    progressSection
-                    prayerScheduleList
-                    footerInfo
+            ScrollView(.vertical, showsIndicators: false) {
+                ZStack(alignment: .top) {
+                    // Extended mosque background only for non-glass themes
+                    if !theme.hasGlassEffect {
+                        mosqueBgImageView
+                            .ignoresSafeArea(edges: .top)
+                    }
+
+                    VStack(spacing: 0) {
+                        // Top prayer time section content
+                        topPrayerSection
+
+                        // Date navigation section
+                        dateNavigationSection
+
+                        // Bottom content (existing sections)
+                        VStack(spacing: 16) {
+                            if Calendar.current.isDateInToday(viewModel.selectedDate) {
+                                progressSection
+                            }
+                            prayerScheduleList
+                            footerInfo
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 20)
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
             }
+            .ignoresSafeArea(edges: .top)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.0)) {
                 animateProgress = true
             }
         }
+        .sheet(isPresented: $showingDatePicker) {
+            DatePickerSheet(
+                selectedDate: $viewModel.selectedDate,
+                onDateSelected: { date in
+                    viewModel.fetchPrayerTimes(for: date)
+                    showingDatePicker = false
+                },
+                theme: theme
+            )
+            .presentationDetents([.height(500)])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Background View
-    private var backgroundView: some View {
+    private var mosqueBackgroundView: some View {
         Group {
             if themeManager.currentTheme == .liquidGlass {
                 LiquidGlassBackgroundView(
@@ -47,189 +79,228 @@ struct PrayerTimeView: View {
         }
     }
 
-    // MARK: - Location Header
-    private var locationHeader: some View {
-        VStack(spacing: 4) {
+    // MARK: - Mosque Background Image with Fade
+    private var mosqueBgImageView: some View {
+        GeometryReader { geometry in
+            Image("mosque-bg")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: geometry.size.width, height: 380) // Extended height
+                .clipped()
+                .overlay(
+                    // Combined gradient overlays
+                    ZStack {
+                        // Gradient for text readability at top
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.1),
+                                Color.black.opacity(0.4)
+                            ],
+                            startPoint: .top,
+                            endPoint: .center
+                        )
+
+                        // Fade-out gradient at bottom
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color.clear,
+                                Color.clear,
+                                theme.primaryBackground.opacity(0.7),
+                                theme.primaryBackground.opacity(0.95),
+                                theme.primaryBackground
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                )
+        }
+        .frame(height: 380) // Extends to overlap with progress card
+    }
+
+    // MARK: - Top Prayer Section
+    private var topPrayerSection: some View {
+        VStack(spacing: 0) {
+            // Status bar spacer
+            Color.clear
+                .frame(height: 50)
+
+            // Location info
+            Button(action: {
+                viewModel.refreshLocation()
+            }) {
+                HStack {
+                    if viewModel.isRefreshingLocation {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .tint(theme.hasGlassEffect ? theme.secondaryText : .white.opacity(0.8))
+                    } else {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(theme.hasGlassEffect ? theme.secondaryText : .white.opacity(0.8))
+                    }
+
+                    Text("\(viewModel.cityName), \(viewModel.countryName)")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.hasGlassEffect ? theme.primaryText : .white.opacity(0.9))
+
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(theme.hasGlassEffect ? theme.tertiaryText : .white.opacity(0.6))
+                        .opacity(viewModel.isRefreshingLocation ? 0 : 1)
+
+                    Spacer()
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+
+            // Next prayer info (always shows today's next prayer)
+            if let nextPrayer = viewModel.todaysNextPrayer {
+                VStack(spacing: 6) {
+                    Text(nextPrayer.name)
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.hasGlassEffect ? theme.primaryText : .white.opacity(0.95))
+
+                    Text(nextPrayer.time)
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.hasGlassEffect ? theme.primaryText : .white)
+
+                    HStack(spacing: 5) {
+                        Text("Starts in \(viewModel.timeUntilNextPrayer)")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.hasGlassEffect ? theme.secondaryText : .white.opacity(0.8))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(theme.hasGlassEffect ? theme.cardBackground.opacity(0.3) : .white.opacity(0.15))
+                            .overlay(
+                                Capsule()
+                                    .stroke(theme.hasGlassEffect ? theme.primaryAccent.opacity(0.3) : .white.opacity(0.2), lineWidth: 0.5)
+                            )
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 40)
+            }
+        }
+        .frame(height: 280)
+    }
+
+    // MARK: - Date Navigation Section
+    private var dateNavigationSection: some View {
+        VStack(spacing: 12) {
+            // Date picker header
             HStack {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(theme.secondaryText)
-
-                Text(viewModel.cityName)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                Text("Prayer Times")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundColor(theme.primaryText)
-
-                Text("•")
-                    .foregroundColor(theme.tertiaryText)
-
-                Text(viewModel.countryName)
-                    .font(.system(size: 16, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.secondaryText)
 
                 Spacer()
 
+                if viewModel.isLoadingFuturePrayers {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(theme.primaryAccent)
+                }
+            }
+
+            // Date navigation buttons
+            HStack(spacing: 12) {
+                // Previous day button
                 Button(action: {
-                    viewModel.refreshLocation()
+                    let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+                    viewModel.fetchPrayerTimes(for: previousDay)
                 }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .medium))
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(theme.primaryAccent)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(theme.cardBackground.opacity(theme.hasGlassEffect ? 0.3 : 1.0))
+                                .shadow(color: theme.shadowColor.opacity(0.3), radius: 5)
+                        )
+                }
+
+                // Current date display
+                VStack(spacing: 2) {
+                    Text(formattedDate(viewModel.selectedDate))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.primaryText)
+
+                    if Calendar.current.isDateInToday(viewModel.selectedDate) {
+                        Text("Today")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.primaryAccent)
+                    } else {
+                        Text(dayOfWeek(viewModel.selectedDate))
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(theme.secondaryText)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                // Next day button
+                Button(action: {
+                    let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: viewModel.selectedDate) ?? viewModel.selectedDate
+                    viewModel.fetchPrayerTimes(for: nextDay)
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(theme.primaryAccent)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(theme.cardBackground.opacity(theme.hasGlassEffect ? 0.3 : 1.0))
+                                .shadow(color: theme.shadowColor.opacity(0.3), radius: 5)
+                        )
+                }
+
+                // Calendar picker button
+                Button(action: {
+                    showingDatePicker = true
+                }) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(theme.primaryAccent)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(theme.cardBackground.opacity(theme.hasGlassEffect ? 0.3 : 1.0))
+                                .shadow(color: theme.shadowColor.opacity(0.3), radius: 5)
+                        )
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(
-                theme.hasGlassEffect ?
-                AnyView(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.8)
-                ) :
-                AnyView(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(theme.cardBackground)
-                        .shadow(color: theme.shadowColor, radius: 5)
-                )
-            )
         }
-        .padding(.top, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .background(
+            theme.hasGlassEffect ?
+            AnyView(Color.clear) :
+            AnyView(theme.primaryBackground)
+        )
     }
 
-    // MARK: - Next Prayer Card
-    private var nextPrayerCard: some View {
-        VStack(spacing: 0) {
-            if let nextPrayer = viewModel.nextPrayer {
-                VStack(spacing: 16) {
-                    // Prayer Name
-                    Text(nextPrayer.name)
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-
-                    // Prayer Time
-                    Text(nextPrayer.time)
-                        .font(.system(size: 48, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
-
-                    // Countdown
-                    HStack(spacing: 8) {
-                        Text("Starts in \(viewModel.timeUntilNextPrayer)")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundColor(.white.opacity(0.9))
-                }
-                .padding(.vertical, 32)
-                .frame(maxWidth: .infinity)
-                .background(
-                    Group {
-                        if theme.hasGlassEffect {
-                            // Liquid Glass theme - darker teal/cyan gradient matching the image
-                            ZStack {
-                                LinearGradient(
-                                    colors: [
-                                        Color(hex: "006B6B"),  // Dark teal
-                                        Color(hex: "008B8B"),  // Dark cyan
-                                        Color(hex: "00A5A5")   // Medium teal
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-
-                                // Subtle glass overlay
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.1),
-                                        Color.clear
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .center
-                                )
-                            }
-                            .cornerRadius(24)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.3),
-                                                Color.white.opacity(0.1)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            )
-                        } else {
-                            // Light/Dark theme - original gradient
-                            ZStack {
-                                LinearGradient(
-                                    colors: [
-                                        theme.prayerGradientStart,
-                                        theme.prayerGradientEnd
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-
-                                // Decorative elements for non-glass themes
-                                GeometryReader { geometry in
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [
-                                                    Color.white.opacity(0.3),
-                                                    Color.clear
-                                                ],
-                                                center: .center,
-                                                startRadius: 0,
-                                                endRadius: 100
-                                            )
-                                        )
-                                        .frame(width: 200, height: 200)
-                                        .offset(x: -50, y: -50)
-                                        .blur(radius: 40)
-
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [
-                                                    theme.accentGold.opacity(0.3),
-                                                    Color.clear
-                                                ],
-                                                center: .center,
-                                                startRadius: 0,
-                                                endRadius: 80
-                                            )
-                                        )
-                                        .frame(width: 150, height: 150)
-                                        .offset(x: geometry.size.width - 80, y: geometry.size.height - 80)
-                                        .blur(radius: 30)
-                                }
-                            }
-                            .cornerRadius(24)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.1),
-                                                Color.clear
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            )
-                        }
-                    }
-                )
-                .shadow(color: theme.shadowColor.opacity(0.5), radius: 20, x: 0, y: 10)
-            }
-        }
+    // Helper functions for date formatting
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: date)
     }
 
-    // MARK: - Progress Section
+    private func dayOfWeek(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    // MARK: - Progress Section (simplified since streak moved to card)
     private var progressSection: some View {
         HStack(spacing: 24) {
             // Circular Progress
@@ -262,25 +333,48 @@ struct PrayerTimeView: View {
                 }
             }
 
-            // Streak Info
+            // Daily Progress Info
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "flame.fill")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(theme.accentGold)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(viewModel.currentStreak > 0 ? .orange : theme.tertiaryText)
 
                     Text("Current Streak")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundColor(theme.secondaryText)
                 }
 
-                Text("\(viewModel.currentStreak) days")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(theme.primaryText)
+                HStack(alignment: .bottom, spacing: 6) {
+                    Text("\(viewModel.currentStreak)")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(viewModel.currentStreak > 0 ? theme.primaryAccent : theme.primaryText)
 
-                Text("Best: \(viewModel.bestStreak) days")
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.tertiaryText)
+                    Text(viewModel.currentStreak == 1 ? "day" : "days")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.secondaryText)
+                }
+
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Text("Best:")
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .foregroundColor(theme.tertiaryText)
+                        Text("\(viewModel.bestStreak) days")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.primaryAccent)
+                    }
+
+                    HStack(spacing: 4) {
+                        Text("Today:")
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .foregroundColor(theme.tertiaryText)
+                        let progressPercent = Int(viewModel.progressPercentage * 100)
+                        Text("\(progressPercent)%")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.accentGreen)
+                    }
+                }
             }
 
             Spacer()
@@ -308,6 +402,7 @@ struct PrayerTimeView: View {
                 PrayerRowView(
                     prayer: prayer,
                     isActive: prayer.name == viewModel.currentPrayer?.name,
+                    isToday: Calendar.current.isDateInToday(viewModel.selectedDate),
                     theme: theme,
                     onToggleReminder: {
                         viewModel.toggleReminder(for: prayer.name)
@@ -340,6 +435,7 @@ struct PrayerTimeView: View {
 struct PrayerRowView: View {
     let prayer: Prayer
     let isActive: Bool
+    let isToday: Bool
     let theme: AppTheme
     let onToggleReminder: () -> Void
     let onToggleComplete: () -> Void
@@ -386,13 +482,17 @@ struct PrayerRowView: View {
                     .foregroundColor(prayer.hasReminder ? theme.accentGold : theme.tertiaryText)
             }
 
-            // Completion Checkbox (not for Sunrise)
-            if prayer.name != "Sunrise" {
+            // Completion Checkbox (not for Sunrise and not for future dates)
+            if prayer.name != "Sunrise" && isToday {
                 Button(action: onToggleComplete) {
                     Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(prayer.isCompleted ? theme.accentGreen : theme.tertiaryText)
                 }
+            } else {
+                // Spacer to maintain alignment for Sunrise and future dates
+                Color.clear
+                    .frame(width: 20, height: 20)
             }
         }
         .padding(.horizontal, 16)
@@ -436,6 +536,240 @@ struct Prayer {
     let icon: String
     var hasReminder: Bool
     var isCompleted: Bool
+}
+
+// MARK: - Date Picker Sheet
+struct DatePickerSheet: View {
+    @Binding var selectedDate: Date
+    let onDateSelected: (Date) -> Void
+    let theme: AppTheme
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var displayedMonth = Date()
+    @State private var tempSelectedDate = Date()
+
+    private let calendar = Calendar.current
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(spacing: 16) {
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(theme.secondaryText)
+                            .frame(width: 30, height: 30)
+                            .background(
+                                Circle()
+                                    .fill(theme.cardBackground.opacity(0.5))
+                            )
+                    }
+
+                    Spacer()
+
+                    Text("Select Date")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(theme.primaryText)
+
+                    Spacer()
+
+                    Button("Today") {
+                        tempSelectedDate = Date()
+                        displayedMonth = Date()
+                    }
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.primaryAccent)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+
+                // Month Navigation
+                HStack {
+                    Button(action: previousMonth) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(theme.primaryAccent)
+                    }
+
+                    Spacer()
+
+                    Text(dateFormatter.string(from: displayedMonth))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.primaryText)
+
+                    Spacer()
+
+                    Button(action: nextMonth) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(theme.primaryAccent)
+                    }
+                }
+                .padding(.horizontal, 30)
+            }
+            .padding(.bottom, 20)
+
+            // Calendar Grid
+            VStack(spacing: 10) {
+                // Week day headers
+                HStack(spacing: 0) {
+                    ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
+                        Text(day)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.secondaryText)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 20)
+
+                // Calendar days
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 8) {
+                    ForEach(getDaysInMonth(), id: \.self) { date in
+                        if let date = date {
+                            DayCell(
+                                date: date,
+                                isSelected: isSameDay(date, tempSelectedDate),
+                                isToday: isSameDay(date, Date()),
+                                isCurrentMonth: isSameMonth(date, displayedMonth),
+                                theme: theme,
+                                onTap: {
+                                    tempSelectedDate = date
+                                }
+                            )
+                        } else {
+                            Color.clear
+                                .frame(height: 44)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+
+            Spacer()
+
+            // Bottom buttons
+            HStack(spacing: 16) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(theme.secondaryText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(theme.cardBackground.opacity(0.5))
+                )
+
+                Button("Select") {
+                    onDateSelected(tempSelectedDate)
+                }
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(theme.primaryAccent)
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 30)
+        }
+        .background(theme.primaryBackground)
+        .onAppear {
+            tempSelectedDate = selectedDate
+            displayedMonth = selectedDate
+        }
+    }
+
+    // MARK: - Helper Functions
+    private func previousMonth() {
+        displayedMonth = calendar.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+    }
+
+    private func nextMonth() {
+        displayedMonth = calendar.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+    }
+
+    private func getDaysInMonth() -> [Date?] {
+        guard let monthRange = calendar.range(of: .day, in: .month, for: displayedMonth),
+              let firstOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth)) else {
+            return []
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: firstOfMonth) - 1
+        var days: [Date?] = Array(repeating: nil, count: firstWeekday)
+
+        for day in monthRange {
+            if let date = calendar.date(byAdding: .day, value: day - 1, to: firstOfMonth) {
+                days.append(date)
+            }
+        }
+
+        // Pad to complete the last week
+        while days.count % 7 != 0 {
+            days.append(nil)
+        }
+
+        return days
+    }
+
+    private func isSameDay(_ date1: Date, _ date2: Date) -> Bool {
+        calendar.isDate(date1, inSameDayAs: date2)
+    }
+
+    private func isSameMonth(_ date1: Date, _ date2: Date) -> Bool {
+        calendar.isDate(date1, equalTo: date2, toGranularity: .month)
+    }
+}
+
+// MARK: - Day Cell Component
+struct DayCell: View {
+    let date: Date
+    let isSelected: Bool
+    let isToday: Bool
+    let isCurrentMonth: Bool
+    let theme: AppTheme
+    let onTap: () -> Void
+
+    private var dayFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(theme.primaryAccent)
+                        .frame(width: 44, height: 44)
+                } else if isToday {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(theme.primaryAccent, lineWidth: 2)
+                        .frame(width: 44, height: 44)
+                }
+
+                Text(dayFormatter.string(from: date))
+                    .font(.system(size: 16, weight: isToday || isSelected ? .semibold : .regular, design: .rounded))
+                    .foregroundColor(
+                        isSelected ? .white :
+                        isToday ? theme.primaryAccent :
+                        isCurrentMonth ? theme.primaryText : theme.tertiaryText.opacity(0.5)
+                    )
+            }
+            .frame(width: 44, height: 44)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 }
 
 // MARK: - Preview

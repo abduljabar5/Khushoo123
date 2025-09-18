@@ -88,6 +88,20 @@ class ThemeManager: ObservableObject {
         }
         return Array(savedCache.values)
     }
+
+    // Helper to determine current prayer time for background
+    func getCurrentPrayerTime() -> String {
+        let hour = Calendar.current.component(.hour, from: Date())
+
+        switch hour {
+        case 4...6: return "Fajr"     // Dawn - dark blues with stars
+        case 7...10: return "Sunrise" // Morning - warm oranges and yellows
+        case 11...14: return "Dhuhr"  // Midday - bright blues and whites
+        case 15...17: return "Asr"    // Afternoon - warm ambers
+        case 18...19: return "Maghrib" // Sunset - deep purples and reds
+        default: return "Isha"        // Night - dark blues with stars
+        }
+    }
 }
 
 protocol AppTheme {
@@ -300,22 +314,29 @@ struct LiquidGlassMorphism: ViewModifier {
     }
 }
 
-// Enhanced background for liquid glass theme with customizable options
+// Enhanced background for liquid glass theme with dynamic prayer-based colors
 struct LiquidGlassBackgroundView: View {
     let backgroundType: LiquidGlassBackground
     let backgroundImageURL: String?
     @State private var animateGradient = false
-    
+
+    // Animation preference - set to false for static orbs
+    private let enableOrbAnimation = false // Static orbs - no animation
+
+    private var currentPrayer: String {
+        ThemeManager.shared.getCurrentPrayerTime()
+    }
+
     var body: some View {
         ZStack {
             switch backgroundType {
             case .orbs:
-                orbsBackground
+                dynamicOrbsBackground
             case .coverImage:
                 if let imageURL = backgroundImageURL, let url = URL(string: imageURL) {
                     coverImageBackground(url: url)
                 } else {
-                    orbsBackground // Fallback to orbs if no image selected
+                    dynamicOrbsBackground // Fallback to orbs if no image selected
                 }
             }
         }
@@ -323,84 +344,112 @@ struct LiquidGlassBackgroundView: View {
             animateGradient = true
         }
     }
-    
-    private var orbsBackground: some View {
+
+    private var dynamicOrbsBackground: some View {
         ZStack {
-            // Multi-layered animated background - teal/cyan gradient matching Prayer card
+            // Prayer-time specific gradient background - static
             LinearGradient(
-                colors: [
-                    Color(hex: "004D4D"),  // Dark teal
-                    Color(hex: "006B6B"),  // Medium teal
-                    Color(hex: "008B8B"),  // Dark cyan
-                    Color(hex: "00A5A5")   // Lighter teal
-                ],
-                startPoint: animateGradient ? .topLeading : .bottomTrailing,
-                endPoint: animateGradient ? .bottomTrailing : .topLeading
+                colors: gradientColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            .animation(
-                Animation.easeInOut(duration: 8)
-                    .repeatForever(autoreverses: true),
-                value: animateGradient
-            )
 
-            // Floating orbs for depth - matching teal/cyan color palette
+            // Subtle floating orbs with refined animations
             GeometryReader { geometry in
+                // Primary orb - gentle breathing effect
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color(hex: "00CED1").opacity(0.4),  // Dark turquoise
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 200
-                        )
-                    )
-                    .frame(width: 400, height: 400)
-                    .offset(
-                        x: animateGradient ? -100 : geometry.size.width - 100,
-                        y: animateGradient ? -50 : 300
-                    )
-                    .blur(radius: 40)
-                    .animation(
-                        Animation.easeInOut(duration: 10)
-                            .repeatForever(autoreverses: true),
-                        value: animateGradient
-                    )
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color(hex: "20B2AA").opacity(0.3),  // Light sea green
+                                primaryOrbColor.opacity(0.25),
+                                primaryOrbColor.opacity(0.1),
                                 Color.clear
                             ],
                             center: .center,
                             startRadius: 30,
-                            endRadius: 150
+                            endRadius: 180
                         )
                     )
-                    .frame(width: 300, height: 300)
-                    .offset(
-                        x: animateGradient ? geometry.size.width - 50 : -150,
-                        y: animateGradient ? 200 : 50
+                    .frame(width: 360, height: 360)
+                    .position(
+                        x: geometry.size.width * 0.2,
+                        y: geometry.size.height * 0.3
                     )
-                    .blur(radius: 30)
+                    .blur(radius: 35)
+                    .scaleEffect(enableOrbAnimation && animateGradient ? 1.1 : 1.0)
                     .animation(
-                        Animation.easeInOut(duration: 12)
-                            .repeatForever(autoreverses: true),
+                        enableOrbAnimation ?
+                        Animation.easeInOut(duration: 25)
+                            .repeatForever(autoreverses: true) : nil,
+                        value: animateGradient
+                    )
+
+                // Secondary orb - slow drift
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                secondaryOrbColor.opacity(0.2),
+                                secondaryOrbColor.opacity(0.08),
+                                Color.clear
+                            ],
+                            center: .center,
+                            startRadius: 25,
+                            endRadius: 140
+                        )
+                    )
+                    .frame(width: 280, height: 280)
+                    .position(
+                        x: geometry.size.width * 0.8,
+                        y: geometry.size.height * 0.7
+                    )
+                    .blur(radius: 25)
+                    .offset(
+                        x: enableOrbAnimation && animateGradient ? -15 : 0,
+                        y: enableOrbAnimation && animateGradient ? -10 : 0
+                    )
+                    .animation(
+                        enableOrbAnimation ?
+                        Animation.easeInOut(duration: 30)
+                            .repeatForever(autoreverses: true) : nil,
+                        value: animateGradient
+                    )
+
+                // Tertiary orb - subtle pulse
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                primaryOrbColor.opacity(0.15),
+                                Color.clear
+                            ],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 100
+                        )
+                    )
+                    .frame(width: 200, height: 200)
+                    .position(
+                        x: geometry.size.width * 0.6,
+                        y: geometry.size.height * 0.2
+                    )
+                    .blur(radius: 20)
+                    .opacity(enableOrbAnimation && animateGradient ? 0.8 : 0.6)
+                    .animation(
+                        enableOrbAnimation ?
+                        Animation.easeInOut(duration: 20)
+                            .repeatForever(autoreverses: true) : nil,
                         value: animateGradient
                     )
             }
         }
     }
-    
+
     private func coverImageBackground(url: URL) -> some View {
         GeometryReader { geometry in
             ZStack {
-                // Cover image with proper scaling - no blur for crisp appearance
+                // Cover image with prayer-time color overlay
                 KFImage(url)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -412,44 +461,127 @@ struct LiquidGlassBackgroundView: View {
                     .overlay(
                         LinearGradient(
                             colors: [
-                                Color.black.opacity(0.2),
-                                Color.black.opacity(0.05),
-                                Color.black.opacity(0.3)
+                                primaryOrbColor.opacity(0.2),
+                                secondaryOrbColor.opacity(0.15),
+                                primaryOrbColor.opacity(0.25)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
-                
-                // Subtle floating orbs for extra depth
+
+                // Subtle accent orb for cover images
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color.white.opacity(0.2),
+                                primaryOrbColor.opacity(0.2),
+                                primaryOrbColor.opacity(0.1),
                                 Color.clear
                             ],
                             center: .center,
-                            startRadius: 10,
-                            endRadius: 100
+                            startRadius: 15,
+                            endRadius: 80
                         )
                     )
-                    .frame(width: 200, height: 200)
-                    .offset(
-                        x: animateGradient ? -50 : geometry.size.width - 150,
-                        y: animateGradient ? 100 : 250
+                    .frame(width: 160, height: 160)
+                    .position(
+                        x: geometry.size.width * 0.75,
+                        y: geometry.size.height * 0.25
                     )
-                    .blur(radius: 20)
+                    .blur(radius: 18)
+                    .scaleEffect(enableOrbAnimation && animateGradient ? 1.05 : 1.0)
                     .animation(
-                        Animation.easeInOut(duration: 15)
-                            .repeatForever(autoreverses: true),
+                        enableOrbAnimation ?
+                        Animation.easeInOut(duration: 22)
+                            .repeatForever(autoreverses: true) : nil,
                         value: animateGradient
                     )
             }
         }
         .ignoresSafeArea()
     }
+
+    // Dynamic colors based on prayer time
+    private var gradientColors: [Color] {
+        switch currentPrayer {
+        case "Fajr":
+            return [
+                Color(hex: "191970"), // Midnight blue
+                Color(hex: "000080"), // Navy
+                Color(hex: "4B0082"), // Indigo
+                Color(hex: "483D8B")  // Dark slate blue
+            ]
+        case "Sunrise":
+            return [
+                Color(hex: "FF6B35"), // Orange red
+                Color(hex: "F7931E"), // Orange
+                Color(hex: "FFD700"), // Gold
+                Color(hex: "FF8C00")  // Dark orange
+            ]
+        case "Dhuhr":
+            return [
+                Color(hex: "87CEEB"), // Sky blue
+                Color(hex: "4682B4"), // Steel blue
+                Color(hex: "5F9EA0"), // Cadet blue
+                Color(hex: "B0E0E6")  // Powder blue
+            ]
+        case "Asr":
+            return [
+                Color(hex: "D2691E"), // Chocolate
+                Color(hex: "CD853F"), // Peru
+                Color(hex: "DEB887"), // Burlywood
+                Color(hex: "F4A460")  // Sandy brown
+            ]
+        case "Maghrib":
+            return [
+                Color(hex: "800080"), // Purple
+                Color(hex: "8B0000"), // Dark red
+                Color(hex: "DC143C"), // Crimson
+                Color(hex: "B22222")  // Fire brick
+            ]
+        case "Isha":
+            return [
+                Color(hex: "191970"), // Midnight blue
+                Color(hex: "000080"), // Navy
+                Color(hex: "2F4F4F"), // Dark slate gray
+                Color(hex: "1E1E3F")  // Dark blue
+            ]
+        default:
+            return [
+                Color(hex: "004D4D"),
+                Color(hex: "006B6B"),
+                Color(hex: "008B8B"),
+                Color(hex: "00A5A5")
+            ]
+        }
+    }
+
+    private var primaryOrbColor: Color {
+        switch currentPrayer {
+        case "Fajr": return Color(hex: "9370DB")    // Medium purple
+        case "Sunrise": return Color(hex: "FFA500") // Orange
+        case "Dhuhr": return Color(hex: "00BFFF")   // Deep sky blue
+        case "Asr": return Color(hex: "DAA520")     // Goldenrod
+        case "Maghrib": return Color(hex: "FF69B4") // Hot pink
+        case "Isha": return Color(hex: "6495ED")    // Cornflower blue
+        default: return Color(hex: "00CED1")        // Dark turquoise
+        }
+    }
+
+    private var secondaryOrbColor: Color {
+        switch currentPrayer {
+        case "Fajr": return Color(hex: "4169E1")    // Royal blue
+        case "Sunrise": return Color(hex: "FF4500") // Orange red
+        case "Dhuhr": return Color(hex: "32CD32")   // Lime green
+        case "Asr": return Color(hex: "FF8C00")     // Dark orange
+        case "Maghrib": return Color(hex: "DC143C") // Crimson
+        case "Isha": return Color(hex: "708090")    // Slate gray
+        default: return Color(hex: "20B2AA")        // Light sea green
+        }
+    }
 }
+
 
 extension View {
     func glassCard(theme: AppTheme) -> some View {
@@ -457,7 +589,7 @@ extension View {
             .modifier(LiquidGlassMorphism(theme: theme))
             .cornerRadius(theme.cardCornerRadius)
     }
-    
+
     func shimmer() -> some View {
         self
             .modifier(ShimmerEffect())

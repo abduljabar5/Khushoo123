@@ -504,10 +504,13 @@ class BlockingStateService: ObservableObject {
     }
     
     func clearBlocking() {
+        // Mark prayers as completed when user confirms with Wallahi
+        markPrayersAsCompleted()
+
         // Clear the actual ManagedSettings restrictions
         let store = ManagedSettingsStore()
         store.clearAllSettings()
-        
+
         // Clear the voice confirmation flag in UserDefaults
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
@@ -518,7 +521,7 @@ class BlockingStateService: ObservableObject {
             groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
             groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
         }
-        
+
         // Update local state
         isWaitingForVoiceConfirmation = false
         isEarlyUnlockedActive = false
@@ -529,7 +532,68 @@ class BlockingStateService: ObservableObject {
             groupDefaults.removeObject(forKey: "blockingStartTime")
         }
     }
-    
+
+    private func markPrayersAsCompleted() {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+
+        let now = Date()
+        let today = dateKey(for: now)
+        var completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] ?? []
+
+        // In strict mode, if blocking has been active for multiple prayer times,
+        // mark all prayers between blockingStartTime and now as completed
+        if isStrictModeEnabled, let blockingStart = blockingStartTime {
+            if let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] {
+                let prayersToMark = findPrayersInTimeRange(schedules: schedules, from: blockingStart, to: now)
+
+                for prayerName in prayersToMark {
+                    if !completed.contains(prayerName) && prayerName != "Sunrise" {
+                        completed.append(prayerName)
+                        print("🕌 Marking \(prayerName) as completed (strict mode bulk completion)")
+                    }
+                }
+            }
+        } else {
+            // Regular mode: only mark the current prayer as completed
+            if !currentPrayerName.isEmpty && currentPrayerName != "Sunrise" && !completed.contains(currentPrayerName) {
+                completed.append(currentPrayerName)
+                print("🕌 Marking \(currentPrayerName) as completed (Wallahi confirmation)")
+            }
+        }
+
+        // Save the updated completed prayers
+        UserDefaults.standard.set(completed, forKey: "completed_\(today)")
+
+        // Post notification to update UI if PrayerTimeViewModel is active
+        NotificationCenter.default.post(name: NSNotification.Name("PrayersCompletedUpdated"), object: nil)
+    }
+
+    private func findPrayersInTimeRange(schedules: [[String: Any]], from startTime: Date, to endTime: Date) -> [String] {
+        var prayersInRange: [String] = []
+
+        for schedule in schedules {
+            guard let name = schedule["name"] as? String,
+                  let timestamp = schedule["date"] as? TimeInterval,
+                  let duration = schedule["duration"] as? Double else { continue }
+
+            let prayerStart = Date(timeIntervalSince1970: timestamp)
+            let prayerEnd = prayerStart.addingTimeInterval(duration)
+
+            // Include prayers that overlap with the blocking period
+            if prayerStart <= endTime && prayerEnd >= startTime {
+                prayersInRange.append(name)
+            }
+        }
+
+        return prayersInRange
+    }
+
+    private func dateKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
     /// Force immediate check of blocking status (useful when app becomes active or goes to background)
     func forceCheck() {
         checkBlockingStatus()
@@ -549,28 +613,47 @@ class BlockingStateService: ObservableObject {
     func earlyUnlockCurrentInterval() {
         guard !isStrictModeEnabled else { return }
         guard let endTime = blockingEndTime else { return }
-        
+
+        // Mark current prayer as completed when user early unlocks
+        markCurrentPrayerAsCompleted()
+
         // Clear ManagedSettings to unblock immediately
         let store = ManagedSettingsStore()
         store.clearAllSettings()
-        
+
         // Mark early-unlocked window until the scheduled end and immediately hide banners
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.set(endTime.timeIntervalSince1970, forKey: "earlyUnlockedUntil")
             groupDefaults.set(false, forKey: "appsActuallyBlocked")
             groupDefaults.removeObject(forKey: "blockingStartTime")
-            
+
             // Keep the prayer tracking info for validation
             // Don't remove earlyUnlockPrayerName and earlyUnlockPrayerStart
             // They will be cleared when the interval ends or a new prayer starts
-            
+
             currentEarlyUnlockedUntil = endTime
             isEarlyUnlockedActive = true
             appsActuallyBlocked = false
         }
-        
+
         // Update local state
         updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
+    }
+
+    private func markCurrentPrayerAsCompleted() {
+        guard !currentPrayerName.isEmpty && currentPrayerName != "Sunrise" else { return }
+
+        let today = dateKey(for: Date())
+        var completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] ?? []
+
+        if !completed.contains(currentPrayerName) {
+            completed.append(currentPrayerName)
+            UserDefaults.standard.set(completed, forKey: "completed_\(today)")
+            print("🕌 Marking \(currentPrayerName) as completed (early unlock)")
+
+            // Post notification to update UI
+            NotificationCenter.default.post(name: NSNotification.Name("PrayersCompletedUpdated"), object: nil)
+        }
     }
     // Early stop background task helpers removed
     
