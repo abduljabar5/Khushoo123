@@ -14,6 +14,7 @@ enum QuranAPIError: Error {
     case decodingError
     case audioNotFound
     case invalidResponse
+    case loadingInProgress
 }
 
 // MARK: - Quran API Service
@@ -62,21 +63,10 @@ class QuranAPIService: ObservableObject {
             return allReciters
         }
         
-        // If currently loading, wait for it to complete
+        // If currently loading, throw a specific error to indicate UI should wait for publisher
         if isLoadingReciters {
-            print("⏳ [QuranAPIService] Waiting for preloading to complete...")
-            // Wait for the loading to complete by polling the state
-            while isLoadingReciters {
-                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            }
-            
-            if hasLoadedReciters && !allReciters.isEmpty {
-                print("✅ [QuranAPIService] Preloading completed, returning reciters (\(allReciters.count))")
-                return allReciters
-            } else {
-                print("❌ [QuranAPIService] Preloading failed")
-                throw QuranAPIError.networkError
-            }
+            print("⏳ [QuranAPIService] Already loading - UI should use publisher updates")
+            throw QuranAPIError.loadingInProgress
         }
         
         // Otherwise, load now

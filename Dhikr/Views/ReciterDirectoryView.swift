@@ -98,6 +98,15 @@ struct ReciterDirectoryView: View {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                     updateFavoritesCache()
                 }
+                .onReceive(quranAPIService.$reciters) { reciters in
+                    // Update when global reciters are loaded
+                    if !reciters.isEmpty && self.allReciters.isEmpty {
+                        print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
+                        self.allReciters = reciters
+                        self.filteredReciters = reciters
+                        self.isLoading = false
+                    }
+                }
                 .onChange(of: searchText) { newValue in
                     performDebouncedSearch(query: newValue)
                 }
@@ -112,10 +121,7 @@ struct ReciterDirectoryView: View {
     private var backgroundView: some View {
         Group {
             if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView(
-                    backgroundType: themeManager.liquidGlassBackground,
-                    backgroundImageURL: themeManager.selectedBackgroundImageURL
-                )
+                LiquidGlassBackgroundView()
             } else {
                 theme.primaryBackground
                     .ignoresSafeArea()
@@ -141,6 +147,24 @@ struct ReciterDirectoryView: View {
     private func loadData() {
         self.recentReciters = RecentRecitersManager.shared.loadRecentReciters()
         loadFavoritesCache()
+
+        // Check if reciters are already available from the global service
+        if !quranAPIService.reciters.isEmpty {
+            print("✅ [ReciterDirectoryView] Using already loaded reciters (\(quranAPIService.reciters.count))")
+            self.allReciters = quranAPIService.reciters
+            self.filteredReciters = quranAPIService.reciters
+            self.isLoading = false
+            return
+        }
+
+        // If global loading is in progress, show loading state but don't fetch again
+        if quranAPIService.isLoadingReciters {
+            print("⏳ [ReciterDirectoryView] Global loading in progress, waiting...")
+            self.isLoading = true
+            return
+        }
+
+        // Show loading state and fetch if not available
         isLoading = true
         Task {
             do {
@@ -150,6 +174,10 @@ struct ReciterDirectoryView: View {
                     self.filteredReciters = fetchedReciters
                     self.isLoading = false
                 }
+            } catch QuranAPIError.loadingInProgress {
+                // Global loading is in progress - UI will update via publisher
+                print("🔄 [ReciterDirectoryView] Global loading in progress, waiting for publisher update")
+                // Keep loading state, onReceive will handle the update
             } catch {
                 print("Error loading reciters: \(error)")
                 await MainActor.run {

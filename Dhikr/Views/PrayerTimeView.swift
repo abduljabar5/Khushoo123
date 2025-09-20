@@ -68,10 +68,7 @@ struct PrayerTimeView: View {
     private var mosqueBackgroundView: some View {
         Group {
             if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView(
-                    backgroundType: themeManager.liquidGlassBackground,
-                    backgroundImageURL: themeManager.selectedBackgroundImageURL
-                )
+                LiquidGlassBackgroundView()
             } else {
                 theme.primaryBackground
                     .ignoresSafeArea()

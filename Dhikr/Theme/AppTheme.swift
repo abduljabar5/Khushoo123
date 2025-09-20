@@ -1,5 +1,4 @@
 import SwiftUI
-import Kingfisher
 
 enum AppThemeStyle: String, CaseIterable {
     case light = "Light"
@@ -26,49 +25,38 @@ enum AppThemeStyle: String, CaseIterable {
     }
 }
 
-enum LiquidGlassBackground: String, CaseIterable {
-    case orbs = "Orbs"
-    case coverImage = "Cover Image"
-    
-    var displayName: String {
-        return self.rawValue
-    }
-}
 
 class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
-    
+
     @Published var currentTheme: AppThemeStyle {
         didSet {
             UserDefaults.standard.set(currentTheme.rawValue, forKey: "selectedTheme")
         }
     }
-    
-    @Published var liquidGlassBackground: LiquidGlassBackground {
+
+    @Published var selectedWallpaper: String? {
         didSet {
-            UserDefaults.standard.set(liquidGlassBackground.rawValue, forKey: "liquidGlassBackground")
-        }
-    }
-    
-    @Published var selectedBackgroundImageURL: String? {
-        didSet {
-            if let url = selectedBackgroundImageURL {
-                UserDefaults.standard.set(url, forKey: "selectedBackgroundImageURL")
+            if let wallpaper = selectedWallpaper {
+                UserDefaults.standard.set(wallpaper, forKey: "selectedWallpaper")
             } else {
-                UserDefaults.standard.removeObject(forKey: "selectedBackgroundImageURL")
+                UserDefaults.standard.removeObject(forKey: "selectedWallpaper")
             }
         }
     }
-    
+
     init() {
         let savedTheme = UserDefaults.standard.string(forKey: "selectedTheme") ?? AppThemeStyle.light.rawValue
         self.currentTheme = AppThemeStyle(rawValue: savedTheme) ?? .light
-        
-        let savedBackground = UserDefaults.standard.string(forKey: "liquidGlassBackground") ?? LiquidGlassBackground.orbs.rawValue
-        self.liquidGlassBackground = LiquidGlassBackground(rawValue: savedBackground) ?? .orbs
-        
-        self.selectedBackgroundImageURL = UserDefaults.standard.string(forKey: "selectedBackgroundImageURL")
+        self.selectedWallpaper = UserDefaults.standard.string(forKey: "selectedWallpaper")
     }
+
+    // Available wallpapers
+    static let availableWallpapers = [
+        "papers.co-mi29-antelope-canyon-bw-black-mountain-rock-nature-41-iphone-wallpaper.jpg",
+        "wp12645728.jpg",
+        "31eebcd90bee7f3ca440a1c12cdccae0.jpg"
+    ]
     
     var theme: AppTheme {
         switch currentTheme {
@@ -81,27 +69,6 @@ class ThemeManager: ObservableObject {
         }
     }
     
-    // Get available background images from cached artwork URLs
-    func getAvailableBackgroundImages() -> [String] {
-        guard let savedCache = UserDefaults.standard.dictionary(forKey: "artworkURLPersistentCache_Unsplash") as? [String: String] else {
-            return []
-        }
-        return Array(savedCache.values)
-    }
-
-    // Helper to determine current prayer time for background
-    func getCurrentPrayerTime() -> String {
-        let hour = Calendar.current.component(.hour, from: Date())
-
-        switch hour {
-        case 4...6: return "Fajr"     // Dawn - dark blues with stars
-        case 7...10: return "Sunrise" // Morning - warm oranges and yellows
-        case 11...14: return "Dhuhr"  // Midday - bright blues and whites
-        case 15...17: return "Asr"    // Afternoon - warm ambers
-        case 18...19: return "Maghrib" // Sunset - deep purples and reds
-        default: return "Isha"        // Night - dark blues with stars
-        }
-    }
 }
 
 protocol AppTheme {
@@ -314,271 +281,59 @@ struct LiquidGlassMorphism: ViewModifier {
     }
 }
 
-// Enhanced background for liquid glass theme with dynamic prayer-based colors
+// Simple static liquid glass background with optional wallpaper support
 struct LiquidGlassBackgroundView: View {
-    let backgroundType: LiquidGlassBackground
-    let backgroundImageURL: String?
-    @State private var animateGradient = false
-
-    // Animation preference - set to false for static orbs
-    private let enableOrbAnimation = false // Static orbs - no animation
-
-    private var currentPrayer: String {
-        ThemeManager.shared.getCurrentPrayerTime()
-    }
+    @StateObject private var themeManager = ThemeManager.shared
 
     var body: some View {
         ZStack {
-            switch backgroundType {
-            case .orbs:
-                dynamicOrbsBackground
-            case .coverImage:
-                if let imageURL = backgroundImageURL, let url = URL(string: imageURL) {
-                    coverImageBackground(url: url)
-                } else {
-                    dynamicOrbsBackground // Fallback to orbs if no image selected
-                }
-            }
-        }
-        .onAppear {
-            animateGradient = true
-        }
-    }
-
-    private var dynamicOrbsBackground: some View {
-        ZStack {
-            // Prayer-time specific gradient background - static
+            // Default gradient background
             LinearGradient(
-                colors: gradientColors,
+                colors: [
+                    Color(hex: "667EEA"),  // Deep blue
+                    Color(hex: "764BA2"),  // Purple
+                    Color(hex: "F093FB"),  // Pink
+                    Color(hex: "F5576C")   // Coral
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
-            // Subtle floating orbs with refined animations
-            GeometryReader { geometry in
-                // Primary orb - gentle breathing effect
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                primaryOrbColor.opacity(0.25),
-                                primaryOrbColor.opacity(0.1),
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 30,
-                            endRadius: 180
-                        )
-                    )
-                    .frame(width: 360, height: 360)
-                    .position(
-                        x: geometry.size.width * 0.2,
-                        y: geometry.size.height * 0.3
-                    )
-                    .blur(radius: 35)
-                    .scaleEffect(enableOrbAnimation && animateGradient ? 1.1 : 1.0)
-                    .animation(
-                        enableOrbAnimation ?
-                        Animation.easeInOut(duration: 25)
-                            .repeatForever(autoreverses: true) : nil,
-                        value: animateGradient
-                    )
-
-                // Secondary orb - slow drift
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                secondaryOrbColor.opacity(0.2),
-                                secondaryOrbColor.opacity(0.08),
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 25,
-                            endRadius: 140
-                        )
-                    )
-                    .frame(width: 280, height: 280)
-                    .position(
-                        x: geometry.size.width * 0.8,
-                        y: geometry.size.height * 0.7
-                    )
-                    .blur(radius: 25)
-                    .offset(
-                        x: enableOrbAnimation && animateGradient ? -15 : 0,
-                        y: enableOrbAnimation && animateGradient ? -10 : 0
-                    )
-                    .animation(
-                        enableOrbAnimation ?
-                        Animation.easeInOut(duration: 30)
-                            .repeatForever(autoreverses: true) : nil,
-                        value: animateGradient
-                    )
-
-                // Tertiary orb - subtle pulse
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                primaryOrbColor.opacity(0.15),
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 100
-                        )
-                    )
-                    .frame(width: 200, height: 200)
-                    .position(
-                        x: geometry.size.width * 0.6,
-                        y: geometry.size.height * 0.2
-                    )
-                    .blur(radius: 20)
-                    .opacity(enableOrbAnimation && animateGradient ? 0.8 : 0.6)
-                    .animation(
-                        enableOrbAnimation ?
-                        Animation.easeInOut(duration: 20)
-                            .repeatForever(autoreverses: true) : nil,
-                        value: animateGradient
-                    )
-            }
-        }
-    }
-
-    private func coverImageBackground(url: URL) -> some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Cover image with prayer-time color overlay
-                KFImage(url)
+            // Load the selected wallpaper or a default one
+            if let wallpaperImage = loadWallpaper() {
+                Image(uiImage: wallpaperImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height
-                    )
-                    .clipped()
-                    .overlay(
-                        LinearGradient(
-                            colors: [
-                                primaryOrbColor.opacity(0.2),
-                                secondaryOrbColor.opacity(0.15),
-                                primaryOrbColor.opacity(0.25)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                // Subtle accent orb for cover images
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                primaryOrbColor.opacity(0.2),
-                                primaryOrbColor.opacity(0.1),
-                                Color.clear
-                            ],
-                            center: .center,
-                            startRadius: 15,
-                            endRadius: 80
-                        )
-                    )
-                    .frame(width: 160, height: 160)
-                    .position(
-                        x: geometry.size.width * 0.75,
-                        y: geometry.size.height * 0.25
-                    )
-                    .blur(radius: 18)
-                    .scaleEffect(enableOrbAnimation && animateGradient ? 1.05 : 1.0)
-                    .animation(
-                        enableOrbAnimation ?
-                        Animation.easeInOut(duration: 22)
-                            .repeatForever(autoreverses: true) : nil,
-                        value: animateGradient
-                    )
+                    .ignoresSafeArea()
+                    .opacity(0.7) // Make it subtle so the glass effect still works
             }
         }
-        .ignoresSafeArea()
     }
 
-    // Dynamic colors based on prayer time
-    private var gradientColors: [Color] {
-        switch currentPrayer {
-        case "Fajr":
-            return [
-                Color(hex: "191970"), // Midnight blue
-                Color(hex: "000080"), // Navy
-                Color(hex: "4B0082"), // Indigo
-                Color(hex: "483D8B")  // Dark slate blue
-            ]
-        case "Sunrise":
-            return [
-                Color(hex: "FF6B35"), // Orange red
-                Color(hex: "F7931E"), // Orange
-                Color(hex: "FFD700"), // Gold
-                Color(hex: "FF8C00")  // Dark orange
-            ]
-        case "Dhuhr":
-            return [
-                Color(hex: "87CEEB"), // Sky blue
-                Color(hex: "4682B4"), // Steel blue
-                Color(hex: "5F9EA0"), // Cadet blue
-                Color(hex: "B0E0E6")  // Powder blue
-            ]
-        case "Asr":
-            return [
-                Color(hex: "D2691E"), // Chocolate
-                Color(hex: "CD853F"), // Peru
-                Color(hex: "DEB887"), // Burlywood
-                Color(hex: "F4A460")  // Sandy brown
-            ]
-        case "Maghrib":
-            return [
-                Color(hex: "800080"), // Purple
-                Color(hex: "8B0000"), // Dark red
-                Color(hex: "DC143C"), // Crimson
-                Color(hex: "B22222")  // Fire brick
-            ]
-        case "Isha":
-            return [
-                Color(hex: "191970"), // Midnight blue
-                Color(hex: "000080"), // Navy
-                Color(hex: "2F4F4F"), // Dark slate gray
-                Color(hex: "1E1E3F")  // Dark blue
-            ]
-        default:
-            return [
-                Color(hex: "004D4D"),
-                Color(hex: "006B6B"),
-                Color(hex: "008B8B"),
-                Color(hex: "00A5A5")
-            ]
-        }
-    }
+    private func loadWallpaper() -> UIImage? {
+        // Use selected wallpaper or pick the first one as default
+        let wallpaperName = themeManager.selectedWallpaper ?? ThemeManager.availableWallpapers.first ?? ""
 
-    private var primaryOrbColor: Color {
-        switch currentPrayer {
-        case "Fajr": return Color(hex: "9370DB")    // Medium purple
-        case "Sunrise": return Color(hex: "FFA500") // Orange
-        case "Dhuhr": return Color(hex: "00BFFF")   // Deep sky blue
-        case "Asr": return Color(hex: "DAA520")     // Goldenrod
-        case "Maghrib": return Color(hex: "FF69B4") // Hot pink
-        case "Isha": return Color(hex: "6495ED")    // Cornflower blue
-        default: return Color(hex: "00CED1")        // Dark turquoise
+        // Try to load from bundle with wallpapers/ prefix
+        if let path = Bundle.main.path(forResource: "wallpapers/\(wallpaperName)", ofType: nil),
+           let image = UIImage(contentsOfFile: path) {
+            return image
         }
-    }
 
-    private var secondaryOrbColor: Color {
-        switch currentPrayer {
-        case "Fajr": return Color(hex: "4169E1")    // Royal blue
-        case "Sunrise": return Color(hex: "FF4500") // Orange red
-        case "Dhuhr": return Color(hex: "32CD32")   // Lime green
-        case "Asr": return Color(hex: "FF8C00")     // Dark orange
-        case "Maghrib": return Color(hex: "DC143C") // Crimson
-        case "Isha": return Color(hex: "708090")    // Slate gray
-        default: return Color(hex: "20B2AA")        // Light sea green
+        // Try without wallpapers/ prefix (in case they're at bundle root)
+        if let image = UIImage(named: wallpaperName) {
+            return image
         }
+
+        // Fallback: try to load from source directory for development
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        let sourcePath = "\(currentDirectory)/Dhikr/wallpapers/\(wallpaperName)"
+        if let image = UIImage(contentsOfFile: sourcePath) {
+            return image
+        }
+
+        return nil
     }
 }
 

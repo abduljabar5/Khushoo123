@@ -65,10 +65,7 @@ struct HomeView: View {
             ZStack {
                 // Background for themes
                 if themeManager.currentTheme == .liquidGlass {
-                    LiquidGlassBackgroundView(
-                        backgroundType: themeManager.liquidGlassBackground,
-                        backgroundImageURL: themeManager.selectedBackgroundImageURL
-                    )
+                    LiquidGlassBackgroundView()
                 } else {
                     themeManager.theme.primaryBackground
                         .ignoresSafeArea()
@@ -111,6 +108,13 @@ struct HomeView: View {
                 BlockingStateService.shared.forceCheck()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                     BlockingStateService.shared.forceCheck()
+                }
+            }
+            .onReceive(quranAPIService.$reciters) { reciters in
+                // Update when global reciters are loaded
+                if !reciters.isEmpty && (featuredReciter == nil || popularReciters.isEmpty || soothingReciters.isEmpty) {
+                    print("🔄 [HomeView] Global reciters loaded, updating UI")
+                    processReciters(reciters)
                 }
             }
             // Compact banner overlay at the very top (Home only)
@@ -1290,10 +1294,14 @@ struct HomeView: View {
                 print("🏠 [HomeView] Fetching reciters...")
                 let reciters = try await quranAPIService.fetchReciters()
                 print("🏠 [HomeView] Successfully fetched \(reciters.count) reciters")
-                
+
                 await MainActor.run {
                     processReciters(reciters)
                 }
+            } catch QuranAPIError.loadingInProgress {
+                // Global loading is in progress - UI will update via publisher
+                print("🔄 [HomeView] Global loading in progress, waiting for publisher update")
+                // Keep loading state, onReceive will handle the update
             } catch {
                 print("❌ [HomeView] Failed to load data: \(error)")
                 await MainActor.run {

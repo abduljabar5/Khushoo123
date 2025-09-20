@@ -1028,60 +1028,28 @@ struct SettingsView: View {
                         Text("Theme")
                     }
                 }
-                
-                // Liquid Glass Background Section - only show when liquid glass is selected
+
+                // Wallpaper selection for Liquid Glass theme only
                 if themeManager.currentTheme == .liquidGlass {
                     Section {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text("Background Style")
+                            Text("Choose Wallpaper")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            
-                            Picker("Background Style", selection: $themeManager.liquidGlassBackground) {
-                                ForEach(LiquidGlassBackground.allCases, id: \.self) { background in
-                                    Text(background.displayName).tag(background)
-                                }
-                            }
-                            .pickerStyle(SegmentedPickerStyle())
-                            
-                            // Cover Image Selection - only show when cover image is selected
-                            if themeManager.liquidGlassBackground == .coverImage {
-                                Text("Choose Background Image")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 8)
-                                
-                                let allAvailableImages = themeManager.getAvailableBackgroundImages()
-                                let availableImages = Array(allAvailableImages.prefix(5)) // Limit to 5 images
-                                if !availableImages.isEmpty {
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 12) {
-                                            ForEach(availableImages, id: \.self) { imageURL in
-                                                BackgroundImageOption(
-                                                    imageURL: imageURL,
-                                                    isSelected: themeManager.selectedBackgroundImageURL == imageURL,
-                                                    onSelect: {
-                                                        themeManager.selectedBackgroundImageURL = imageURL
-                                                    }
-                                                )
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(ThemeManager.availableWallpapers, id: \.self) { wallpaperName in
+                                        WallpaperThumbnail(
+                                            wallpaperName: wallpaperName,
+                                            isSelected: themeManager.selectedWallpaper == wallpaperName,
+                                            onSelect: {
+                                                themeManager.selectedWallpaper = wallpaperName
                                             }
-                                        }
-                                        .padding(.horizontal, 4)
+                                        )
                                     }
-                                    
-                                    if allAvailableImages.count > 5 {
-                                        Text("Showing 5 of \(allAvailableImages.count) available images")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                            .padding(.top, 4)
-                                    }
-                                } else {
-                                    Text("No background images available. Play some tracks to see cover images here.")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.leading)
-                                        .padding(.vertical, 8)
                                 }
+                                .padding(.horizontal, 4)
                             }
                         }
                         .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
@@ -1090,11 +1058,11 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "photo.fill")
                                 .foregroundColor(.purple)
-                            Text("Liquid Glass Background")
+                            Text("Wallpaper")
                         }
                     }
                 }
-                
+
                 Section("Audio") {
                     HStack {
                         Image(systemName: "speaker.wave.2.fill")
@@ -1186,41 +1154,42 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Background Image Option
-struct BackgroundImageOption: View {
-    let imageURL: String
+// MARK: - Wallpaper Thumbnail View
+struct WallpaperThumbnail: View {
+    let wallpaperName: String
     let isSelected: Bool
     let onSelect: () -> Void
-    
+
     var body: some View {
         Button(action: onSelect) {
             ZStack {
-                if let url = URL(string: imageURL) {
-                    KFImage(url)
-                        .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 160, height: 160)))
-                        .cacheMemoryOnly()
-                        .fade(duration: 0.25)
+                if let image = loadWallpaperImage() {
+                    Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 80, height: 80)
+                        .frame(width: 80, height: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    isSelected ? Color.blue : Color.clear,
-                                    lineWidth: 3
-                                )
+                                .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)
                         )
                 } else {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: 80, height: 80)
+                        .frame(width: 80, height: 120)
                         .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(.gray)
+                            VStack(spacing: 4) {
+                                Image(systemName: "photo")
+                                    .foregroundColor(.gray)
+                                Text(getDisplayName())
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 4)
+                            }
                         )
                 }
-                
+
                 if isSelected {
                     VStack {
                         HStack {
@@ -1236,6 +1205,43 @@ struct BackgroundImageOption: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private func loadWallpaperImage() -> UIImage? {
+        // Try to load from bundle with wallpapers/ prefix
+        if let path = Bundle.main.path(forResource: "wallpapers/\(wallpaperName)", ofType: nil),
+           let image = UIImage(contentsOfFile: path) {
+            return image
+        }
+
+        // Try without wallpapers/ prefix
+        if let image = UIImage(named: wallpaperName) {
+            return image
+        }
+
+        // Fallback: try source directory for development
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        let sourcePath = "\(currentDirectory)/Dhikr/wallpapers/\(wallpaperName)"
+        if let image = UIImage(contentsOfFile: sourcePath) {
+            return image
+        }
+
+        return nil
+    }
+
+    private func getDisplayName() -> String {
+        // Extract a simple name from the filename
+        let name = wallpaperName
+            .replacingOccurrences(of: ".jpg", with: "")
+            .replacingOccurrences(of: ".jpeg", with: "")
+            .replacingOccurrences(of: ".png", with: "")
+            .replacingOccurrences(of: ".webp", with: "")
+
+        // Return a shortened version if it's too long
+        if name.count > 15 {
+            return String(name.prefix(12)) + "..."
+        }
+        return name
     }
 }
 
