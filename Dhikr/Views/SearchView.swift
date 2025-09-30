@@ -83,62 +83,81 @@ struct SearchView: View {
     var body: some View {
 
         ZStack {
-            // Background - theme aware
-            if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView()
-            } else {
-                theme.primaryBackground.ignoresSafeArea()
-            }
-            
+            // Dark background matching mockup
+            Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
+
             ScrollView {
-                VStack(spacing: 32) {
-                    HeaderImageView(theme: theme)
-                    
-                    VStack(alignment: .leading, spacing: 24) {
+                VStack(spacing: 0) {
+                    // Simple Header like mockup
+                    VStack(spacing: 8) {
+                        Text("Prayer Time")
+                            .font(.largeTitle.bold())
+                            .foregroundColor(.white)
+                        Text("App Blocking")
+                            .font(.largeTitle.bold())
+                            .foregroundColor(.white)
+                        Text("Stay focused during your prayers")
+                            .font(.subheadline)
+                            .foregroundColor(Color(white: 0.7))
+                    }
+                    .padding(.top, 60)
+                    .padding(.bottom, 30)
+
+                    // Main Content with separate containers
+                    VStack(spacing: 20) {
                         // Show loading overlay when updating schedule
                         if isUpdatingSchedule {
-                            HStack {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Updating schedule...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Schedule Update")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Updating schedule...")
+                                        .font(.caption)
+                                        .foregroundColor(Color(white: 0.7))
+                                    Spacer()
+                                }
+                                .padding()
+                                .background(Color(red: 0.15, green: 0.17, blue: 0.20))
+                                .cornerRadius(12)
                             }
-                            .padding()
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
                             .transition(.move(edge: .top).combined(with: .opacity))
                         }
-                        
+
                         // Voice confirmation section (appears when blocking is active in strict mode)
                         VoiceConfirmationView(blockingState: blockingStateService)
-                        
+
                         // Early unlock section (strict mode off)
                         EarlyUnlockInlineSection(theme: theme)
-                        
-                        TodaysBlockingScheduleView(
+
+                        // Today's Blocking Schedule - Separate Container
+                        MockupTodayScheduleSection(
                             prayerTimes: prayerTimes,
                             duration: blockingDuration,
                             selectedPrayers: selectedPrayers,
                             isLoading: isLoadingPrayerTimes,
-                            error: prayerTimesError,
-                            theme: theme
+                            error: prayerTimesError
                         )
+                        .padding(.horizontal, 16)
 
-                        SelectPrayersView(
+                        // Select Prayers - Separate Container
+                        MockupSelectPrayersSection(
                             selectedFajr: $selectedFajr,
                             selectedDhuhr: $selectedDhuhr,
                             selectedAsr: $selectedAsr,
                             selectedMaghrib: $selectedMaghrib,
-                            selectedIsha: $selectedIsha,
-                            theme: theme
+                            selectedIsha: $selectedIsha
                         )
+                        .padding(.horizontal, 16)
 
                         BlockingDurationView(
                             duration: $blockingDuration,
                             theme: theme
                         )
+                        .padding(.horizontal, 16)
 
                         SelectAppsToBlockView(theme: theme) {
                             Task {
@@ -152,40 +171,46 @@ struct SearchView: View {
                                 }
                             }
                         }
-                        
+                        .padding(.horizontal, 16)
+
                         // Screen Time authorization status
                         if screenTimeAuth.authorizationStatus == .denied {
-                            HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Screen Time Access Required")
-                                        .font(.headline)
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Screen Time Access")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
                                         .foregroundColor(.orange)
-                                    Text("Enable Screen Time access in Settings to use prayer blocking")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Screen Time Access Required")
+                                            .font(.subheadline)
+                                            .foregroundColor(.orange)
+                                        Text("Enable Screen Time access in Settings to use prayer blocking")
+                                            .font(.caption)
+                                            .foregroundColor(Color(white: 0.6))
+                                    }
+                                    Spacer()
                                 }
-                                Spacer()
+                                .padding()
+                                .background(Color(red: 0.15, green: 0.17, blue: 0.20))
+                                .cornerRadius(12)
                             }
-                            .padding()
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
+                            .padding(.horizontal, 16)
                         }
-                        
+
                         AdditionalSettingsView(
                             strictMode: $strictMode,
                             prePrayerNotification: $prePrayerNotification,
                             showingConfirmationSheet: $showingUnlockConfirmation,
                             theme: theme
                         )
-                        
-
+                        .padding(.horizontal, 16)
                     }
-                    .padding(.horizontal)
+                    .padding(.bottom, 40)
                 }
             }
-            .ignoresSafeArea(edges: .top)
         }
         .onChange(of: blockingDuration) { newValue in
             // Clamp to 15..60 in 5-min steps
@@ -912,24 +937,29 @@ private struct BlockingDurationView: View {
     @Binding var duration: Double
     let theme: AppTheme
     @State private var isUpdating = false
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Blocking Duration", icon: "timer", theme: theme)
-            
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Blocking Duration")
+                .font(.headline)
+                .foregroundColor(.white)
+
             VStack(spacing: 16) {
                 HStack {
                     Text("Set duration for all prayers")
+                        .foregroundColor(.white)
                     Spacer()
                     if isUpdating {
                         ProgressView()
                             .scaleEffect(0.6)
                     }
-                    Text("\(Int(duration)) min").bold()
+                    Text("\(Int(duration)) min")
+                        .bold()
+                        .foregroundColor(.white)
                 }
-                
+
                 Slider(value: $duration, in: 15...60, step: 5)
-                    .tint(.green)
+                    .tint(Color(red: 0.2, green: 0.8, blue: 0.6))
                     .disabled(isUpdating)
                     .onChange(of: duration) { _ in
                         isUpdating = true
@@ -939,7 +969,7 @@ private struct BlockingDurationView: View {
                     }
             }
             .padding()
-            .glassCard(theme: theme)
+            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
             .cornerRadius(12)
         }
     }
@@ -959,7 +989,7 @@ private struct SelectAppsToBlockView: View {
                 Text("App Selection")
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundColor(theme.primaryText)
+                    .foregroundColor(.white)
 
                 Spacer()
 
@@ -970,10 +1000,10 @@ private struct SelectAppsToBlockView: View {
                         Text("Add/Remove")
                             .font(.caption)
                     }
-                    .foregroundColor(theme.primaryAccent)
+                    .foregroundColor(Color(red: 0.2, green: 0.8, blue: 0.6))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(theme.primaryAccent.opacity(0.15))
+                    .background(Color(red: 0.2, green: 0.8, blue: 0.6).opacity(0.15))
                     .cornerRadius(8)
                 }
             }
@@ -996,15 +1026,15 @@ private struct SelectAppsToBlockView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "apps.iphone.badge.plus")
                             .font(.system(size: 32))
-                            .foregroundColor(theme.secondaryText.opacity(0.6))
+                            .foregroundColor(Color(white: 0.5))
 
                         Text("No apps selected")
                             .font(.subheadline)
-                            .foregroundColor(theme.secondaryText)
+                            .foregroundColor(Color(white: 0.7))
 
                         Text("Tap Add/Remove to select apps to block")
                             .font(.caption)
-                            .foregroundColor(theme.secondaryText)
+                            .foregroundColor(Color(white: 0.5))
                             .multilineTextAlignment(.center)
                     }
                     .padding(.vertical, 24)
@@ -1012,7 +1042,7 @@ private struct SelectAppsToBlockView: View {
                 }
             }
             .padding()
-            .glassCard(theme: theme)
+            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
             .cornerRadius(12)
         }
     }
@@ -1056,40 +1086,55 @@ private struct AdditionalSettingsView: View {
     @StateObject private var blocking = BlockingStateService.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Additional Settings", icon: "gearshape.fill", theme: theme)
-            
-            VStack {
-                Toggle(isOn: Binding(
-                    get: { strictMode },
-                    set: { newValue in
-                        // Only allow toggling when not actively blocking
-                        if blocking.canToggleStrictMode {
-                            strictMode = newValue
-                        }
-                    }
-                )) {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Additional Settings")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            VStack(spacing: 0) {
+                HStack {
                     VStack(alignment: .leading) {
                         Text("Strict Mode")
-                        Text("Prevent early unblocking").font(.caption).foregroundColor(theme.secondaryText)
+                            .foregroundColor(.white)
+                        Text("Prevent early unblocking")
+                            .font(.caption)
+                            .foregroundColor(Color(white: 0.6))
                     }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { strictMode },
+                        set: { newValue in
+                            if blocking.canToggleStrictMode {
+                                strictMode = newValue
+                            }
+                        }
+                    ))
+                    .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
+                    .disabled(!blocking.canToggleStrictMode)
+                    .labelsHidden()
                 }
-                .toggleStyle(SwitchToggleStyle(tint: .green))
-                // Disable strict-mode toggle while apps are blocked, during early unlock, or while waiting for voice confirmation
-                .disabled(!blocking.canToggleStrictMode)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
 
-                Divider().background(theme.tertiaryBackground)
+                Divider().background(Color(white: 0.2))
 
-                Toggle(isOn: $prePrayerNotification) {
+                HStack {
                     VStack(alignment: .leading) {
                         Text("Pre-Prayer Notification")
-                        Text("Reminder before blocking").font(.caption).foregroundColor(theme.secondaryText)
+                            .foregroundColor(.white)
+                        Text("Reminder before blocking")
+                            .font(.caption)
+                            .foregroundColor(Color(white: 0.6))
                     }
+                    Spacer()
+                    Toggle("", isOn: $prePrayerNotification)
+                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
+                        .labelsHidden()
                 }
-                .toggleStyle(SwitchToggleStyle(tint: .green))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
-            .padding()
-            .glassCard(theme: theme)
+            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
             .cornerRadius(12)
         }
     }
@@ -1162,6 +1207,237 @@ private struct SpeechConfirmationView: View {
             .padding()
         }
         .preferredColorScheme(ThemeManager.shared.currentTheme == .dark ? .dark : .light)
+    }
+}
+
+// MARK: - New Mockup Components
+
+private struct MockupTodayScheduleSection: View {
+    let prayerTimes: [PrayerTime]
+    let duration: Double
+    let selectedPrayers: Set<String>
+    let isLoading: Bool
+    let error: String?
+
+    private var todayPrayers: [PrayerTime] {
+        let today = Date()
+        return prayerTimes.filter { prayer in
+            Calendar.current.isDate(prayer.date, inSameDayAs: today)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with badge
+            HStack {
+                Text("Today's Blocking Schedule")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                if selectedPrayers.count == 5 {
+                    Text("All prayers active")
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        .background(Color(red: 0.2, green: 0.8, blue: 0.6))
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+            }
+
+            // Content box
+            VStack(spacing: 0) {
+                // Date at top of content box
+                HStack {
+                    Text(Date(), style: .date)
+                        .font(.caption)
+                        .foregroundColor(Color(white: 0.5))
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                if isLoading {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Loading prayer times...")
+                            .font(.caption)
+                            .foregroundColor(Color(white: 0.6))
+                    }
+                    .padding()
+                } else if let error = error {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding()
+                } else if todayPrayers.isEmpty {
+                    // Show fallback prayers
+                    ForEach(["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"], id: \.self) { prayerName in
+                        MockupPrayerRow(
+                            prayerName: prayerName,
+                            time: getFallbackTime(for: prayerName),
+                            duration: duration,
+                            isEnabled: selectedPrayers.contains(prayerName)
+                        )
+                        if prayerName != "Isha" {
+                            Divider().background(Color(white: 0.2))
+                        }
+                    }
+                } else {
+                    // Show actual prayer times
+                    let prayersToShow = Array(todayPrayers.prefix(5))
+                    ForEach(Array(prayersToShow.enumerated()), id: \.element.id) { index, prayer in
+                        MockupPrayerRow(
+                            prayerName: prayer.name,
+                            time: prayer.timeString,
+                            duration: duration,
+                            isEnabled: selectedPrayers.contains(prayer.name)
+                        )
+                        if index < prayersToShow.count - 1 {
+                            Divider().background(Color(white: 0.2))
+                        }
+                    }
+                }
+            }
+            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
+            .cornerRadius(12)
+        }
+    }
+
+    private func getFallbackTime(for prayer: String) -> String {
+        switch prayer {
+        case "Fajr": return "5:48 AM"
+        case "Dhuhr": return "1:04 PM"
+        case "Asr": return "4:21 PM"
+        case "Maghrib": return "6:59 PM"
+        case "Isha": return "8:14 PM"
+        default: return "12:00 PM"
+        }
+    }
+}
+
+private struct MockupPrayerRow: View {
+    let prayerName: String
+    let time: String
+    let duration: Double
+    let isEnabled: Bool
+
+    private func prayerIcon(for name: String) -> String {
+        switch name {
+        case "Fajr": return "sun.haze.fill"
+        case "Dhuhr": return "sun.max.fill"
+        case "Asr": return "cloud.sun.fill"
+        case "Maghrib": return "moon.fill"
+        case "Isha": return "moon.stars.fill"
+        default: return "sparkles"
+        }
+    }
+
+    var body: some View {
+        HStack {
+            Image(systemName: prayerIcon(for: prayerName))
+                .foregroundColor(isEnabled ? Color(red: 0.2, green: 0.8, blue: 0.6) : Color(white: 0.4))
+                .frame(width: 20)
+
+            Text(prayerName)
+                .font(.system(size: 15))
+                .foregroundColor(.white)
+
+            Text(time)
+                .font(.caption)
+                .foregroundColor(Color(white: 0.5))
+
+            Spacer()
+
+            Text("\(Int(duration)) min")
+                .font(.caption)
+                .foregroundColor(Color(white: 0.6))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+private struct MockupSelectPrayersSection: View {
+    @Binding var selectedFajr: Bool
+    @Binding var selectedDhuhr: Bool
+    @Binding var selectedAsr: Bool
+    @Binding var selectedMaghrib: Bool
+    @Binding var selectedIsha: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Select Prayers")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            VStack(spacing: 0) {
+                MockupPrayerToggleRow(
+                    prayerName: "Fajr",
+                    icon: "sun.haze.fill",
+                    isSelected: $selectedFajr
+                )
+                Divider().background(Color(white: 0.2))
+
+                MockupPrayerToggleRow(
+                    prayerName: "Dhuhr",
+                    icon: "sun.max.fill",
+                    isSelected: $selectedDhuhr
+                )
+                Divider().background(Color(white: 0.2))
+
+                MockupPrayerToggleRow(
+                    prayerName: "Asr",
+                    icon: "cloud.sun.fill",
+                    isSelected: $selectedAsr
+                )
+                Divider().background(Color(white: 0.2))
+
+                MockupPrayerToggleRow(
+                    prayerName: "Maghrib",
+                    icon: "moon.fill",
+                    isSelected: $selectedMaghrib
+                )
+                Divider().background(Color(white: 0.2))
+
+                MockupPrayerToggleRow(
+                    prayerName: "Isha",
+                    icon: "moon.stars.fill",
+                    isSelected: $selectedIsha
+                )
+            }
+            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
+            .cornerRadius(12)
+        }
+    }
+}
+
+private struct MockupPrayerToggleRow: View {
+    let prayerName: String
+    let icon: String
+    @Binding var isSelected: Bool
+
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(isSelected ? Color(red: 0.2, green: 0.8, blue: 0.6) : Color(white: 0.4))
+                .frame(width: 20)
+
+            Text(prayerName)
+                .font(.system(size: 15))
+                .foregroundColor(.white)
+
+            Spacer()
+
+            Toggle("", isOn: $isSelected)
+                .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
+                .labelsHidden()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
