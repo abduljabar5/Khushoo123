@@ -122,6 +122,9 @@ struct ReciterDirectoryView: View {
         Group {
             if themeManager.currentTheme == .liquidGlass {
                 LiquidGlassBackgroundView()
+            } else if themeManager.currentTheme == .dark {
+                // Dark background matching Focus page
+                Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
             } else {
                 theme.primaryBackground
                     .ignoresSafeArea()
@@ -249,6 +252,9 @@ struct SearchBar: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(.ultraThinMaterial)
                         .opacity(0.6)
+                } else if ThemeManager.shared.currentTheme == .dark {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
                 } else {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(theme.cardBackground)
@@ -418,6 +424,9 @@ struct ReciterRow: View {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(.ultraThinMaterial)
                         .opacity(0.6)
+                } else if ThemeManager.shared.currentTheme == .dark {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
                 } else {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(theme.cardBackground)

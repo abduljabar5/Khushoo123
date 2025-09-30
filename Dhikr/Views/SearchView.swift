@@ -78,13 +78,14 @@ struct SearchView: View {
     private let locationService = LocationService()
     private let prayerTimeService = PrayerTimeService()
     @StateObject private var blockingStateService = BlockingStateService.shared
+    @StateObject private var notificationService = PrayerNotificationService.shared
     @State private var cancellables = Set<AnyCancellable>()
     
     var body: some View {
 
         ZStack {
-            // Dark background matching mockup
-            Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
+            // Theme-aware background
+            backgroundView
 
             ScrollView {
                 VStack(spacing: 0) {
@@ -92,13 +93,13 @@ struct SearchView: View {
                     VStack(spacing: 8) {
                         Text("Prayer Time")
                             .font(.largeTitle.bold())
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
                         Text("App Blocking")
                             .font(.largeTitle.bold())
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
                         Text("Stay focused during your prayers")
                             .font(.subheadline)
-                            .foregroundColor(Color(white: 0.7))
+                            .foregroundColor(theme.secondaryText)
                     }
                     .padding(.top, 60)
                     .padding(.bottom, 30)
@@ -110,19 +111,19 @@ struct SearchView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Schedule Update")
                                     .font(.headline)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(theme.primaryText)
 
                                 HStack {
                                     ProgressView()
                                         .scaleEffect(0.8)
+                                        .tint(theme.primaryAccent)
                                     Text("Updating schedule...")
                                         .font(.caption)
-                                        .foregroundColor(Color(white: 0.7))
+                                        .foregroundColor(theme.secondaryText)
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-                                .cornerRadius(12)
+                                .background(containerBackground)
                             }
                             .transition(.move(edge: .top).combined(with: .opacity))
                         }
@@ -178,7 +179,7 @@ struct SearchView: View {
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Screen Time Access")
                                     .font(.headline)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(theme.primaryText)
 
                                 HStack {
                                     Image(systemName: "exclamationmark.triangle.fill")
@@ -189,13 +190,12 @@ struct SearchView: View {
                                             .foregroundColor(.orange)
                                         Text("Enable Screen Time access in Settings to use prayer blocking")
                                             .font(.caption)
-                                            .foregroundColor(Color(white: 0.6))
+                                            .foregroundColor(theme.tertiaryText)
                                     }
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-                                .cornerRadius(12)
+                                .background(containerBackground)
                             }
                             .padding(.horizontal, 16)
                         }
@@ -231,6 +231,7 @@ struct SearchView: View {
             // Sync to App Group first
             syncPrayerSelectionsToAppGroup()
             scheduleUserTriggeredUpdate()
+            scheduleNotificationsIfNeeded()
         }
         .onChange(of: strictMode) { newValue in
             // Sync strict mode to App Group in background
@@ -242,6 +243,9 @@ struct SearchView: View {
             }
             // Do not interrupt current block; update future schedule only
             performUserTriggeredScheduleUpdate()
+        }
+        .onChange(of: prePrayerNotification) { _ in
+            scheduleNotificationsIfNeeded()
         }
         .foregroundColor(theme.primaryText)
         .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
@@ -315,8 +319,48 @@ struct SearchView: View {
         }
         
     }
-    
+
     // MARK: - Private Methods
+
+    private var backgroundView: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                LiquidGlassBackgroundView()
+            } else if themeManager.currentTheme == .dark {
+                // Dark background matching mockup
+                Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
+            } else {
+                theme.primaryBackground.ignoresSafeArea()
+            }
+        }
+    }
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
+    private func scheduleNotificationsIfNeeded() {
+        guard !prayerTimes.isEmpty else { return }
+
+        notificationService.schedulePrePrayerNotifications(
+            prayerTimes: prayerTimes,
+            selectedPrayers: selectedPrayers,
+            isEnabled: prePrayerNotification,
+            minutesBefore: 5
+        )
+    }
     
     // Save prayer schedule for cleanup tracking
     private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime]) {
@@ -438,7 +482,8 @@ struct SearchView: View {
                                 self.isLoadingPrayerTimes = false
                                 self.prayerTimesError = nil
                                 self.lastPrayerTimeFetch = Date()
-                                // Cache loaded - no automatic scheduling on first load
+                                // Cache loaded - schedule notifications if enabled
+                                self.scheduleNotificationsIfNeeded()
                             }
                             return
                         }
@@ -464,8 +509,9 @@ struct SearchView: View {
                     self.isLoadingPrayerTimes = false
                     self.prayerTimesError = nil
                     self.lastPrayerTimeFetch = Date()
-                    
-                    // Prayer times fetched - no automatic scheduling on first load
+
+                    // Prayer times fetched - schedule notifications if enabled
+                    self.scheduleNotificationsIfNeeded()
                 }
                 
                 // Save cache (once per day per approx location)
@@ -604,7 +650,24 @@ struct SearchView: View {
 private struct EarlyUnlockInlineSection: View {
     let theme: AppTheme
     @StateObject private var blocking = BlockingStateService.shared
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var refreshTimer: Timer?
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
     
     var body: some View {
         Group {
@@ -615,6 +678,7 @@ private struct EarlyUnlockInlineSection: View {
                         Image(systemName: "lock.open.fill").foregroundColor(.orange)
                         Text("Early Unlock")
                             .font(.headline)
+                            .foregroundColor(theme.primaryText)
                     }
                     .padding(.bottom, 2)
                     
@@ -654,8 +718,8 @@ private struct EarlyUnlockInlineSection: View {
                     }
                 }
                 .padding()
-                .glassCard(theme: theme)
-                .cornerRadius(12)
+                .background(containerBackground)
+                .padding(.horizontal, 16)
                     .onAppear {
                     // Start a timer to keep the UI updated while this section is visible
                     refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
@@ -936,18 +1000,35 @@ private struct SelectPrayersView: View {
 private struct BlockingDurationView: View {
     @Binding var duration: Double
     let theme: AppTheme
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var isUpdating = false
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Blocking Duration")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
 
             VStack(spacing: 16) {
                 HStack {
                     Text("Set duration for all prayers")
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
                     Spacer()
                     if isUpdating {
                         ProgressView()
@@ -955,11 +1036,13 @@ private struct BlockingDurationView: View {
                     }
                     Text("\(Int(duration)) min")
                         .bold()
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
                 }
 
                 Slider(value: $duration, in: 15...60, step: 5)
                     .tint(Color(red: 0.2, green: 0.8, blue: 0.6))
+                    .accentColor(Color(red: 0.2, green: 0.8, blue: 0.6))
+                    .colorScheme(themeManager.currentTheme == .light ? .light : .dark)
                     .disabled(isUpdating)
                     .onChange(of: duration) { _ in
                         isUpdating = true
@@ -969,8 +1052,7 @@ private struct BlockingDurationView: View {
                     }
             }
             .padding()
-            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-            .cornerRadius(12)
+            .background(containerBackground)
         }
     }
 }
@@ -978,7 +1060,24 @@ private struct BlockingDurationView: View {
 private struct SelectAppsToBlockView: View {
     @StateObject private var appModel = AppSelectionModel.shared
     let theme: AppTheme
+    @StateObject private var themeManager = ThemeManager.shared
     var onSelectTapped: () -> Void
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
 
     private let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 6)
 
@@ -989,7 +1088,7 @@ private struct SelectAppsToBlockView: View {
                 Text("App Selection")
                     .font(.headline)
                     .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 Spacer()
 
@@ -1042,8 +1141,7 @@ private struct SelectAppsToBlockView: View {
                 }
             }
             .padding()
-            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-            .cornerRadius(12)
+            .background(containerBackground)
         }
     }
 }
@@ -1084,21 +1182,39 @@ private struct AdditionalSettingsView: View {
     @Binding var showingConfirmationSheet: Bool
     let theme: AppTheme
     @StateObject private var blocking = BlockingStateService.shared
+    @StateObject private var notificationService = PrayerNotificationService.shared
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Additional Settings")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
 
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading) {
                         Text("Strict Mode")
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
                         Text("Prevent early unblocking")
                             .font(.caption)
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(theme.secondaryText)
                     }
                     Spacer()
                     Toggle("", isOn: Binding(
@@ -1121,21 +1237,48 @@ private struct AdditionalSettingsView: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text("Pre-Prayer Notification")
-                            .foregroundColor(.white)
-                        Text("Reminder before blocking")
-                            .font(.caption)
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(theme.primaryText)
+                        if notificationService.hasNotificationPermission {
+                            Text("5 min reminder before blocking")
+                                .font(.caption)
+                                .foregroundColor(theme.secondaryText)
+                        } else {
+                            Text("Tap to enable notifications")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                     Spacer()
-                    Toggle("", isOn: $prePrayerNotification)
+
+                    if notificationService.isRequestingPermission {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Toggle("", isOn: Binding(
+                            get: { prePrayerNotification && notificationService.hasNotificationPermission },
+                            set: { newValue in
+                                if newValue && !notificationService.hasNotificationPermission {
+                                    // Request permission first
+                                    Task {
+                                        let granted = await notificationService.requestNotificationPermission()
+                                        if granted {
+                                            prePrayerNotification = true
+                                            // Schedule notifications will be handled in onChange
+                                        }
+                                    }
+                                } else {
+                                    prePrayerNotification = newValue
+                                }
+                            }
+                        ))
                         .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
                         .labelsHidden()
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-            .cornerRadius(12)
+            .background(containerBackground)
         }
     }
 }
@@ -1219,6 +1362,25 @@ private struct MockupTodayScheduleSection: View {
     let isLoading: Bool
     let error: String?
 
+    @StateObject private var themeManager = ThemeManager.shared
+    private var theme: AppTheme { themeManager.theme }
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
     private var todayPrayers: [PrayerTime] {
         let today = Date()
         return prayerTimes.filter { prayer in
@@ -1232,7 +1394,7 @@ private struct MockupTodayScheduleSection: View {
             HStack {
                 Text("Today's Blocking Schedule")
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 Spacer()
 
@@ -1253,7 +1415,7 @@ private struct MockupTodayScheduleSection: View {
                 HStack {
                     Text(Date(), style: .date)
                         .font(.caption)
-                        .foregroundColor(Color(white: 0.5))
+                        .foregroundColor(theme.tertiaryText)
                     Spacer()
                 }
                 .padding(.horizontal, 16)
@@ -1302,8 +1464,7 @@ private struct MockupTodayScheduleSection: View {
                     }
                 }
             }
-            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-            .cornerRadius(12)
+            .background(containerBackground)
         }
     }
 
@@ -1325,6 +1486,9 @@ private struct MockupPrayerRow: View {
     let duration: Double
     let isEnabled: Bool
 
+    @StateObject private var themeManager = ThemeManager.shared
+    private var theme: AppTheme { themeManager.theme }
+
     private func prayerIcon(for name: String) -> String {
         switch name {
         case "Fajr": return "sun.haze.fill"
@@ -1339,22 +1503,24 @@ private struct MockupPrayerRow: View {
     var body: some View {
         HStack {
             Image(systemName: prayerIcon(for: prayerName))
-                .foregroundColor(isEnabled ? Color(red: 0.2, green: 0.8, blue: 0.6) : Color(white: 0.4))
+                .foregroundColor(isEnabled ? Color(red: 0.2, green: 0.8, blue: 0.6) : theme.tertiaryText)
                 .frame(width: 20)
 
             Text(prayerName)
                 .font(.system(size: 15))
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
+                .frame(width: 60, alignment: .leading)
 
             Text(time)
                 .font(.caption)
-                .foregroundColor(Color(white: 0.5))
+                .foregroundColor(theme.secondaryText)
+                .frame(width: 80, alignment: .leading)
 
             Spacer()
 
             Text("\(Int(duration)) min")
                 .font(.caption)
-                .foregroundColor(Color(white: 0.6))
+                .foregroundColor(theme.tertiaryText)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -1368,11 +1534,30 @@ private struct MockupSelectPrayersSection: View {
     @Binding var selectedMaghrib: Bool
     @Binding var selectedIsha: Bool
 
+    @StateObject private var themeManager = ThemeManager.shared
+    private var theme: AppTheme { themeManager.theme }
+
+    private var containerBackground: some View {
+        Group {
+            if themeManager.currentTheme == .liquidGlass {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
+            } else if themeManager.currentTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Select Prayers")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
 
             VStack(spacing: 0) {
                 MockupPrayerToggleRow(
@@ -1409,8 +1594,7 @@ private struct MockupSelectPrayersSection: View {
                     isSelected: $selectedIsha
                 )
             }
-            .background(Color(red: 0.15, green: 0.17, blue: 0.20))
-            .cornerRadius(12)
+            .background(containerBackground)
         }
     }
 }
@@ -1420,15 +1604,18 @@ private struct MockupPrayerToggleRow: View {
     let icon: String
     @Binding var isSelected: Bool
 
+    @StateObject private var themeManager = ThemeManager.shared
+    private var theme: AppTheme { themeManager.theme }
+
     var body: some View {
         HStack {
             Image(systemName: icon)
-                .foregroundColor(isSelected ? Color(red: 0.2, green: 0.8, blue: 0.6) : Color(white: 0.4))
+                .foregroundColor(isSelected ? Color(red: 0.2, green: 0.8, blue: 0.6) : theme.tertiaryText)
                 .frame(width: 20)
 
             Text(prayerName)
                 .font(.system(size: 15))
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
 
             Spacer()
 
