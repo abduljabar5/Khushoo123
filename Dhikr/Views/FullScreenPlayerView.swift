@@ -13,9 +13,12 @@ import AVKit
 struct FullScreenPlayerView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var favoritesManager: FavoritesManager
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showingReciterDetail = false
     @State private var showingSleepTimerSheet = false
     @StateObject private var artworkViewModel: PlayerArtworkViewModel
+
+    private var theme: AppTheme { themeManager.theme }
     
     var onMinimize: (() -> Void)?
     
@@ -46,8 +49,9 @@ struct FullScreenPlayerView: View {
                 .padding(.bottom, 80) // Increased bottom padding further
             }
         }
-        .foregroundColor(.white)
-        .background(Color.black)
+        .foregroundColor(theme.primaryText)
+        .background(themeManager.currentTheme == .liquidGlass ? Color.clear : theme.primaryBackground)
+        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
         .clipped()
         .sheet(isPresented: $showingReciterDetail) {
             if let reciter = audioPlayerService.currentReciter {

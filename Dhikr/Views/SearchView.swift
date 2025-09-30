@@ -15,8 +15,11 @@ import Combine
 struct SearchView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var screenTimeAuth: ScreenTimeAuthorizationService
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showingAppPicker = false
     @State private var appSelection = FamilyActivitySelection()
+
+    private var theme: AppTheme { themeManager.theme }
     
     // Prayer time data
     @State private var prayerTimes: [PrayerTime] = []
@@ -66,11 +69,9 @@ struct SearchView: View {
     @AppStorage("focusBlockingDuration") private var blockingDuration: Double = 15
     
     @AppStorage("focusStrictMode") private var strictMode = false
-    
+
     // Other UI settings (don't trigger updates)
-    @State private var useCustomDuration = false
     @State private var prePrayerNotification = true
-    @State private var allowEmergencyCalls = true
     @State private var showingUnlockConfirmation = false
     
     // Services
@@ -80,13 +81,18 @@ struct SearchView: View {
     @State private var cancellables = Set<AnyCancellable>()
     
     var body: some View {
-        
+
         ZStack {
-            Color(red: 28/255, green: 28/255, blue: 30/255).ignoresSafeArea()
+            // Background - theme aware
+            if themeManager.currentTheme == .liquidGlass {
+                LiquidGlassBackgroundView()
+            } else {
+                theme.primaryBackground.ignoresSafeArea()
+            }
             
             ScrollView {
                 VStack(spacing: 32) {
-                    HeaderImageView()
+                    HeaderImageView(theme: theme)
                     
                     VStack(alignment: .leading, spacing: 24) {
                         // Show loading overlay when updating schedule
@@ -109,30 +115,32 @@ struct SearchView: View {
                         VoiceConfirmationView(blockingState: blockingStateService)
                         
                         // Early unlock section (strict mode off)
-                        EarlyUnlockInlineSection()
+                        EarlyUnlockInlineSection(theme: theme)
                         
                         TodaysBlockingScheduleView(
                             prayerTimes: prayerTimes,
                             duration: blockingDuration,
                             selectedPrayers: selectedPrayers,
                             isLoading: isLoadingPrayerTimes,
-                            error: prayerTimesError
+                            error: prayerTimesError,
+                            theme: theme
                         )
-                        
+
                         SelectPrayersView(
                             selectedFajr: $selectedFajr,
                             selectedDhuhr: $selectedDhuhr,
                             selectedAsr: $selectedAsr,
                             selectedMaghrib: $selectedMaghrib,
-                            selectedIsha: $selectedIsha
+                            selectedIsha: $selectedIsha,
+                            theme: theme
                         )
-                        
+
                         BlockingDurationView(
-                            duration: $blockingDuration, 
-                            useCustom: $useCustomDuration
+                            duration: $blockingDuration,
+                            theme: theme
                         )
-                        
-                        SelectAppsToBlockView {
+
+                        SelectAppsToBlockView(theme: theme) {
                             Task {
                                 do {
                                     try await screenTimeAuth.requestAuthorizationIfNeeded()
@@ -168,8 +176,8 @@ struct SearchView: View {
                         AdditionalSettingsView(
                             strictMode: $strictMode,
                             prePrayerNotification: $prePrayerNotification,
-                            allowEmergencyCalls: $allowEmergencyCalls,
-                            showingConfirmationSheet: $showingUnlockConfirmation
+                            showingConfirmationSheet: $showingUnlockConfirmation,
+                            theme: theme
                         )
                         
 
@@ -210,17 +218,19 @@ struct SearchView: View {
             // Do not interrupt current block; update future schedule only
             performUserTriggeredScheduleUpdate()
         }
-        .foregroundColor(.white)
+        .foregroundColor(theme.primaryText)
+        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
 
         .sheet(isPresented: $showingAppPicker) {
             if #available(iOS 15.0, *) {
         NavigationView {
                     AppPickerView()
+                        .environmentObject(ThemeManager.shared)
                 }
             }
         }
         .sheet(isPresented: $showingUnlockConfirmation) {
-            SpeechConfirmationView(isPresented: $showingUnlockConfirmation) {
+            SpeechConfirmationView(isPresented: $showingUnlockConfirmation, theme: theme) {
                 // Mock success action
             } onCancel: {
                 // Mock cancel action
@@ -567,6 +577,7 @@ struct SearchView: View {
 }
 // MARK: - Early Unlock Inline Section (Focus page)
 private struct EarlyUnlockInlineSection: View {
+    let theme: AppTheme
     @StateObject private var blocking = BlockingStateService.shared
     @State private var refreshTimer: Timer?
     
@@ -586,7 +597,7 @@ private struct EarlyUnlockInlineSection: View {
                     if remaining > 0 {
                         Text("Available in")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(theme.secondaryText)
                         Text(remaining.formattedForCountdown)
                             .font(.title3).monospacedDigit()
                             .foregroundColor(.orange)
@@ -594,7 +605,7 @@ private struct EarlyUnlockInlineSection: View {
                     } else {
                         Text("You can unlock apps early now.")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(theme.secondaryText)
                         Button(action: {
                             // SIMPLIFIED: Clear restrictions and update flag directly
                             let store = ManagedSettingsStore()
@@ -612,13 +623,13 @@ private struct EarlyUnlockInlineSection: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(Color.orange)
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
                             .cornerRadius(10)
                         }
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.15))
+                .glassCard(theme: theme)
                 .cornerRadius(12)
                     .onAppear {
                     // Start a timer to keep the UI updated while this section is visible
@@ -642,49 +653,55 @@ private struct EarlyUnlockInlineSection: View {
 
 
 private struct HeaderImageView: View {
+    let theme: AppTheme
+
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Using a gradient background since we don't have the mosque image
+            // Theme-aware gradient background
             LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.6)]),
+                gradient: Gradient(colors: [theme.prayerGradientStart, theme.prayerGradientEnd]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .frame(height: 250)
             .overlay(
                 LinearGradient(
-                    gradient: Gradient(colors: [.black.opacity(0.8), .black.opacity(0.6), .clear]),
+                    gradient: Gradient(colors: [Color.black.opacity(0.4), Color.black.opacity(0.2), .clear]),
                     startPoint: .bottom,
                     endPoint: .top
                 )
             )
-            
+
             VStack(alignment: .center, spacing: 4) {
                 Text("Prayer Time App Blocking")
                     .font(.largeTitle.bold())
                     .multilineTextAlignment(.center)
+                    .foregroundColor(theme.primaryText)
                 Text("Stay focused during your prayers")
                     .font(.headline)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(theme.primaryText.opacity(0.9))
                     .multilineTextAlignment(.center)
             }
             .padding()
         }
         .frame(height: 250)
+        .glassCard(theme: theme)
     }
 }
 
 private struct SectionHeader: View {
     let title: String
     let icon: String
-    
+    let theme: AppTheme
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundColor(.green)
+                .foregroundColor(theme.primaryAccent)
             Text(title)
                 .font(.headline)
                 .fontWeight(.bold)
+                .foregroundColor(theme.primaryText)
         }
     }
 }
@@ -695,6 +712,7 @@ private struct TodaysBlockingScheduleView: View {
     let selectedPrayers: Set<String>
     let isLoading: Bool
     let error: String?
+    let theme: AppTheme
     
     private var todayPrayers: [PrayerTime] {
         let today = Date()
@@ -705,29 +723,29 @@ private struct TodaysBlockingScheduleView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Today's Blocking Schedule", icon: "calendar")
+            SectionHeader(title: "Today's Blocking Schedule", icon: "calendar", theme: theme)
             
             VStack(spacing: 8) {
                 HStack {
                     Text(Date(), style: .date)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(theme.secondaryText)
                     Spacer()
                     if selectedPrayers.count == 5 {
                         Text("All prayers active")
                             .font(.caption.bold())
-                            .foregroundColor(.green)
+                            .foregroundColor(theme.primaryText)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.2))
+                            .background(theme.accentGreen)
                             .cornerRadius(8)
                     } else {
                         Text("\(selectedPrayers.count) of 5 prayers active")
                             .font(.caption.bold())
-                            .foregroundColor(.yellow)
+                            .foregroundColor(theme.primaryText)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.yellow.opacity(0.2))
+                            .background(theme.accentGold)
                             .cornerRadius(8)
                     }
                 }
@@ -738,7 +756,7 @@ private struct TodaysBlockingScheduleView: View {
                             .scaleEffect(0.8)
                         Text("Loading prayer times...")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(theme.secondaryText)
                     }
                     .padding()
                 } else if let error = error {
@@ -749,17 +767,16 @@ private struct TodaysBlockingScheduleView: View {
                 } else if todayPrayers.isEmpty {
                     Text("No prayer times available for today")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(theme.secondaryText)
                         .padding()
                 } else {
                     ForEach(todayPrayers) { prayer in
-                        PrayerScheduleRow(prayer: prayer, duration: duration, selectedPrayers: selectedPrayers)
+                        PrayerScheduleRow(prayer: prayer, duration: duration, selectedPrayers: selectedPrayers, theme: theme)
                     }
                 }
             }
             .padding()
-            .background(Color.secondary.opacity(0.15))
-            .cornerRadius(12)
+            .glassCard(theme: theme)
         }
     }
 }
@@ -768,6 +785,7 @@ private struct PrayerScheduleRow: View {
     let prayer: PrayerTime
     let duration: Double
     let selectedPrayers: Set<String>
+    let theme: AppTheme
     
     private func prayerIcon(forName name: String) -> String {
         switch name {
@@ -791,25 +809,27 @@ private struct PrayerScheduleRow: View {
     var body: some View {
         HStack {
             Image(systemName: prayerIcon(forName: prayer.name))
-                .foregroundColor(isEnabled ? .green : .gray)
+                .foregroundColor(isEnabled ? theme.accentGreen : theme.tertiaryText)
                 .frame(width: 25)
-            
+
             VStack(alignment: .leading) {
                 Text(prayer.name)
                     .fontWeight(.bold)
+                    .foregroundColor(theme.primaryText)
                 Text("\(prayer.timeString) - \(endTime, style: .time)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(theme.secondaryText)
             }
             .opacity(isEnabled ? 1.0 : 0.6)
-            
+
             Spacer()
-            
+
             Text(isEnabled ? "\(Int(duration)) min" : "Disabled")
                 .font(.caption.bold())
+                .foregroundColor(isEnabled ? theme.primaryText : theme.tertiaryText)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(isEnabled ? Color.secondary.opacity(0.2) : Color.gray.opacity(0.2))
+                .background(isEnabled ? theme.tertiaryBackground : theme.tertiaryBackground.opacity(0.5))
                 .cornerRadius(8)
         }
         .padding(.vertical, 4)
@@ -822,6 +842,7 @@ private struct SelectPrayersView: View {
     @Binding var selectedAsr: Bool
     @Binding var selectedMaghrib: Bool
     @Binding var selectedIsha: Bool
+    let theme: AppTheme
     @State private var isUpdating = false
     
     private let allPrayers = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
@@ -850,7 +871,7 @@ private struct SelectPrayersView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Select Prayers", icon: "checklist")
+            SectionHeader(title: "Select Prayers", icon: "checklist", theme: theme)
             
             VStack {
                 ForEach(allPrayers, id: \.self) { prayer in
@@ -876,12 +897,12 @@ private struct SelectPrayersView: View {
                         }
                     }
                     if prayer != allPrayers.last {
-                        Divider().background(Color.secondary.opacity(0.3))
+                        Divider().background(theme.tertiaryBackground)
                     }
                 }
             }
             .padding()
-            .background(Color.secondary.opacity(0.15))
+            .glassCard(theme: theme)
             .cornerRadius(12)
         }
     }
@@ -889,12 +910,12 @@ private struct SelectPrayersView: View {
 
 private struct BlockingDurationView: View {
     @Binding var duration: Double
-    @Binding var useCustom: Bool
+    let theme: AppTheme
     @State private var isUpdating = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Blocking Duration", icon: "timer")
+            SectionHeader(title: "Blocking Duration", icon: "timer", theme: theme)
             
             VStack(spacing: 16) {
                 HStack {
@@ -916,13 +937,9 @@ private struct BlockingDurationView: View {
                             isUpdating = false
                         }
                     }
-                
-                Toggle("Custom duration per prayer", isOn: $useCustom)
-                    .toggleStyle(SwitchToggleStyle(tint: .green))
-                    .disabled(true) // Disabled for MVP
             }
             .padding()
-            .background(Color.secondary.opacity(0.15))
+            .glassCard(theme: theme)
             .cornerRadius(12)
         }
     }
@@ -930,88 +947,117 @@ private struct BlockingDurationView: View {
 
 private struct SelectAppsToBlockView: View {
     @StateObject private var appModel = AppSelectionModel.shared
+    let theme: AppTheme
     var onSelectTapped: () -> Void
-    
+
+    private let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 6)
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Select Apps to Block", icon: "apps.iphone")
-            
-            VStack(spacing: 16) {
-                // Search bar-like button
-                Button(action: onSelectTapped) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                        Text("Search apps...")
+        VStack(alignment: .leading, spacing: 16) {
+            // Header with Add/Remove button
+            HStack {
+                Text("App Selection")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(theme.primaryText)
+
                 Spacer()
-            }
-                    .padding(12)
-                    .background(Color.secondary.opacity(0.2))
+
+                Button(action: onSelectTapped) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 14))
+                        Text("Add/Remove")
+                            .font(.caption)
+                    }
+                    .foregroundColor(theme.primaryAccent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(theme.primaryAccent.opacity(0.15))
                     .cornerRadius(8)
                 }
-                
-                // Block all apps toggle
-                Toggle("Block all apps", isOn: .constant(false))
-                    .toggleStyle(SwitchToggleStyle(tint: .green))
-                    .disabled(true)
-                
-                Divider().background(Color.secondary.opacity(0.3))
-                
-                // Display selected apps horizontally with names
+            }
+
+            // App grid display
+            VStack(spacing: 16) {
                 if !appModel.selection.applicationTokens.isEmpty || !appModel.selection.categoryTokens.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Blocked Apps & Categories")
-                            .font(.subheadline).bold()
-                            .padding(.bottom, 4)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 20) {
-                                ForEach(Array(appModel.selection.applicationTokens), id: \.self) { token in
-                                    VStack {
-                                        Label(token)
-                                            .labelStyle(.iconOnly)
-                                            .scaleEffect(1.25)
-                                        Label(token)
-                                            .labelStyle(.titleOnly)
-                                            .font(.caption2)
-                                    }
-                                }
-                                ForEach(Array(appModel.selection.categoryTokens), id: \.self) { token in
-                                    VStack {
-                                        Label(token)
-                                            .labelStyle(.iconOnly)
-                                            .scaleEffect(1.25)
-                                        Label(token)
-                                            .labelStyle(.titleOnly)
-                                            .font(.caption2)
-                                    }
-                                }
-                            }
+                    LazyVGrid(columns: gridColumns, spacing: 16) {
+                        // Application tokens
+                        ForEach(Array(appModel.selection.applicationTokens), id: \.self) { token in
+                            AppIconView(token: token)
+                        }
+
+                        // Category tokens
+                        ForEach(Array(appModel.selection.categoryTokens), id: \.self) { token in
+                            AppIconView(token: token)
                         }
                     }
                 } else {
-                    Text("No apps selected. Tap search to begin.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                    VStack(spacing: 12) {
+                        Image(systemName: "apps.iphone.badge.plus")
+                            .font(.system(size: 32))
+                            .foregroundColor(theme.secondaryText.opacity(0.6))
+
+                        Text("No apps selected")
+                            .font(.subheadline)
+                            .foregroundColor(theme.secondaryText)
+
+                        Text("Tap Add/Remove to select apps to block")
+                            .font(.caption)
+                            .foregroundColor(theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.vertical, 24)
+                    .frame(maxWidth: .infinity)
                 }
             }
             .padding()
-            .background(Color.secondary.opacity(0.15))
+            .glassCard(theme: theme)
             .cornerRadius(12)
         }
+    }
+}
+
+private struct AppIconView: View {
+    let applicationToken: ApplicationToken?
+    let categoryToken: ActivityCategoryToken?
+
+    init(token: ApplicationToken) {
+        self.applicationToken = token
+        self.categoryToken = nil
+    }
+
+    init(token: ActivityCategoryToken) {
+        self.applicationToken = nil
+        self.categoryToken = token
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let appToken = applicationToken {
+                Label(appToken)
+                    .labelStyle(.iconOnly)
+                    .scaleEffect(1.8)
+            } else if let catToken = categoryToken {
+                Label(catToken)
+                    .labelStyle(.iconOnly)
+                    .scaleEffect(1.8)
+            }
+        }
+        .frame(width: 44, height: 44)
     }
 }
 
 private struct AdditionalSettingsView: View {
     @Binding var strictMode: Bool
     @Binding var prePrayerNotification: Bool
-    @Binding var allowEmergencyCalls: Bool
     @Binding var showingConfirmationSheet: Bool
+    let theme: AppTheme
     @StateObject private var blocking = BlockingStateService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Additional Settings", icon: "gearshape.fill")
+            SectionHeader(title: "Additional Settings", icon: "gearshape.fill", theme: theme)
             
             VStack {
                 Toggle(isOn: Binding(
@@ -1025,35 +1071,25 @@ private struct AdditionalSettingsView: View {
                 )) {
                     VStack(alignment: .leading) {
                         Text("Strict Mode")
-                        Text("Prevent early unblocking").font(.caption).foregroundColor(.secondary)
+                        Text("Prevent early unblocking").font(.caption).foregroundColor(theme.secondaryText)
                     }
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .green))
                 // Disable strict-mode toggle while apps are blocked, during early unlock, or while waiting for voice confirmation
                 .disabled(!blocking.canToggleStrictMode)
-                
-                Divider().background(Color.secondary.opacity(0.3))
-                
+
+                Divider().background(theme.tertiaryBackground)
+
                 Toggle(isOn: $prePrayerNotification) {
                     VStack(alignment: .leading) {
                         Text("Pre-Prayer Notification")
-                        Text("Reminder before blocking").font(.caption).foregroundColor(.secondary)
-                    }
-                }
-                .toggleStyle(SwitchToggleStyle(tint: .green))
-                
-                Divider().background(Color.secondary.opacity(0.3))
-
-                Toggle(isOn: $allowEmergencyCalls) {
-                    VStack(alignment: .leading) {
-                        Text("Allow Emergency Calls")
-                        Text("Even during blocking").font(.caption).foregroundColor(.secondary)
+                        Text("Reminder before blocking").font(.caption).foregroundColor(theme.secondaryText)
                     }
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .green))
             }
             .padding()
-            .background(Color.secondary.opacity(0.15))
+            .glassCard(theme: theme)
             .cornerRadius(12)
         }
     }
@@ -1062,24 +1098,33 @@ private struct AdditionalSettingsView: View {
 
 private struct SpeechConfirmationView: View {
     @Binding var isPresented: Bool
+    let theme: AppTheme
     var onSuccess: () -> Void
     var onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Confirm You've Prayed")
-                .font(.largeTitle.bold())
-            
+        ZStack {
+            if ThemeManager.shared.currentTheme == .liquidGlass {
+                LiquidGlassBackgroundView()
+            } else {
+                theme.primaryBackground.ignoresSafeArea()
+            }
+
+            VStack(spacing: 24) {
+                Text("Confirm You've Prayed")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(theme.primaryText)
+
             Text("To unblock your apps, please say 'wallahi i prayed'.")
                 .font(.body)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.secondaryText)
                 .multilineTextAlignment(.center)
-            
+
             Text("Mock transcript: wallahi i prayed")
                 .font(.title2)
                 .italic()
-                .foregroundColor(.green)
-            
+                .foregroundColor(theme.primaryAccent)
+
             Button(action: {
                 // Mock microphone button
             }) {
@@ -1087,34 +1132,36 @@ private struct SpeechConfirmationView: View {
                     .font(.system(size: 80))
                     .foregroundColor(.blue)
             }
-            
+
             Button(action: {
                 onSuccess()
                 isPresented = false
             }) {
                 Text("Confirm")
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.green)
+                    .background(theme.accentGreen)
                     .cornerRadius(12)
         }
-            
+
             Button(action: {
                 onCancel()
                 isPresented = false
             }) {
                 Text("Cancel")
                     .font(.headline)
-                    .foregroundColor(.primary)
+                    .foregroundColor(theme.primaryText)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.secondary.opacity(0.2))
+                    .background(theme.tertiaryBackground)
                     .cornerRadius(12)
             }
+            }
+            .padding()
         }
-        .padding()
+        .preferredColorScheme(ThemeManager.shared.currentTheme == .dark ? .dark : .light)
     }
 }
 

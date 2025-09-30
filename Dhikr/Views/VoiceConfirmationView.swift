@@ -3,7 +3,10 @@ import SwiftUI
 struct VoiceConfirmationView: View {
     @StateObject private var speechService = SpeechRecognitionService()
     @ObservedObject var blockingState: BlockingStateService
+    @StateObject private var themeManager = ThemeManager.shared
     @AppStorage("focusStrictMode") private var strictMode = false
+
+    private var theme: AppTheme { themeManager.theme }
     
     @State private var showingConfirmation = false
     @State private var countdownTimer: Timer?
@@ -16,7 +19,7 @@ struct VoiceConfirmationView: View {
         
         if shouldShow {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: blockingState.isWaitingForVoiceConfirmation ? "Voice Confirmation Required" : "Prayer Time Active - Strict Mode", icon: "lock.fill")
+                SectionHeader(title: blockingState.isWaitingForVoiceConfirmation ? "Voice Confirmation Required" : "Prayer Time Active - Strict Mode", icon: "lock.fill", theme: theme)
                 
                 VStack(spacing: 16) {
                     // Prayer info with countdown
@@ -38,7 +41,7 @@ struct VoiceConfirmationView: View {
                             }
                             Text(blockingState.isWaitingForVoiceConfirmation ? "Apps blocked - Voice confirmation required" : "Apps are currently blocked")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(theme.secondaryText)
                         }
                         Spacer()
                     }
@@ -61,7 +64,7 @@ struct VoiceConfirmationView: View {
                                 Text(speechService.isRecording ? "Stop Recording" : "Say Wallahi")
                                     .fontWeight(.semibold)
                             }
-                            .foregroundColor(timeRemaining > 0 ? .gray : .white)
+                            .foregroundColor(timeRemaining > 0 ? theme.tertiaryText : theme.primaryText)
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(timeRemaining > 0 ? Color.gray.opacity(0.3) : (speechService.isRecording ? Color.red : Color.blue))
@@ -72,13 +75,13 @@ struct VoiceConfirmationView: View {
                         if timeRemaining > 0 {
                             Text("When the timer ends, press the button above to unlock your apps.")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(theme.secondaryText)
                                 .multilineTextAlignment(.center)
                         } else {
                             VStack(spacing: 8) {
                                 Text("Prayer time has ended. Press the button above and say one of these phrases: 'Wallahi I prayed'")
                                     .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(theme.secondaryText)
                                     .multilineTextAlignment(.center)
                                 
                                 // VStack(spacing: 4) {
@@ -101,7 +104,7 @@ struct VoiceConfirmationView: View {
                                 // }
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 8)
-                                .background(Color.orange.opacity(0.1))
+                                .background(.orange.opacity(0.1))
                                 .cornerRadius(6)
                             }
                         }
@@ -111,9 +114,9 @@ struct VoiceConfirmationView: View {
                             Text("You said: \"\(speechService.transcript)\"")
                                 .font(.body)
                                 .italic()
-                                .foregroundColor(speechService.isConfirmationCorrect ? .green : .primary)
+                                .foregroundColor(speechService.isConfirmationCorrect ? theme.accentGreen : theme.primaryText)
                                 .padding()
-                                .background(Color.secondary.opacity(0.1))
+                                .background(theme.tertiaryBackground)
                                 .cornerRadius(8)
                         }
                         
@@ -129,10 +132,10 @@ struct VoiceConfirmationView: View {
                                 }
                                 .font(.headline)
                                 .fontWeight(.bold)
-                                .foregroundColor(.white)
+                                .foregroundColor(theme.primaryText)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.green)
+                                .background(theme.accentGreen)
                                 .cornerRadius(12)
                             }
                         }
@@ -149,13 +152,13 @@ struct VoiceConfirmationView: View {
                                     }
                                 }
                                 .font(.caption)
-                                .foregroundColor(.blue)
+                                .foregroundColor(theme.primaryAccent)
                             }
                         }
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.15))
+                .background(theme.cardBackground)
                 .cornerRadius(12)
             }
             .onAppear {
@@ -203,7 +206,8 @@ struct VoiceConfirmationView: View {
 private struct SectionHeader: View {
     let title: String
     let icon: String
-    
+    let theme: AppTheme
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
@@ -211,6 +215,7 @@ private struct SectionHeader: View {
             Text(title)
                 .font(.headline)
                 .fontWeight(.bold)
+                .foregroundColor(theme.primaryText)
         }
     }
 }

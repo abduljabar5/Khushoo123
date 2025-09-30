@@ -10,23 +10,26 @@ import SwiftUI
 struct DhikrWidgetView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var bluetoothService: BluetoothService
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showingStats = false
+
+    private var theme: AppTheme { themeManager.theme }
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
                     // Header Stats
-                    headerStats
-                    
+                    headerStats(theme: theme)
+
                     // Dhikr Counters
-                    dhikrCounters
-                    
+                    dhikrCounters(theme: theme)
+
                     // Motivational Message
-                    motivationalSection
-                    
+                    motivationalSection(theme: theme)
+
                     // Weekly Stats
-                    weeklyStatsSection
+                    weeklyStatsSection(theme: theme)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 80)
@@ -34,7 +37,7 @@ struct DhikrWidgetView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Dhikr Tracker")
             .navigationBarTitleDisplayMode(.large)
-            .background(Color(.systemBackground))
+            .background(themeManager.currentTheme == .liquidGlass ? Color.clear : theme.primaryBackground)
             .contentShape(Rectangle())
             .onTapGesture {
                 // Dismiss keyboard when tapping outside text fields
@@ -44,10 +47,18 @@ struct DhikrWidgetView: View {
                 DhikrHistoryView()
             }
         }
+        .background(Group {
+            if themeManager.currentTheme == .liquidGlass {
+                LiquidGlassBackgroundView()
+            } else {
+                theme.primaryBackground.ignoresSafeArea()
+            }
+        })
+        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
     }
     
     // MARK: - Header Stats
-    private var headerStats: some View {
+    private func headerStats(theme: AppTheme) -> some View {
         let stats = dhikrService.getTodayStats()
         
         return VStack(spacing: 16) {
@@ -55,11 +66,11 @@ struct DhikrWidgetView: View {
             VStack(spacing: 8) {
                 Text("\(stats.total)")
                     .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(.green)
+                    .foregroundColor(theme.accentGreen)
                 
                 Text("Total Dhikr Today")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(theme.secondaryText)
             }
             
             // Streak
@@ -68,32 +79,32 @@ struct DhikrWidgetView: View {
                     Text("\(stats.streak)")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.orange)
+                        .foregroundColor(theme.accentGold)
                     
                     Text("Day Streak")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(theme.secondaryText)
                 }
                 
                 VStack(spacing: 4) {
                     Text(stats.mostUsedDhikr.rawValue)
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.blue)
+                        .foregroundColor(theme.primaryAccent)
                     
                     Text("Most Used")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(theme.secondaryText)
                 }
             }
         }
         .padding(20)
-        .background(Color(.secondarySystemBackground))
+        .background(theme.secondaryBackground)
         .cornerRadius(16)
     }
     
     // MARK: - Dhikr Counters
-    private var dhikrCounters: some View {
+    private func dhikrCounters(theme: AppTheme) -> some View {
         VStack(spacing: 16) {
             Text("Enter Your Count")
                 .font(.headline)
@@ -105,11 +116,12 @@ struct DhikrWidgetView: View {
                     DhikrInputField(
                         type: dhikrType,
                         count: getCount(for: dhikrType),
-                        isActive: bluetoothService.isConnected && bluetoothService.activeDhikrType == dhikrType
+                        isActive: bluetoothService.isConnected && bluetoothService.activeDhikrType == dhikrType,
+                        theme: theme
                     ) { newCount in
                         dhikrService.setDhikrCount(dhikrType, count: newCount)
                         }
-                        GoalProgressView(dhikrType: dhikrType, dhikrService: dhikrService)
+                        GoalProgressView(dhikrType: dhikrType, theme: theme, dhikrService: dhikrService)
                     }
                 }
             }
@@ -117,7 +129,7 @@ struct DhikrWidgetView: View {
     }
     
     // MARK: - Motivational Section
-    private var motivationalSection: some View {
+    private func motivationalSection(theme: AppTheme) -> some View {
         VStack(spacing: 12) {
             Text("💫")
                 .font(.title)
@@ -126,11 +138,11 @@ struct DhikrWidgetView: View {
                 .font(.headline)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.primary)
+                .foregroundColor(theme.primaryText)
             
             Text("Every dhikr brings you closer to Allah")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.secondaryText)
         }
         .padding(20)
         .background(
@@ -146,7 +158,7 @@ struct DhikrWidgetView: View {
     }
     
     // MARK: - Weekly Stats Section
-    private var weeklyStatsSection: some View {
+    private func weeklyStatsSection(theme: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Weekly Progress")
@@ -159,10 +171,10 @@ struct DhikrWidgetView: View {
                     showingStats = true
                 }
                 .font(.subheadline)
-                .foregroundColor(.blue)
+                .foregroundColor(theme.primaryAccent)
             }
             
-            WeeklyProgressChart(stats: dhikrService.getWeeklyStats())
+            WeeklyProgressChart(stats: dhikrService.getWeeklyStats(), theme: theme)
         }
     }
     
@@ -183,6 +195,7 @@ struct DhikrWidgetView: View {
 // MARK: - Goal Progress View
 struct GoalProgressView: View {
     let dhikrType: DhikrType
+    let theme: AppTheme
     @ObservedObject var dhikrService: DhikrService
 
     private var progress: Double {
@@ -222,7 +235,7 @@ struct GoalProgressView: View {
                 .progressViewStyle(LinearProgressViewStyle(tint: color))
             Text("\(currentCount) / \(currentGoal)")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.secondaryText)
         }
         .padding(.horizontal, 8)
     }
@@ -234,6 +247,7 @@ struct DhikrInputField: View {
     let type: DhikrType
     let count: Int
     let isActive: Bool
+    let theme: AppTheme
     let action: (Int) -> Void
     
     @State private var isEditing = false
@@ -246,12 +260,12 @@ struct DhikrInputField: View {
             Text(type.arabicText)
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundColor(.primary)
+                .foregroundColor(theme.primaryText)
             // English Text
             Text(type.rawValue)
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.secondaryText)
             // Editable Count
             Group {
                 if isEditing {
@@ -295,7 +309,7 @@ struct DhikrInputField: View {
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemBackground))
+                .fill(theme.secondaryBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(getColor(for: type).opacity(0.3), lineWidth: 2)
@@ -332,6 +346,7 @@ struct DhikrInputField: View {
 // MARK: - Weekly Progress Chart
 struct WeeklyProgressChart: View {
     let stats: [DailyDhikrStats]
+    let theme: AppTheme
     @State private var selectedStat: DailyDhikrStats?
     
     private let dayOrder = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -362,7 +377,7 @@ struct WeeklyProgressChart: View {
 
         VStack(spacing: 16) {
             // Header for selected day
-            selectedDayHeader
+            selectedDayHeader(theme: theme)
                 .padding(.horizontal, 8)
 
         GeometryReader { geometry in
@@ -384,7 +399,7 @@ struct WeeklyProgressChart: View {
                             // Day Label
                             Text(dayOrder[idx])
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(theme.secondaryText)
                                     .fontWeight(selectedStat?.dayName == stat.dayName ? .bold : .regular)
                             }
                         }
@@ -399,7 +414,7 @@ struct WeeklyProgressChart: View {
             // Total this week
                 Text("Total: \(displayStats.reduce(0) { $0 + $1.total }) this week")
                     .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.secondaryText)
         }
         .padding(.vertical, 16)
         .onAppear {
@@ -411,7 +426,7 @@ struct WeeklyProgressChart: View {
     }
 
     @ViewBuilder
-    private var selectedDayHeader: some View {
+    private func selectedDayHeader(theme: AppTheme) -> some View {
         if let stat = selectedStat {
             VStack(alignment: .leading, spacing: 8) {
                 Text(stat.isToday ? "Today's Dhikr" : stat.formattedDate)
@@ -420,15 +435,15 @@ struct WeeklyProgressChart: View {
                 
                 if stat.total > 0 {
                     HStack(spacing: 16) {
-                        DhikrCountPill(type: .subhanAllah, count: stat.subhanAllah)
-                        DhikrCountPill(type: .alhamdulillah, count: stat.alhamdulillah)
-                        DhikrCountPill(type: .astaghfirullah, count: stat.astaghfirullah)
+                        DhikrCountPill(type: .subhanAllah, count: stat.subhanAllah, theme: theme)
+                        DhikrCountPill(type: .alhamdulillah, count: stat.alhamdulillah, theme: theme)
+                        DhikrCountPill(type: .astaghfirullah, count: stat.astaghfirullah, theme: theme)
                         Spacer()
                     }
                 } else {
                     Text("No dhikr recorded for this day.")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(theme.secondaryText)
                 }
             }
             .frame(height: 50) // Give a fixed height to prevent layout jumps
@@ -437,7 +452,7 @@ struct WeeklyProgressChart: View {
             VStack {
                 Text("Select a day to see details")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(theme.secondaryText)
             }
             .frame(height: 50)
         }
@@ -458,6 +473,7 @@ struct WeeklyProgressChart: View {
 struct DhikrCountPill: View {
     let type: DhikrType
     let count: Int
+    let theme: AppTheme
 
     var body: some View {
         HStack(spacing: 4) {
@@ -483,6 +499,7 @@ struct DhikrCountPill: View {
 
 // MARK: - Dhikr Stats View
 struct DhikrStatsView: View {
+    let theme: AppTheme
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var dhikrService: DhikrService
     
@@ -491,10 +508,10 @@ struct DhikrStatsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     // Detailed Stats
-                    detailedStats
+                    detailedStats(theme: theme)
                     
                     // Weekly Chart
-                    weeklyChart
+                    weeklyChart(theme: theme)
                 }
                 .padding(.horizontal, 16)
             }
@@ -510,7 +527,7 @@ struct DhikrStatsView: View {
         }
     }
     
-    private var detailedStats: some View {
+    private func detailedStats(theme: AppTheme) -> some View {
         let stats = dhikrService.getTodayStats()
         
         return VStack(spacing: 16) {
@@ -529,19 +546,19 @@ struct DhikrStatsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color(.secondarySystemBackground))
+                .background(theme.secondaryBackground)
                 .cornerRadius(12)
             }
         }
     }
     
-    private var weeklyChart: some View {
+    private func weeklyChart(theme: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Weekly Overview")
                 .font(.headline)
                 .fontWeight(.semibold)
             
-            WeeklyProgressChart(stats: dhikrService.getWeeklyStats())
+            WeeklyProgressChart(stats: dhikrService.getWeeklyStats(), theme: theme)
         }
     }
     
