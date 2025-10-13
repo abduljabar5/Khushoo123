@@ -13,54 +13,42 @@ struct ProfileView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var bluetoothService: BluetoothService
     @State private var showingSettings = false
-    @State private var showingFullScreenPlayer = false
     @State private var showingHighestStreak = false
     
     var body: some View {
-            NavigationView {
-                ScrollView {
-                    VStack(spacing: 28) {
-                        // Profile Header
-                        profileHeader
-                        
-                        // Statistics
-                        statisticsSection
-                        
-                        // Zikr Ring
-                        zikrRingSection
-                        
-                        // Quick Actions
-                        quickActionsSection
-                        
-                        // Recent Activity
-                        recentActivitySection
-                        
-                        // Settings
-                        settingsSection
-                    }
-                    .padding(.horizontal, 20)
-                .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .navigationTitle("Profile")
-                .navigationBarTitleDisplayMode(.large)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            Color(.systemBackground),
-                            Color(.systemBackground).opacity(0.95)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .sheet(isPresented: $showingSettings) {
-                    SettingsView()
-                }
+        ScrollView {
+            VStack(spacing: 28) {
+                // Profile Header
+                profileHeader
+
+                // Statistics
+                statisticsSection
+
+                // Zikr Ring
+                zikrRingSection
+
+                // Settings
+                settingsSection
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
         }
-        .fullScreenCover(isPresented: $showingFullScreenPlayer) {
-            FullScreenPlayerView(onMinimize: { showingFullScreenPlayer = false })
-                .environmentObject(audioPlayerService)
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle("Profile")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(.systemBackground),
+                    Color(.systemBackground).opacity(0.95)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
     }
     
@@ -409,32 +397,70 @@ struct ProfileView: View {
     
     // MARK: - Settings Section
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("Settings & More")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "gearshape.fill")
-                    .foregroundColor(.gray)
-                    .font(.title3)
-            }
-            
-            VStack(spacing: 12) {
-                Button(action: { showingSettings = true }) {
-                    EnhancedQuickActionRow(
-                        title: "App Settings",
-                        subtitle: "Customize your experience",
-                        icon: "gearshape.fill",
-                        gradient: [.gray, .secondary]
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Settings & More")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+
+            VStack(spacing: 0) {
+                // Dhikr Goals
+                NavigationLink(destination: DhikrGoalsView()
+                    .environmentObject(dhikrService)
+                    .environmentObject(audioPlayerService)
+                    .environmentObject(bluetoothService)
+                ) {
+                    SettingsRow(
+                        icon: "target",
+                        iconColor: .blue,
+                        title: "Dhikr Goals",
+                        showChevron: true
                     )
                 }
-                
+
+                Divider()
+                    .padding(.leading, 44)
+
+                // Settings
+                Button(action: { showingSettings = true }) {
+                    SettingsRow(
+                        icon: "gearshape.fill",
+                        iconColor: .gray,
+                        title: "Settings",
+                        showChevron: true
+                    )
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+        }
+    }
+
+    // MARK: - Settings Row Component
+    private func SettingsRow(icon: String, iconColor: Color, title: String, showChevron: Bool = false) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundColor(.white)
+                .frame(width: 28, height: 28)
+                .background(iconColor)
+                .cornerRadius(6)
+
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundColor(.primary)
+
+            Spacer()
+
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
     
     // MARK: - Helper Methods
@@ -1142,7 +1168,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {

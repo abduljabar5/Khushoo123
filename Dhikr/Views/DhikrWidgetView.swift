@@ -36,7 +36,7 @@ struct DhikrWidgetView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Dhikr Tracker")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .background(themeManager.currentTheme == .liquidGlass ? Color.clear : theme.primaryBackground)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -516,7 +516,7 @@ struct DhikrStatsView: View {
                 .padding(.horizontal, 16)
             }
             .navigationTitle("Statistics")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {

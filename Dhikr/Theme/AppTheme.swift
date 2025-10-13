@@ -165,7 +165,7 @@ struct DarkTheme: AppTheme {
     // Prayer Card
     let prayerGradientStart = Color(hex: "1E3A5F")
     let prayerGradientEnd = Color(hex: "0A1628")
-    
+
     // Featured Reciter Card
     let featuredGradientStart = Color(hex: "2C5282")
     let featuredGradientEnd = Color(hex: "1E3A5F")

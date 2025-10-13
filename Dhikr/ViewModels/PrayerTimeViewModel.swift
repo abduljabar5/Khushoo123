@@ -22,6 +22,15 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     @Published var isLoadingFuturePrayers: Bool = false
     @Published var isRefreshingLocation: Bool = false
 
+    // MARK: - Computed Properties
+    var locationName: String {
+        return "\(cityName), \(stateName)"
+    }
+
+    var completedPrayersToday: Int {
+        return completedPrayers
+    }
+
     // MARK: - Private Properties
     private let locationManager = CLLocationManager()
     private let prayerTimeService = PrayerTimeService()
@@ -224,7 +233,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     private func updateProgressPercentage() {
-        let completed = prayers.filter { $0.isCompleted }.count
+        // Only count obligatory prayers (exclude Sunrise)
+        let obligatoryPrayers = prayers.filter { $0.name != "Sunrise" }
+        let completed = obligatoryPrayers.filter { $0.isCompleted }.count
         completedPrayers = completed
         progressPercentage = CGFloat(completed) / CGFloat(totalPrayers)
     }

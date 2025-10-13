@@ -22,7 +22,7 @@ struct SurahDetailView: View {
             .padding(.horizontal, 16)
         }
         .navigationTitle(surah.englishName)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .background(Color(.systemBackground))
     }
     

@@ -39,81 +39,72 @@ struct ReciterDirectoryView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Background
-                backgroundView
+        ZStack {
+            // Background
+            backgroundView
 
-                // Background NavigationLink for programmatic presentation
-                if let reciter = selectedReciter {
-                    NavigationLink(
-                        destination: ReciterDetailView(reciter: reciter),
-                        isActive: isReciterSelectedBinding,
-                        label: { EmptyView() }
-                    )
-                    .hidden()
-                }
+            // Background NavigationLink for programmatic presentation
+            if let reciter = selectedReciter {
+                NavigationLink(
+                    destination: ReciterDetailView(reciter: reciter),
+                    isActive: isReciterSelectedBinding,
+                    label: { EmptyView() }
+                )
+                .hidden()
+            }
 
-                // Main Content
-                VStack(spacing: 0) {
-                    // Status bar spacer
-                    Color.clear
-                        .frame(height: 60)
-
-                    // Search Bar
-                    SearchBar(text: $searchText, theme: theme)
-                        .padding(.bottom, 12)
-                    
-                    if isLoading {
+            // Main Content
+            Group {
+                if isLoading {
+                    VStack {
                         Spacer()
                         ProgressView()
                             .tint(theme.primaryAccent)
                         Spacer()
-                    } else {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 24) {
-                                if shouldShowRecentReciters {
-                                    RecentlySearchedView(
-                                        reciters: recentReciters,
-                                        onReciterTapped: handleReciterTap,
-                                        onClearAll: clearRecents,
-                                        theme: theme
-                                    )
-                                }
-
-                                AllRecitersView(
-                                    reciters: filteredReciters,
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            if shouldShowRecentReciters {
+                                RecentlySearchedView(
+                                    reciters: recentReciters,
                                     onReciterTapped: handleReciterTap,
-                                    theme: theme,
-                                    favoritesCache: favoritesCache
+                                    onClearAll: clearRecents,
+                                    theme: theme
                                 )
-            }
-                            .padding(.top, 20)
+                            }
+
+                            AllRecitersView(
+                                reciters: filteredReciters,
+                                onReciterTapped: handleReciterTap,
+                                theme: theme,
+                                favoritesCache: favoritesCache
+                            )
                         }
+                        .padding(.top, 20)
                     }
-                }
-                .onAppear {
-                    loadData()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                    updateFavoritesCache()
-                }
-                .onReceive(quranAPIService.$reciters) { reciters in
-                    // Update when global reciters are loaded
-                    if !reciters.isEmpty && self.allReciters.isEmpty {
-                        print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
-                        self.allReciters = reciters
-                        self.filteredReciters = reciters
-                        self.isLoading = false
-                    }
-                }
-                .onChange(of: searchText) { newValue in
-                    performDebouncedSearch(query: newValue)
                 }
             }
-            .navigationBarHidden(true)
+            .onAppear {
+                loadData()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                updateFavoritesCache()
+            }
+            .onReceive(quranAPIService.$reciters) { reciters in
+                // Update when global reciters are loaded
+                if !reciters.isEmpty && self.allReciters.isEmpty {
+                    print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
+                    self.allReciters = reciters
+                    self.filteredReciters = reciters
+                    self.isLoading = false
+                }
+            }
+            .onChange(of: searchText) { newValue in
+                performDebouncedSearch(query: newValue)
+            }
+            .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
         }
-        .navigationViewStyle(.stack)
         .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
     }
 

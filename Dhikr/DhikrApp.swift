@@ -21,7 +21,8 @@ struct DhikrApp: App {
     @StateObject private var locationService = LocationService()
     @StateObject private var speechService = SpeechRecognitionService()
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
-    
+    @StateObject private var themeManager = ThemeManager.shared
+
     // Scene Phase
     @Environment(\.scenePhase) private var scenePhase
 
@@ -36,10 +37,11 @@ struct DhikrApp: App {
                 .environmentObject(favoritesManager)
                 .environmentObject(locationService)
                 .environmentObject(screenTimeAuth)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
                 .onAppear {
                     setupPerformanceOptimizations()
                     setupNotificationDelegate()
+                    setupWindowBackground()
                     
                     // Prioritize audio service for immediate UI responsiveness
                     audioPlayerService.activate()
@@ -67,6 +69,9 @@ struct DhikrApp: App {
                 .onChange(of: scenePhase) { newPhase in
                     handleScenePhaseChange(newPhase)
                 }
+                .onChange(of: themeManager.currentTheme) { _ in
+                    setupWindowBackground()
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
                     handleMemoryPressure()
                 }
@@ -86,10 +91,28 @@ struct DhikrApp: App {
     // MARK: - Notification Setup
     private func setupNotificationDelegate() {
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
-        
+
         // Request notification permissions
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             print("Notification permission granted: \(granted)")
+        }
+    }
+
+    // MARK: - Window Background Setup
+    private func setupWindowBackground() {
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first else { return }
+
+            // Set window background to match theme
+            switch themeManager.currentTheme {
+            case .dark:
+                window.backgroundColor = UIColor(Color(hex: "1E3A5F"))
+            case .light:
+                window.backgroundColor = UIColor.systemBackground
+            case .liquidGlass:
+                window.backgroundColor = UIColor.clear
+            }
         }
     }
     

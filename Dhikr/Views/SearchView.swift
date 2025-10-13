@@ -101,7 +101,7 @@ struct SearchView: View {
                             .font(.subheadline)
                             .foregroundColor(theme.secondaryText)
                     }
-                    .padding(.top, 60)
+                    .padding(.top, 20)
                     .padding(.bottom, 30)
 
                     // Main Content with separate containers

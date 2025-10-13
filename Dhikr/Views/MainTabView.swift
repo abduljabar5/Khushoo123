@@ -8,163 +8,121 @@
 import SwiftUI
 import UIKit
 
-struct DragGestureActiveKey: EnvironmentKey {
-    static let defaultValue: Bool = false
-}
-
-extension EnvironmentValues {
-    var isDragGestureActive: Bool {
-        get { self[DragGestureActiveKey.self] }
-        set { self[DragGestureActiveKey.self] = newValue }
-    }
-}
-
 struct MainTabView: View {
-    @State private var selectedTab = 0
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var quranAPIService: QuranAPIService
     @StateObject private var themeManager = ThemeManager.shared
-    @State private var showingFullScreenPlayer = false
+    @State private var expandMiniPlayer = false
     @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
-    @State private var lastDragValue: CGFloat = 0
-    
-    
-    // MARK: - Performance Optimizations
-    // Cache screen height to avoid repeated calculations
-    private let screenHeight: CGFloat = UIScreen.main.bounds.height
-    private let maxDragDistance: CGFloat = UIScreen.main.bounds.height * 0.85
-    
-    // Memoized calculations - only update when dependencies change
-    private var transitionProgress: CGFloat {
-        if showingFullScreenPlayer {
-            // Full screen: drag down (positive values)
-            let progress = 1.0 - (dragOffset / maxDragDistance)
-            return max(0, min(1, progress))
-        } else {
-            // Mini player: drag up (negative values)
-            let absOffset = abs(dragOffset)
-            let progress = absOffset / maxDragDistance
-            return max(0, min(1, progress))
-        }
-    }
-    
-    // Pre-calculated constants for better performance
-    private let minScale: CGFloat = 0.92
-    private let scaleRange: CGFloat = 0.08 // 1.0 - 0.92
-    private let opacityMultiplier: CGFloat = 5.0
-    private let backgroundScaleMultiplier: CGFloat = 0.08
-    private let backgroundOpacityMultiplier: CGFloat = 0.4
-    
-    // Optimized computed properties
-    private var playerScale: CGFloat {
-        minScale + (scaleRange * transitionProgress)
-    }
-    
-    private var miniPlayerOpacity: Double {
-        1.0 - (transitionProgress * opacityMultiplier)
-    }
-    
-    private var fullPlayerOpacity: Double {
-        transitionProgress
-    }
-    
-    private var backgroundScale: CGFloat {
-        1.0 - (backgroundScaleMultiplier * transitionProgress)
-    }
-    
-    private var backgroundOpacity: Double {
-        1.0 - (backgroundOpacityMultiplier * transitionProgress)
-    }
-    
-    // Mini player position - stays anchored at the bottom
-    private var miniPlayerOffset: CGFloat {
-        // The mini player no longer moves. It just fades out in place.
-        return 0
-    }
-    
-    // Full player position - updated to feel like it's expanding
-    private var fullPlayerOffset: CGFloat {
-        let miniPlayerTop = screenHeight - 49 - 65 // Approximate top of mini player
-        
-        if showingFullScreenPlayer {
-            // Follow finger movement directly when dragging down
-            return dragOffset
-        } else {
-            // Slide up from the mini player's position, not the screen bottom.
-            // Use a curve to make the initial expansion feel slower.
-            let progress = pow(transitionProgress, 0.6)
-            return miniPlayerTop * (1.0 - progress)
-        }
-    }
-    
-    // Parallax for the content inside the full screen player
-    private var contentParallaxOffset: CGFloat {
-        let maxParallax: CGFloat = 30
-        // The content moves slower than the container, creating depth.
-        // It starts with a downward offset and moves up to 0.
-        return maxParallax * (1.0 - transitionProgress)
-    }
-    
-    // Background dimming effect
-    private var backgroundDimOpacity: Double {
-        let maxDim: Double = 0.3
-        return maxDim * Double(transitionProgress)
-    }
+    @Namespace private var animation
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Home tab - always load immediately (no lazy loading)
-                HomeView()
-                    .tabItem {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    .tag(0)
+        ZStack {
+            // Root background that shows during zoom transition - black to match system edges
+            Color.black
+                .ignoresSafeArea()
 
-            LazyTabContent(selectedTab: selectedTab, targetTab: 1) {
-                PrayerTimeView()
-            }
-                    .tabItem {
-                        Label("Prayer", systemImage: "timer")
-                    }
-                    .tag(1)
-
-            LazyTabContent(selectedTab: selectedTab, targetTab: 2) {
-                ReciterDirectoryView()
-            }
-                    .tabItem {
-                        Label("Reciters", systemImage: "person.wave.2.fill")
-                    }
-                    .tag(2)
-
-            LazyTabContent(selectedTab: selectedTab, targetTab: 3) {
-                SearchView()
-            }
-                    .tabItem {
-                Label("Focus", systemImage: "shield.fill")
-                    }
-                    .tag(3)
-
-            LazyTabContent(selectedTab: selectedTab, targetTab: 4) {
-                ProfileView()
-            }
-                    .tabItem {
-                        Label("Profile", systemImage: "person.fill")
-                    }
-                    .tag(4)
-            }
-        .ignoresSafeArea(.keyboard)
-        .opacity(backgroundOpacity) // Fade background
-        .animation(isDragging ? nil : .interpolatingSpring(stiffness: 300, damping: 28), value: showingFullScreenPlayer)
-        .disabled(isDragging || showingFullScreenPlayer) // Disable interaction
-        // Re-add connected player overlay (mini + full screen)
-        .overlay(
             Group {
-                if audioPlayerService.currentSurah != nil {
-                    playerView()
+                if #available(iOS 26, *) {
+                    NativeTabView()
+                        .tabViewBottomAccessory {
+                        if audioPlayerService.currentSurah != nil {
+                            MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
+                                .environmentObject(audioPlayerService)
+                                .contentShape(Rectangle())
+                                .highPriorityGesture(
+                                    DragGesture(minimumDistance: 10)
+                                        .onEnded { value in
+                                            let velocity = value.predictedEndLocation.y - value.location.y
+                                            if value.translation.height < -20 || velocity < -100 {
+                                                expandMiniPlayer = true
+                                            }
+                                        }
+                                )
+                                .onTapGesture {
+                                    expandMiniPlayer.toggle()
+                                }
+                        }
+                    }
+            } else {
+                NativeTabView(60)
+                    .overlay(alignment: .bottom) {
+                        if audioPlayerService.currentSurah != nil {
+                            MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
+                                .environmentObject(audioPlayerService)
+                                .padding(.vertical, 8)
+                                .background(content: {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                            .fill(.gray.opacity(0.3))
+
+                                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                            .fill(.background)
+                                            .padding(1.2)
+                                    }
+                                    .compositingGroup()
+                                })
+                                .contentShape(Rectangle())
+                                .highPriorityGesture(
+                                    DragGesture(minimumDistance: 10)
+                                        .onEnded { value in
+                                            let velocity = value.predictedEndLocation.y - value.location.y
+                                            if value.translation.height < -20 || velocity < -100 {
+                                                expandMiniPlayer = true
+                                            }
+                                        }
+                                )
+                                .onTapGesture {
+                                    expandMiniPlayer.toggle()
+                                }
+                                .offset(y: -52)
+                                .padding(.horizontal, 15)
+                        }
+                    }
+                    .ignoresSafeArea(.keyboard, edges: .all)
+            }
+            }
+        }
+        .fullScreenCover(isPresented: $expandMiniPlayer) {
+            if let surah = audioPlayerService.currentSurah, let reciter = audioPlayerService.currentReciter {
+                GeometryReader { geometry in
+                    let size = geometry.size
+                    let safeArea = geometry.safeAreaInsets
+
+                    ZStack {
+                        // Background color that matches theme
+                        themeManager.theme.primaryBackground
+                            .ignoresSafeArea()
+
+                        VStack(spacing: 10) {
+                            /// Drag Indicator
+                            Capsule()
+                                .fill(.primary.secondary)
+                                .frame(width: 35, height: 3)
+                                .padding(.top, 10)
+
+                            Spacer()
+                                .frame(height: 80)
+
+                            /// Full Player Controls
+                            FullScreenPlayerContentView(size: size, safeArea: safeArea)
+
+                            Spacer()
+                        }
+                    }
+                    .navigationTransition(.zoom(sourceID: "MINIPLAYER", in: animation))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .presentationBackground(themeManager.theme.primaryBackground)
+                .onAppear {
+                    // Set window background to match theme during presentation
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first {
+                        window.backgroundColor = UIColor(themeManager.theme.primaryBackground)
+                    }
                 }
             }
-        )
+        }
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
         .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : nil)
@@ -176,213 +134,184 @@ struct MainTabView: View {
         }
     }
 
-    private func playerView() -> some View {
-        let drag = DragGesture()
-            .onChanged { value in
-                if !isDragging {
-                    isDragging = true
-                    lastDragValue = value.translation.height
-                }
-                
-                if showingFullScreenPlayer {
-                    // Follow finger directly - only allow downward dragging
-                    dragOffset = max(0, value.translation.height)
-                } else {
-                    // Follow finger directly - only allow upward dragging
-                    dragOffset = min(0, value.translation.height)
-                }
-            }
-            .onEnded { value in
-                isDragging = false
-                
-                if showingFullScreenPlayer {
-                    handleFullScreenDragEnd(
-                        translation: value.translation.height,
-                        velocity: value.predictedEndTranslation.height - value.translation.height
-                    )
-                } else {
-                    handleMiniPlayerDragEnd(
-                        translation: value.translation.height,
-                        velocity: value.predictedEndTranslation.height - value.translation.height
-                    )
+    // MARK: - Native TabView
+    @ViewBuilder
+    func NativeTabView(_ safeAreaBottomPadding: CGFloat = 0) -> some View {
+        TabView {
+            Tab("Home", systemImage: "house.fill") {
+                NavigationStack {
+                    HomeView()
+                        .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
             }
 
-        // Dynamic player positioning - adapts to device safe areas
-        return GeometryReader { geometry in
-            let safeAreaBottom = geometry.safeAreaInsets.bottom
-            let miniPlayerHeight: CGFloat = 70
-            
-            let playerOffset: CGFloat = {
-                if showingFullScreenPlayer {
-                    // Prevent dragging above the top of the screen (full screen position)
-                    return max(0, dragOffset)
-                } else {
-                    let availableHeight = geometry.size.height
-                    let screenHeight = UIScreen.main.bounds.height
-                    
-                    // Detect if keyboard is likely present by comparing available vs screen height
-                    let isKeyboardPresent = availableHeight < screenHeight - 100 // 100pt threshold for keyboard detection
-                    
-                    let miniPlayerPosition: CGFloat
-                    if isKeyboardPresent {
-                        // Keyboard present: position at bottom of available space (on keyboard)
-                        miniPlayerPosition = availableHeight - miniPlayerHeight
-                    } else {
-                        // No keyboard: position above tab bar with adjustment
-                        let tabBarSpace = (safeAreaBottom + 49) - 30 // Safe area + tab bar height, dropped 30pts lower
-                        miniPlayerPosition = availableHeight - tabBarSpace - miniPlayerHeight
-                    }
-                    
-                    let calculatedOffset = miniPlayerPosition + dragOffset
-                    // Prevent dragging above full screen position (0) when expanding
-                    return max(0, calculatedOffset)
+            Tab("Prayer", systemImage: "timer") {
+                NavigationStack {
+                    PrayerTimeView()
+                        .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
-            }()
-            
-            ZStack(alignment: .top) {
-                // Full Screen Player
-            FullScreenPlayerView {
-                    closeFullScreenPlayer()
+            }
+
+            Tab("Focus", systemImage: "shield.fill") {
+                NavigationStack {
+                    SearchView()
+                        .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
-                .opacity(fullPlayerOpacity)
-                
-                // Mini Player Bar - connected to the full screen player
-                MiniPlayerBar(showingFullScreenPlayer: $showingFullScreenPlayer)
-                    .environment(\.isDragGestureActive, isDragging)
-                    .onTapGesture {
-                        openFullScreenPlayer()
             }
-                    .opacity(miniPlayerOpacity)
-            }
-            .frame(height: geometry.size.height)
-            .offset(y: playerOffset)
-            .animation(isDragging ? nil : .interpolatingSpring(stiffness: 300, damping: 28), value: playerOffset)
-            .gesture(drag)
-            .onChange(of: audioPlayerService.currentSurah) { _ in
-                withAnimation(.interpolatingSpring(stiffness: 300, damping: 28)) {
-                    if !showingFullScreenPlayer {
-                        dragOffset = 0
-                    }
+
+            Tab("Reciters", systemImage: "person.wave.2.fill", role: .search) {
+                NavigationStack {
+                    ReciterDirectoryView()
+                        .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
             }
         }
     }
-    
-    // Open full screen player - smooth expansion animation
-    private func openFullScreenPlayer() {
-        guard !isDragging else { return }
-        withAnimation(.interpolatingSpring(stiffness: 300, damping: 28)) {
-            showingFullScreenPlayer = true
-            dragOffset = 0
+
+    // MARK: - Player Info View
+    @ViewBuilder
+    func PlayerInfoView(size: CGSize) -> some View {
+        HStack(spacing: 12) {
+            if let artwork = audioPlayerService.currentArtwork {
+                Image(uiImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: size.height / 4))
+            } else {
+                RoundedRectangle(cornerRadius: size.height / 4)
+                    .fill(.gray.opacity(0.3))
+                    .frame(width: size.width, height: size.height)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(audioPlayerService.currentSurah?.englishName ?? "Not Playing")
+                    .font(.callout)
+
+                Text(audioPlayerService.currentReciter?.englishName ?? "")
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
+            }
+            .lineLimit(1)
         }
     }
-    
-    // Close full screen player - smooth minimizing animation
-    private func closeFullScreenPlayer() {
-        guard !isDragging else { return }
-        withAnimation(.interpolatingSpring(stiffness: 300, damping: 28)) {
-            showingFullScreenPlayer = false
-            dragOffset = 0
-                    }
+
+    // MARK: - Full Screen Player Content
+    @ViewBuilder
+    func FullScreenPlayerContentView(size: CGSize, safeArea: EdgeInsets) -> some View {
+        VStack(spacing: 24) {
+            // Large Artwork
+            if let artwork = audioPlayerService.currentArtwork {
+                Image(uiImage: artwork)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width - 50, height: size.width - 50)
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .shadow(radius: 10)
+            } else {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(.gray.opacity(0.3))
+                    .frame(width: size.width - 50, height: size.width - 50)
+            }
+
+            // Track info
+            VStack(spacing: 8) {
+                Text(audioPlayerService.currentSurah?.englishName ?? "")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                Text(audioPlayerService.currentReciter?.englishName ?? "")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal)
+
+            // Progress slider
+            VStack(spacing: 6) {
+                Slider(value: Binding(
+                    get: { audioPlayerService.currentTime },
+                    set: { audioPlayerService.seek(to: $0) }
+                ), in: 0...max(audioPlayerService.duration, 1), step: 1)
+                .tint(.primary)
+
+                HStack {
+                    Text(audioPlayerService.currentTime.formattedTime)
+                    Spacer()
+                    Text(audioPlayerService.duration.formattedTime)
                 }
-    
-    // Handle mini player drag end - expansion logic
-    private func handleMiniPlayerDragEnd(translation: CGFloat, velocity: CGFloat) {
-        let threshold = screenHeight * 0.15 // 15% of screen height
-        let velocityThreshold: CGFloat = 400 // Responsive velocity threshold
-        
-        let shouldExpand = abs(translation) > threshold || abs(velocity) > velocityThreshold
-        
-        if shouldExpand {
-            // Expand to full screen with momentum-based animation
-            let stiffness = max(250, min(400, 300 + (abs(velocity) / 10)))
-            withAnimation(.interpolatingSpring(stiffness: stiffness, damping: 25)) {
-                showingFullScreenPlayer = true
-                dragOffset = 0
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
-        } else {
-            // Snap back to mini player
-            withAnimation(.interpolatingSpring(stiffness: 400, damping: 30)) {
-                dragOffset = 0
+            .padding(.horizontal, 30)
+
+            // Playback controls
+            HStack(spacing: 60) {
+                Button(action: { audioPlayerService.previousTrack() }) {
+                    Image(systemName: "backward.fill")
+                        .font(.title)
+                        .foregroundColor(.primary)
+                }
+
+                Button(action: { audioPlayerService.togglePlayPause() }) {
+                    Image(systemName: audioPlayerService.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 72))
+                        .foregroundColor(.primary)
+                }
+
+                Button(action: { audioPlayerService.nextTrack() }) {
+                    Image(systemName: "forward.fill")
+                        .font(.title)
+                        .foregroundColor(.primary)
+                }
             }
+
+            // Bottom controls
+            HStack {
+                Button(action: { audioPlayerService.toggleShuffle() }) {
+                    Image(systemName: "shuffle")
+                        .font(.body)
+                        .foregroundColor(audioPlayerService.isShuffleEnabled ? .accentColor : .secondary)
+                }
+
+                Spacer()
+
+                Button(action: { audioPlayerService.toggleRepeatMode() }) {
+                    Image(systemName: audioPlayerService.repeatMode.icon)
+                        .font(.body)
+                        .foregroundColor(audioPlayerService.repeatMode != .off ? .accentColor : .secondary)
+                }
+            }
+            .padding(.horizontal, 60)
         }
+        .padding(.horizontal, 20)
     }
-    
-    // Handle full screen player drag end - minimizing logic
-    private func handleFullScreenDragEnd(translation: CGFloat, velocity: CGFloat) {
-        let threshold = screenHeight * 0.15 // 15% of screen height
-        let velocityThreshold: CGFloat = 400 // Responsive velocity threshold
-        
-        let shouldMinimize = translation > threshold || velocity > velocityThreshold
-        
-        if shouldMinimize {
-            // Minimize to mini player with momentum-based animation
-            let stiffness = max(250, min(400, 300 + (velocity / 10)))
-            withAnimation(.interpolatingSpring(stiffness: stiffness, damping: 25)) {
-                showingFullScreenPlayer = false
-                dragOffset = 0
-            }
-        } else {
-            // Snap back to full screen
-            withAnimation(.interpolatingSpring(stiffness: 400, damping: 30)) {
-                dragOffset = 0
-            }
-        }
-    }
-    
+
     // MARK: - Tab Bar Appearance Configuration
     private func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        
+
         switch themeManager.currentTheme {
         case .light:
             appearance.configureWithOpaqueBackground()
             appearance.backgroundColor = UIColor.systemBackground
-            
+
         case .dark:
             appearance.configureWithOpaqueBackground()
             appearance.backgroundColor = UIColor(Color(hex: "1E3A5F"))
-            
+
         case .liquidGlass:
             // Since UIDesignRequiresCompatibility is enabled globally,
             // we use transparent background which will work with our manual glass effects
             appearance.configureWithTransparentBackground()
             appearance.backgroundColor = UIColor.clear
         }
-        
+
         // Apply the appearance
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
-    }
-}
-
-// (Removed compact early unlock banner component)
-
-// Custom View Modifier for transparent full screen cover
-struct TransparentFullScreenCover<CoverContent: View>: ViewModifier {
-    @Binding var isPresented: Bool
-    let coverContent: CoverContent
-
-    func body(content: Content) -> some View {
-        ZStack {
-            content
-            if isPresented {
-                coverContent
-                    .edgesIgnoringSafeArea(.all)
-    }
-        }
-    }
-}
-
-extension View {
-    func transparentFullScreenCover<CoverContent: View>(isPresented: Binding<Bool>, @ViewBuilder content: () -> CoverContent) -> some View {
-        self.modifier(
-            TransparentFullScreenCover(
-                isPresented: isPresented,
-                coverContent: content()
-            )
-        )
     }
 }
 

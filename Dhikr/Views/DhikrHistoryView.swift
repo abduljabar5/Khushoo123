@@ -45,7 +45,7 @@ struct DhikrHistoryView: View {
                 }
             }
             .navigationTitle("Dhikr History")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
