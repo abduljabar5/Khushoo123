@@ -152,6 +152,13 @@ struct MainTabView: View {
                 }
             }
 
+            Tab("Dhikr", systemImage: "hand.point.up.left.fill") {
+                NavigationStack {
+                    DhikrWidgetView()
+                        .safeAreaPadding(.bottom, safeAreaBottomPadding)
+                }
+            }
+
             Tab("Focus", systemImage: "shield.fill") {
                 NavigationStack {
                     SearchView()

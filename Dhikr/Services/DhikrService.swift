@@ -374,6 +374,11 @@ class DhikrService: ObservableObject {
         let stats = Array(statsDict.values)
         return stats.sorted { $0.date > $1.date } // Most recent first
     }
+
+    func getAllTimeTotal() -> Int {
+        let statsDict = loadDailyStats()
+        return statsDict.values.reduce(0) { $0 + $1.total }
+    }
 }
 
 // MARK: - Supporting Models

@@ -81,7 +81,6 @@ struct ReciterDirectoryView: View {
                                 favoritesCache: favoritesCache
                             )
                         }
-                        .padding(.top, 20)
                     }
                 }
             }

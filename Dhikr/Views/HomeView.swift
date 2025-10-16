@@ -269,7 +269,7 @@ struct HomeView: View {
 
                     // Progress bar
                     HStack(spacing: 8) {
-                        Text("\(prayerViewModel.completedPrayers)/5")
+                        Text("\(prayerViewModel.completedPrayers)/\(prayerViewModel.totalPrayers)")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
 
@@ -281,7 +281,7 @@ struct HomeView: View {
 
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.white)
-                                    .frame(width: geometry.size.width * (CGFloat(prayerViewModel.completedPrayers) / 5.0), height: 6)
+                                    .frame(width: geometry.size.width * (CGFloat(prayerViewModel.completedPrayers) / CGFloat(prayerViewModel.totalPrayers)), height: 6)
                                     .animation(.easeInOut, value: prayerViewModel.completedPrayers)
                             }
                         }
@@ -564,7 +564,6 @@ struct HomeView: View {
                                 .foregroundColor(.white)
                                 .offset(x: 2)
                         )
-                        .shadow(color: themeManager.theme.primaryAccent.opacity(0.4), radius: 8, x: 0, y: 3)
                 }
             }
             .padding(16)
@@ -572,7 +571,6 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 280)
         .cornerRadius(16)
-        .shadow(color: themeManager.theme.shadowColor, radius: 8, x: 0, y: 4)
     }
 
     // MARK: - Featured Main Card Placeholder
@@ -612,7 +610,6 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 280)
         .cornerRadius(16)
-        .shadow(color: themeManager.theme.shadowColor, radius: 8, x: 0, y: 4)
     }
 
     // MARK: - Featured Small Card
@@ -732,7 +729,6 @@ struct HomeView: View {
         }
         .frame(height: 180)
         .cornerRadius(14)
-        .shadow(color: themeManager.theme.shadowColor, radius: 6, x: 0, y: 3)
     }
 
     // MARK: - Featured Small Card Placeholder
@@ -779,7 +775,6 @@ struct HomeView: View {
         }
         .frame(height: 180)
         .cornerRadius(14)
-        .shadow(color: themeManager.theme.shadowColor, radius: 6, x: 0, y: 3)
     }
     
     // MARK: - Quick Actions Row
@@ -827,7 +822,13 @@ struct HomeView: View {
                 }) {
                     VStack(spacing: 12) {
                         Circle()
-                            .fill(Color.blue)
+                            .fill(
+                                LinearGradient(
+                                    colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                             .frame(width: 56, height: 56)
                             .overlay(
                                 Image(systemName: "play.circle.fill")
@@ -1042,9 +1043,19 @@ struct HomeView: View {
                     }
                 }
                 .padding(20)
-                .background(themeManager.theme.cardBackground)
+                .background(
+                    ZStack {
+                        themeManager.theme.cardBackground
+
+                        // Darkness gradient overlay (right side darker)
+                        LinearGradient(
+                            colors: [Color.clear, Color.black.opacity(0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    }
+                )
                 .cornerRadius(16)
-                .shadow(color: themeManager.theme.shadowColor, radius: 8, x: 0, y: 4)
             } else {
                 // Placeholder
                 VStack(alignment: .leading, spacing: 16) {
@@ -1069,9 +1080,19 @@ struct HomeView: View {
                     }
                 }
                 .padding(20)
-                .background(themeManager.theme.cardBackground)
+                .background(
+                    ZStack {
+                        themeManager.theme.cardBackground
+
+                        // Darkness gradient overlay (right side darker)
+                        LinearGradient(
+                            colors: [Color.clear, Color.black.opacity(0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    }
+                )
                 .cornerRadius(16)
-                .shadow(color: themeManager.theme.shadowColor, radius: 8, x: 0, y: 4)
             }
         }
     }
@@ -1181,7 +1202,10 @@ struct HomeView: View {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(
                             LinearGradient(
-                                colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
+                                colors: [
+                                    themeManager.theme.prayerGradientStart.opacity(0.75),
+                                    themeManager.theme.prayerGradientEnd.opacity(0.75)
+                                ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -1198,7 +1222,6 @@ struct HomeView: View {
                     lineWidth: 1
                 )
         )
-        .shadow(color: themeManager.theme.shadowColor, radius: 8, x: 0, y: 4)
         .onTapGesture {
             Task {
                 await playRandomSurah(for: reciter)
@@ -1313,9 +1336,19 @@ struct HomeView: View {
             .padding(.trailing, 12)
         }
         .frame(height: 120)
-        .background(themeManager.theme.cardBackground)
+        .background(
+            ZStack {
+                themeManager.theme.cardBackground
+
+                // Darkness gradient overlay (right side darker)
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+        )
         .cornerRadius(14)
-        .shadow(color: themeManager.theme.shadowColor, radius: 6, x: 0, y: 3)
     }
 
     // MARK: - Get Reciter Style
@@ -1486,27 +1519,36 @@ struct HomeView: View {
         .padding(16)
         .frame(height: 120)
         .background(
-            Group {
-                if themeManager.theme.hasGlassEffect {
-                    // Enhanced liquid glass effect for iOS 26+
-                    if #available(iOS 26.0, *) {
-                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
-                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+            ZStack {
+                Group {
+                    if themeManager.theme.hasGlassEffect {
+                        // Enhanced liquid glass effect for iOS 26+
+                        if #available(iOS 26.0, *) {
+                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                                .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                                .fill(.ultraThinMaterial)
+                                .opacity(0.3)
+                        }
                     } else {
-                        // Fallback for older iOS versions
-                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.3)
+                        // Standard background for light/dark themes
+                        themeManager.theme.secondaryBackground
                     }
-                } else {
-                    // Standard background for light/dark themes
-                    themeManager.theme.secondaryBackground
                 }
+
+                // Darkness gradient overlay (right side darker)
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             }
         )
         .cornerRadius(themeManager.theme.cardCornerRadius)
     }
-    
+
     // MARK: - Surahs Progress Banner
     private var surahsProgressBanner: some View {
         HStack(spacing: 20) {
@@ -1585,27 +1627,36 @@ struct HomeView: View {
         .padding(16)
         .frame(height: 120)
         .background(
-            Group {
-                if themeManager.theme.hasGlassEffect {
-                    // Enhanced liquid glass effect for iOS 26+
-                    if #available(iOS 26.0, *) {
-                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
-                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+            ZStack {
+                Group {
+                    if themeManager.theme.hasGlassEffect {
+                        // Enhanced liquid glass effect for iOS 26+
+                        if #available(iOS 26.0, *) {
+                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                                .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                                .fill(.ultraThinMaterial)
+                                .opacity(0.3)
+                        }
                     } else {
-                        // Fallback for older iOS versions
-                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.3)
+                        // Standard background for light/dark themes
+                        themeManager.theme.secondaryBackground
                     }
-                } else {
-                    // Standard background for light/dark themes
-                    themeManager.theme.secondaryBackground
                 }
+
+                // Darkness gradient overlay (right side darker)
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             }
         )
         .cornerRadius(themeManager.theme.cardCornerRadius)
     }
-    
+
     // MARK: - Most Listened To Banner
     private var mostListenedToBanner: some View {
         HStack(spacing: 16) {
@@ -1675,95 +1726,181 @@ struct HomeView: View {
         .padding(16)
         .frame(height: 120)
         .background(
-            Group {
-                if themeManager.theme.hasGlassEffect {
-                    // Enhanced liquid glass effect for iOS 26+
-                    if #available(iOS 26.0, *) {
-                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
-                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+            ZStack {
+                Group {
+                    if themeManager.theme.hasGlassEffect {
+                        // Enhanced liquid glass effect for iOS 26+
+                        if #available(iOS 26.0, *) {
+                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                                .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                                .fill(.ultraThinMaterial)
+                                .opacity(0.3)
+                        }
                     } else {
-                        // Fallback for older iOS versions
-                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.3)
+                        // Standard background for light/dark themes
+                        themeManager.theme.secondaryBackground
                     }
-                } else {
-                    // Standard background for light/dark themes
-                    themeManager.theme.secondaryBackground
                 }
+
+                // Darkness gradient overlay (right side darker)
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             }
         )
         .cornerRadius(themeManager.theme.cardCornerRadius)
     }
-    
+
     // MARK: - Early Unlock Section
     private var earlyUnlockSection: some View {
         Group {
             if !blockingState.isStrictModeEnabled && blockingState.appsActuallyBlocked && !blockingState.isEarlyUnlockedActive {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.open.fill")
-                            .foregroundColor(.orange)
-                        Text("Early Unlock Available Soon")
-                            .font(.headline)
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Rectangle()
+                            .fill(Color.orange)
+                            .frame(width: 4, height: 24)
+
+                        Text("Early Unlock")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        Spacer()
                     }
-                    .padding(.bottom, 4)
-                    
+
                     let remaining = blockingState.timeUntilEarlyUnlock()
                     if remaining > 0 {
-                        Text("You can unlock apps in")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        HStack {
-                            Text(remaining.formattedForCountdown)
-                                .font(.title3).monospacedDigit()
-                                .foregroundColor(.orange)
-                            Spacer()
-                        }
-                        Button(action: {}) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.orange.opacity(0.2))
+                                        .frame(width: 50, height: 50)
+
+                                    Image(systemName: "hourglass")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.orange)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Available Soon")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(themeManager.theme.primaryText)
+
+                                    Text("You can unlock apps in")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(themeManager.theme.secondaryText)
+                                }
+
+                                Spacer()
+                            }
+
                             HStack {
+                                Text(remaining.formattedForCountdown)
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(.orange)
+                                    .monospacedDigit()
+
+                                Spacer()
+                            }
+
+                            HStack(spacing: 8) {
                                 Image(systemName: "hourglass")
-                                Text("Unlock after countdown")
+                                    .font(.system(size: 14))
+                                Text("Countdown in progress...")
+                                    .font(.system(size: 14, weight: .medium))
                             }
+                            .foregroundColor(themeManager.theme.secondaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(12)
                         }
-                        .disabled(true)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange.opacity(0.15))
-                        .cornerRadius(10)
                     } else {
-                        Text("You can now unlock apps early.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Button(action: {
-                            blockingState.earlyUnlockCurrentInterval()
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.seal.fill")
-                                Text("Unlock Apps Now")
-                                    .fontWeight(.semibold)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.orange.opacity(0.2))
+                                        .frame(width: 50, height: 50)
+
+                                    Image(systemName: "lock.open.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.orange)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Ready to Unlock")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(themeManager.theme.primaryText)
+
+                                    Text("You can now unlock apps early")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(themeManager.theme.secondaryText)
+                                }
+
+                                Spacer()
                             }
-                            .foregroundColor(.white)
+
+                            Button(action: {
+                                blockingState.earlyUnlockCurrentInterval()
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.system(size: 16))
+                                    Text("Unlock Apps Now")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.orange, Color.orange.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(12)
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.orange)
-                        .cornerRadius(10)
                     }
                 }
-                .padding(16)
+                .padding(20)
                 .background(
-                    Group {
-                        if themeManager.currentTheme == .liquidGlass {
-                            Color.clear
-                        } else if themeManager.currentTheme == .dark {
-                            Color(red: 0.15, green: 0.17, blue: 0.20)
-                        } else {
-                            themeManager.theme.cardBackground
+                    ZStack {
+                        Group {
+                            if themeManager.theme.hasGlassEffect {
+                                // Enhanced liquid glass effect for iOS 26+
+                                if #available(iOS 26.0, *) {
+                                    RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                                        .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
+                                } else {
+                                    // Fallback for older iOS versions
+                                    RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                                        .fill(.ultraThinMaterial)
+                                        .opacity(0.3)
+                                }
+                            } else {
+                                // Standard background for light/dark themes
+                                themeManager.theme.cardBackground
+                            }
                         }
+
+                        // Darkness gradient overlay (right side darker)
+                        LinearGradient(
+                            colors: [Color.clear, Color.black.opacity(0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     }
                 )
-                .cornerRadius(12)
+                .cornerRadius(themeManager.theme.cardCornerRadius)
             }
         }
     }
@@ -1775,45 +1912,117 @@ struct HomeView: View {
 
         var body: some View {
             let remaining = blocking.timeUntilEarlyUnlock()
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(Color.orange.opacity(0.18))
-                    Image(systemName: remaining > 0 ? "hourglass" : "lock.open.fill")
-                        .foregroundColor(.orange)
-                }
-                .frame(width: 26, height: 26)
 
-                if remaining > 0 {
-                    Text("Early unlock in \(remaining.formattedForCountdown)")
-                        .font(.caption).monospacedDigit()
-                        .foregroundColor(.primary)
-                } else {
-                    Button(action: { blocking.earlyUnlockCurrentInterval() }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.seal.fill")
-                            Text("Unlock Now")
-                                .font(.caption).fontWeight(.semibold)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
+            HStack(spacing: 12) {
+                // App Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.orange, Color.orange.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 40, height: 40)
+
+                    Image(systemName: remaining > 0 ? "hourglass" : "lock.open.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
                 }
+
+                // Notification Content
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text("DHIKR")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(themeManager.theme.secondaryText)
+
+                        Text("•")
+                            .font(.system(size: 11))
+                            .foregroundColor(themeManager.theme.secondaryText.opacity(0.5))
+
+                        Text("now")
+                            .font(.system(size: 11))
+                            .foregroundColor(themeManager.theme.secondaryText)
+
+                        Spacer()
+                    }
+
+                    if remaining > 0 {
+                        Text("Early Unlock Available Soon")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(themeManager.theme.primaryText)
+                            .lineLimit(1)
+
+                        Text("Unlock in \(remaining.formattedForCountdown)")
+                            .font(.system(size: 13))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    } else {
+                        Text("Early Unlock Ready")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(themeManager.theme.primaryText)
+                            .lineLimit(1)
+
+                        Text("Tap to unlock apps now")
+                            .font(.system(size: 13))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                            .lineLimit(1)
+                    }
+                }
+
                 Spacer(minLength: 0)
+
+                // Action Button
+                if remaining <= 0 {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
             .background(
                 Group {
-                    if themeManager.currentTheme == .liquidGlass {
-                        Color.clear.background(.ultraThinMaterial)
+                    if themeManager.theme.hasGlassEffect {
+                        // Enhanced liquid glass effect for iOS 26+
+                        if #available(iOS 26.0, *) {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .glassEffect(.clear, in: .rect(cornerRadius: 16))
+                                .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.ultraThinMaterial)
+                                .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+                        }
                     } else if themeManager.currentTheme == .dark {
-                        Color(red: 0.15, green: 0.17, blue: 0.20)
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+                            .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 4)
                     } else {
-                        Color(.secondarySystemBackground)
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.secondarySystemBackground))
+                            .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
                     }
                 }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        themeManager.theme.hasGlassEffect ?
+                        Color.white.opacity(0.2) :
+                        Color.clear,
+                        lineWidth: 1
+                    )
+            )
+            .onTapGesture {
+                if remaining <= 0 {
+                    blocking.earlyUnlockCurrentInterval()
+                }
+            }
         }
     }
     
