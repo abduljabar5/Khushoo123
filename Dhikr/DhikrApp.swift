@@ -4,9 +4,17 @@ import FamilyControls
 import CoreLocation
 import UserNotifications
 import ManagedSettings
+import FirebaseCore
+import FirebaseAuth
+import FirebaseFirestore
 
 @main
 struct DhikrApp: App {
+
+    init() {
+        // Configure Firebase
+        FirebaseApp.configure()
+    }
     
     // Connect AppDelegate for orientation lock
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -22,6 +30,7 @@ struct DhikrApp: App {
     @StateObject private var speechService = SpeechRecognitionService()
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var authService = AuthenticationService.shared
 
     // Scene Phase
     @Environment(\.scenePhase) private var scenePhase
@@ -37,6 +46,7 @@ struct DhikrApp: App {
                 .environmentObject(favoritesManager)
                 .environmentObject(locationService)
                 .environmentObject(screenTimeAuth)
+                .environmentObject(authService)
                 .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
                 .onAppear {
                     setupPerformanceOptimizations()

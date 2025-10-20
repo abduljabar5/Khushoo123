@@ -12,8 +12,11 @@ struct ProfileView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var bluetoothService: BluetoothService
+    @EnvironmentObject var authService: AuthenticationService
     @State private var showingSettings = false
     @State private var showingHighestStreak = false
+    @State private var showingAuth = false
+    @State private var refreshID = UUID()
     
     var body: some View {
         ScrollView {
@@ -50,6 +53,15 @@ struct ProfileView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showingAuth) {
+            ModernAuthView()
+                .environmentObject(authService)
+        }
+        .onChange(of: authService.isAuthenticated) { _ in
+            // Force view refresh when auth state changes
+            refreshID = UUID()
+        }
+        .id(refreshID)
     }
     
     // MARK: - Profile Header
@@ -83,16 +95,59 @@ struct ProfileView: View {
             
             // User Info with better typography
             VStack(spacing: 6) {
-                Text("QariVerse User")
+                Text(authService.isAuthenticated ? (authService.currentUser?.displayName ?? "User") : "Guest")
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
-                
-                Text("Member since 2024")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
+
+                if authService.isAuthenticated, let joinDate = authService.currentUser?.joinDate {
+                    Text("Member since \(joinDate.formatted(.dateTime.year()))")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Sign in to sync your data")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                }
             }
+
+            // Sign In/Out Button
+            Button(action: {
+                withAnimation {
+                    if authService.isAuthenticated {
+                        try? authService.signOut()
+                    } else {
+                        showingAuth = true
+                    }
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: authService.isAuthenticated ? "rectangle.portrait.and.arrow.right" : "person.crop.circle.badge.checkmark")
+                        .font(.subheadline)
+
+                    Text(authService.isAuthenticated ? "Log Out" : "Sign In")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(
+                    LinearGradient(
+                        colors: authService.isAuthenticated ?
+                            [Color.red.opacity(0.8), Color.red.opacity(0.6)] :
+                            [Color.blue.opacity(0.8), Color.purple.opacity(0.8)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(20)
+                .shadow(color: (authService.isAuthenticated ? Color.red : Color.blue).opacity(0.3), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .animation(.spring(response: 0.3), value: authService.isAuthenticated)
             
             // Enhanced Dhikr Stats
             let stats = dhikrService.getTodayStats()

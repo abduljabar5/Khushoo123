@@ -13,6 +13,7 @@ struct HomeView: View {
     @EnvironmentObject var quranAPIService: QuranAPIService
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var bluetoothService: BluetoothService
+    @EnvironmentObject var authService: AuthenticationService
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var blockingState = BlockingStateService.shared
     @StateObject private var themeManager = ThemeManager.shared
@@ -2159,7 +2160,7 @@ struct HomeView: View {
 
     private func getGreeting() -> String {
         let hour = Calendar.current.component(.hour, from: Date())
-        let name = "Ahmed" // Replace with actual user name if available
+        let name = authService.isAuthenticated ? (authService.currentUser?.displayName ?? "there") : "there"
 
         switch hour {
         case 0..<12:
