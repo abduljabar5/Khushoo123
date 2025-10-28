@@ -31,6 +31,11 @@
 		<string>audio</string>
 		<string>bluetooth-central</string>
 		<string>background-processing</string>
+		<string>remote-notification</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>fm.mrc.Dhikr.prayerTimeRefresh</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

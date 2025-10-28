@@ -8,14 +8,17 @@
 import Foundation
 import Combine
 import SwiftUI
+import FirebaseAuth
 
 @MainActor
 class PlayerArtworkViewModel: ObservableObject {
     @Published var artworkURL: URL?
+    @Published var artworkImage: UIImage?
     @Published var isLoading = false
     @Published var errorMessage: String?
 
     private let unsplashService = UnsplashService.shared
+    private let surahImageService = SurahImageService.shared
     private let imageURLCache = NSCache<NSString, NSURL>()
     private var cancellables = Set<AnyCancellable>()
     private let persistentCacheKey = "artworkURLPersistentCache_Unsplash"
@@ -24,7 +27,7 @@ class PlayerArtworkViewModel: ObservableObject {
     init(audioPlayerService: AudioPlayerService) {
         self.audioPlayerService = audioPlayerService
         loadPersistentCache() // Load saved URLs into memory on initialization
-        
+
         audioPlayerService.$currentSurah
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             .sink { [weak self] surah in
@@ -54,35 +57,32 @@ class PlayerArtworkViewModel: ObservableObject {
     }
 
     private func fetchArtwork(for surah: Surah) {
-        let cacheKey = surah.englishName as NSString
-
-        // 1. Check in-memory cache first
-        if let cachedURL = imageURLCache.object(forKey: cacheKey) {
-            self.artworkURL = cachedURL as URL
+        // Priority 1: If user is authenticated, fetch from Firebase Storage
+        if Auth.auth().currentUser != nil {
+            fetchFromFirebaseStorage(for: surah)
             return
         }
 
-        // 2. If not in cache, start loading and fetch from API
+        // Priority 2: If not authenticated, show no artwork
+        self.artworkURL = nil
+        self.artworkImage = nil
+        print("ℹ️ [PlayerArtworkViewModel] User not authenticated - no artwork shown")
+    }
+
+    private func fetchFromFirebaseStorage(for surah: Surah) {
         self.isLoading = true
         self.errorMessage = nil
-        self.artworkURL = nil
 
         Task {
-            do {
-                let url = try await unsplashService.fetchNatureImageURL(query: surah.englishName)
-                
-                // 3. Update UI and save to both in-memory and persistent caches
-                self.artworkURL = url
-                self.imageURLCache.setObject(url as NSURL, forKey: cacheKey)
-                self.saveToPersistentCache(key: surah.englishName, url: url)
-                
-            } catch {
-                if let unsplashError = error as? UnsplashError, case .networkError(let statusCode) = unsplashError {
-                    self.errorMessage = "Network Error (\(statusCode ?? 0))"
-                } else {
-                    self.errorMessage = "Error fetching artwork"
-                }
-                print("❌ [PlayerArtworkViewModel] Error: \(error.localizedDescription)")
+            if let image = await surahImageService.fetchSurahCover(for: surah.number) {
+                self.artworkImage = image
+                self.artworkURL = nil // Clear URL since we're using direct image
+                print("✅ [PlayerArtworkViewModel] Loaded Firebase surah cover for surah \(surah.number)")
+            } else {
+                // Fallback: no artwork for authenticated users if Firebase fetch fails
+                self.artworkImage = nil
+                self.artworkURL = nil
+                print("⚠️ [PlayerArtworkViewModel] Failed to load Firebase cover for surah \(surah.number)")
             }
             self.isLoading = false
         }

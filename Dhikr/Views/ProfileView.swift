@@ -7,217 +7,224 @@
 
 import SwiftUI
 import Kingfisher
+import UserNotifications
 
 struct ProfileView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var bluetoothService: BluetoothService
     @EnvironmentObject var authService: AuthenticationService
-    @State private var showingSettings = false
+    @EnvironmentObject var locationService: LocationService
+    @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var prayerNotificationService = PrayerNotificationService.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var showingHighestStreak = false
     @State private var showingAuth = false
+    @State private var showingPaywall = false
     @State private var refreshID = UUID()
-    
+    @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
+    @AppStorage("showSleepTimer") private var showSleepTimer = true
+    @AppStorage("prayerRemindersEnabled") private var prayerRemindersEnabled = true
+    @AppStorage("dhikrRemindersEnabled") private var dhikrRemindersEnabled = true
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 28) {
-                // Profile Header
-                profileHeader
+            VStack(spacing: 0) {
+                // Compact Profile Header
+                compactProfileHeader
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+
+                // Quick Stats
+                quickStatsSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
 
                 // Statistics
                 statisticsSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
+                // Subscription Section
+                subscriptionSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
+                // Appearance Section
+                appearanceSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
+                // Audio Section
+                audioSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
+                // Notifications Section
+                notificationsSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
 
                 // Zikr Ring
                 zikrRingSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
 
-                // Settings
-                settingsSection
+                // Dhikr Goals
+                dhikrGoalsSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
+                // About Section
+                aboutSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
             .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
         }
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(.systemBackground),
-                    Color(.systemBackground).opacity(0.95)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-        }
+        .background(themeManager.theme.primaryBackground)
         .sheet(isPresented: $showingAuth) {
             ModernAuthView()
                 .environmentObject(authService)
         }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
+        }
         .onChange(of: authService.isAuthenticated) { _ in
-            // Force view refresh when auth state changes
             refreshID = UUID()
+        }
+        .onAppear {
+            // Sync initial value
+            audioPlayerService.isAutoplayEnabled = autoPlayNextSurah
+
+            // Sync prayer reminders toggle from App Group
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+               let value = groupDefaults.object(forKey: "prayerRemindersEnabled") as? Bool {
+                prayerRemindersEnabled = value
+            }
+
+            // Check and schedule notifications if enabled
+            Task {
+                if dhikrRemindersEnabled && prayerNotificationService.hasNotificationPermission {
+                    scheduleDhikrReminders()
+                }
+            }
         }
         .id(refreshID)
     }
-    
-    // MARK: - Profile Header
-    private var profileHeader: some View {
-        VStack(spacing: 20) {
-            // Profile Image with enhanced design
-            ZStack {
+
+    // MARK: - Compact Profile Header
+    private var compactProfileHeader: some View {
+        HStack(spacing: 16) {
+            // Profile Image
             Circle()
                 .fill(
                     LinearGradient(
-                            colors: [
-                                Color.blue.opacity(0.8),
-                                Color.purple.opacity(0.8),
-                                Color.pink.opacity(0.6)
-                            ],
+                        colors: [
+                            themeManager.theme.primaryAccent,
+                            themeManager.theme.primaryAccent.opacity(0.7)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                    .frame(width: 120, height: 120)
-                    .shadow(color: Color.blue.opacity(0.3), radius: 20, x: 0, y: 10)
-                
-                Circle()
-                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                    .frame(width: 120, height: 120)
-                
+                .frame(width: 70, height: 70)
+                .overlay(
                     Image(systemName: "person.fill")
-                    .font(.system(size: 45, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            
-            // User Info with better typography
-            VStack(spacing: 6) {
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                )
+
+            // User Info
+            VStack(alignment: .leading, spacing: 4) {
                 Text(authService.isAuthenticated ? (authService.currentUser?.displayName ?? "User") : "Guest")
-                    .font(.title)
+                    .font(.title3)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .foregroundColor(themeManager.theme.primaryText)
 
                 if authService.isAuthenticated, let joinDate = authService.currentUser?.joinDate {
                     Text("Member since \(joinDate.formatted(.dateTime.year()))")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.secondaryText)
                 } else {
                     Text("Sign in to sync your data")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.secondaryText)
                 }
             }
+
+            Spacer()
 
             // Sign In/Out Button
             Button(action: {
-                withAnimation {
-                    if authService.isAuthenticated {
-                        try? authService.signOut()
-                    } else {
-                        showingAuth = true
-                    }
+                if authService.isAuthenticated {
+                    try? authService.signOut()
+                } else {
+                    showingAuth = true
                 }
             }) {
-                HStack(spacing: 8) {
-                    Image(systemName: authService.isAuthenticated ? "rectangle.portrait.and.arrow.right" : "person.crop.circle.badge.checkmark")
-                        .font(.subheadline)
-
-                    Text(authService.isAuthenticated ? "Log Out" : "Sign In")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 10)
-                .background(
-                    LinearGradient(
-                        colors: authService.isAuthenticated ?
-                            [Color.red.opacity(0.8), Color.red.opacity(0.6)] :
-                            [Color.blue.opacity(0.8), Color.purple.opacity(0.8)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .cornerRadius(20)
-                .shadow(color: (authService.isAuthenticated ? Color.red : Color.blue).opacity(0.3), radius: 8, x: 0, y: 4)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .animation(.spring(response: 0.3), value: authService.isAuthenticated)
-            
-            // Enhanced Dhikr Stats
-            let stats = dhikrService.getTodayStats()
-            HStack(spacing: 32) {
-                StatPill(
-                    value: "\(stats.streak)",
-                    label: "Day Streak",
-                    color: .orange,
-                    icon: "flame.fill"
-                )
-                
-                StatPill(
-                    value: "\(stats.total)",
-                    label: "Today's Dhikr",
-                    color: .green,
-                    icon: "heart.fill"
-                )
+                Image(systemName: authService.isAuthenticated ? "rectangle.portrait.and.arrow.right" : "person.crop.circle.badge.checkmark")
+                    .font(.title3)
+                    .foregroundColor(authService.isAuthenticated ? .red : themeManager.theme.primaryAccent)
             }
         }
-        .padding(.vertical, 24)
-        .padding(.horizontal, 20)
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color(.secondarySystemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
-        )
+    }
+
+    // MARK: - Quick Stats Section
+    private var quickStatsSection: some View {
+        let stats = dhikrService.getTodayStats()
+        return HStack(spacing: 12) {
+            StatPill(
+                value: "\(stats.streak)",
+                label: "Day Streak",
+                color: themeManager.theme.primaryAccent,
+                icon: "flame.fill"
+            )
+
+            StatPill(
+                value: "\(stats.total)",
+                label: "Today's Dhikr",
+                color: themeManager.theme.primaryAccent,
+                icon: "heart.fill"
+            )
+        }
     }
     
     // MARK: - Statistics Section
     private var statisticsSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Text("Your Statistics")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "chart.bar.fill")
-                    .foregroundColor(.blue)
-                    .font(.title3)
-                }
-                
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 2), spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: "Statistics", icon: "chart.bar.fill")
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
                 EnhancedStatCard(
                     title: "Total Listening",
                     value: audioPlayerService.getTotalListeningTimeString(),
                     icon: "headphones",
-                    gradient: [.blue, .cyan],
+                    gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
                     description: "Time spent listening"
                 )
-                
+
                 EnhancedStatCard(
                     title: "Surahs Completed",
                     value: "\(audioPlayerService.getCompletedSurahCount())",
                     icon: "checkmark.seal.fill",
-                    gradient: [.purple, .pink],
+                    gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
                     description: "Chapters finished"
                 )
-                
+
                 EnhancedStatCard(
                     title: "Favorite Reciter",
                     value: getMostListenedReciter(),
                     icon: "person.fill",
-                    gradient: [.green, .mint],
+                    gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
                     description: "Most played",
                     isLarge: true
                 )
-                
+
                 InteractiveStreakCard(
                     dhikrService: dhikrService,
                     showingHighest: $showingHighestStreak
@@ -225,22 +232,236 @@ struct ProfileView: View {
             }
         }
     }
-    
+
+    // MARK: - Subscription Section
+    private var subscriptionSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: subscriptionService.isPremium ? "Premium" : "Upgrade", icon: "crown.fill")
+
+            if subscriptionService.isPremium {
+                // Premium user - show status and manage
+                VStack(spacing: 0) {
+                    settingsRow(
+                        icon: "checkmark.seal.fill",
+                        iconColor: themeManager.theme.accentGold,
+                        title: "Premium Active",
+                        trailing: {
+                            Image(systemName: "crown.fill")
+                                .foregroundColor(themeManager.theme.accentGold)
+                        }
+                    )
+
+                    Divider()
+                        .padding(.leading, 50)
+
+                    Button(action: {
+                        Task {
+                            await subscriptionService.restorePurchases()
+                        }
+                    }) {
+                        settingsRow(
+                            icon: "arrow.clockwise",
+                            iconColor: themeManager.theme.primaryAccent,
+                            title: "Restore Purchases",
+                            trailing: {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(themeManager.theme.tertiaryText)
+                            }
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .background(themeManager.theme.cardBackground)
+                .cornerRadius(16)
+            } else {
+                // Free user - show upgrade prompt
+                Button(action: {
+                    showingPaywall = true
+                }) {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 24))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.yellow, .orange],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Unlock Premium")
+                                    .font(.headline)
+                                    .foregroundColor(themeManager.theme.primaryText)
+
+                                Text("Get full access to all features")
+                                    .font(.caption)
+                                    .foregroundColor(themeManager.theme.secondaryText)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(themeManager.theme.tertiaryText)
+                        }
+                        .padding(16)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(themeManager.theme.cardBackground)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [.yellow.opacity(0.5), .orange.opacity(0.3)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 2
+                                    )
+                            )
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+    }
+
+    // MARK: - Appearance Section
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: "Appearance", icon: "paintbrush.fill")
+
+            VStack(spacing: 12) {
+                // Theme Selector
+                HStack(spacing: 12) {
+                    ForEach(AppThemeStyle.allCases, id: \.self) { theme in
+                        ThemeOptionButton(
+                            theme: theme,
+                            isSelected: themeManager.currentTheme == theme,
+                            action: {
+                                withAnimation(.spring()) {
+                                    themeManager.currentTheme = theme
+                                }
+                            }
+                        )
+                    }
+                }
+
+                // Wallpaper selection for Liquid Glass theme
+                if themeManager.currentTheme == .liquidGlass {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Wallpaper")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(ThemeManager.availableWallpapers, id: \.self) { wallpaperName in
+                                    WallpaperThumbnail(
+                                        wallpaperName: wallpaperName,
+                                        isSelected: themeManager.selectedWallpaper == wallpaperName,
+                                        onSelect: {
+                                            themeManager.selectedWallpaper = wallpaperName
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    .transition(.opacity.combined(with: .scale))
+                }
+            }
+            .padding(16)
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
+        }
+    }
+
+    // MARK: - Audio Section
+    private var audioSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: "Audio", icon: "speaker.wave.2.fill")
+
+            VStack(spacing: 0) {
+                settingsRow(
+                    icon: "play.circle.fill",
+                    iconColor: themeManager.theme.primaryAccent,
+                    title: "Auto-play next surah",
+                    trailing: {
+                        Toggle("", isOn: $autoPlayNextSurah)
+                            .labelsHidden()
+                            .onChange(of: autoPlayNextSurah) { newValue in
+                                audioPlayerService.isAutoplayEnabled = newValue
+                            }
+                    }
+                )
+
+                Divider()
+                    .padding(.leading, 50)
+
+                settingsRow(
+                    icon: "timer",
+                    iconColor: themeManager.theme.primaryAccent,
+                    title: "Sleep timer button",
+                    trailing: {
+                        Toggle("", isOn: $showSleepTimer)
+                            .labelsHidden()
+                    }
+                )
+            }
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
+        }
+    }
+
+    // MARK: - Notifications Section
+    private var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: "Notifications", icon: "bell.fill")
+
+            VStack(spacing: 0) {
+                settingsRow(
+                    icon: "moon.stars.fill",
+                    iconColor: themeManager.theme.primaryAccent,
+                    title: "Prayer reminders",
+                    trailing: {
+                        Toggle("", isOn: $prayerRemindersEnabled)
+                            .labelsHidden()
+                            .onChange(of: prayerRemindersEnabled) { newValue in
+                                handlePrayerRemindersToggle(newValue)
+                            }
+                    }
+                )
+
+                Divider()
+                    .padding(.leading, 50)
+
+                settingsRow(
+                    icon: "sparkles",
+                    iconColor: themeManager.theme.primaryAccent,
+                    title: "Dhikr reminders",
+                    trailing: {
+                        Toggle("", isOn: $dhikrRemindersEnabled)
+                            .labelsHidden()
+                            .onChange(of: dhikrRemindersEnabled) { newValue in
+                                handleDhikrRemindersToggle(newValue)
+                            }
+                    }
+                )
+            }
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
+        }
+    }
+
     // MARK: - Zikr Ring Section
     private var zikrRingSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-            Text("Zikr Ring")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "dot.radiowaves.left.and.right")
-                    .foregroundColor(.blue)
-                    .font(.title3)
-            }
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: "Zikr Ring", icon: "dot.radiowaves.left.and.right")
 
             VStack(spacing: 16) {
                 // Status and Ring Count in a more visual way
@@ -355,163 +576,150 @@ struct ProfileView: View {
                     }
                 }
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(.secondarySystemBackground))
-                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
-            )
+            .padding(16)
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
         }
     }
-    
-    // MARK: - Quick Actions
-    private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-            Text("Quick Actions")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
+
+    // MARK: - Dhikr Goals Section
+    private var dhikrGoalsSection: some View {
+        NavigationLink(destination: DhikrGoalsView()
+            .environmentObject(dhikrService)
+            .environmentObject(audioPlayerService)
+            .environmentObject(bluetoothService)
+        ) {
+            HStack(spacing: 16) {
+                Circle()
+                    .fill(themeManager.theme.primaryAccent.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                    .overlay(
+                        Image(systemName: "target")
+                            .font(.title3)
+                            .foregroundColor(themeManager.theme.primaryAccent)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Dhikr Goals")
+                        .font(.headline)
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("Set and manage your daily targets")
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+
                 Spacer()
-                
-                Image(systemName: "bolt.fill")
-                    .foregroundColor(.yellow)
-                    .font(.title3)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(themeManager.theme.tertiaryText)
             }
-            
-            VStack(spacing: 12) {
-                NavigationLink(destination: DhikrWidgetView()) {
-                    EnhancedQuickActionRow(
-                        title: "Dhikr Tracker",
-                        subtitle: "Track your daily dhikr progress",
-                        icon: "heart.fill",
-                        gradient: [.green, .mint]
-                    )
-                }
-                
-                NavigationLink(destination: DhikrGoalsView()) {
-                    EnhancedQuickActionRow(
-                        title: "Dhikr Goals",
-                        subtitle: "Set and manage your daily targets",
-                        icon: "target",
-                        gradient: [.blue, .cyan]
-                    )
-                }
-                
-                Button(action: {
-                    // Show favorites - for now just show a placeholder
-                    print("Favorites tapped")
-                }) {
-                    EnhancedQuickActionRow(
-                        title: "Favorites",
-                        subtitle: "Your saved recitations",
-                        icon: "heart.fill",
-                        gradient: [.red, .pink]
-                    )
-                }
-                
-                Button(action: {
-                    // Show listening history
-                    print("Listening history tapped")
-                }) {
-                    EnhancedQuickActionRow(
-                        title: "Listening History",
-                        subtitle: "View your recent activity",
-                        icon: "clock.fill",
-                        gradient: [.purple, .indigo]
-                    )
-                }
-            }
+            .padding(16)
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
         }
+        .buttonStyle(PlainButtonStyle())
     }
-    
-    // MARK: - Recent Activity
-    private var recentActivitySection: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-            Text("Recent Activity")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "clock.fill")
-                    .foregroundColor(.orange)
-                    .font(.title3)
-            }
-            
-            VStack(spacing: 8) {
-                ForEach(getRecentActivity()) { activity in
-                    EnhancedActivityRow(activity: activity)
-                }
-            }
-        }
-    }
-    
-    // MARK: - Settings Section
-    private var settingsSection: some View {
+
+    // MARK: - About Section
+    private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Settings & More")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
+            sectionHeader(title: "About", icon: "info.circle.fill")
 
             VStack(spacing: 0) {
-                // Dhikr Goals
-                NavigationLink(destination: DhikrGoalsView()
-                    .environmentObject(dhikrService)
-                    .environmentObject(audioPlayerService)
-                    .environmentObject(bluetoothService)
-                ) {
-                    SettingsRow(
-                        icon: "target",
-                        iconColor: .blue,
-                        title: "Dhikr Goals",
-                        showChevron: true
-                    )
-                }
+                settingsRow(
+                    icon: "app.badge.fill",
+                    iconColor: themeManager.theme.primaryAccent,
+                    title: "Version",
+                    trailing: {
+                        Text("2.0.0")
+                            .font(.subheadline)
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
+                )
 
                 Divider()
-                    .padding(.leading, 44)
+                    .padding(.leading, 50)
 
-                // Settings
-                Button(action: { showingSettings = true }) {
-                    SettingsRow(
-                        icon: "gearshape.fill",
-                        iconColor: .gray,
-                        title: "Settings",
-                        showChevron: true
+                Button(action: {
+                    print("Contact support tapped")
+                }) {
+                    settingsRow(
+                        icon: "envelope.fill",
+                        iconColor: themeManager.theme.primaryAccent,
+                        title: "Contact Support",
+                        trailing: {
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(themeManager.theme.tertiaryText)
+                        }
                     )
                 }
+                .buttonStyle(PlainButtonStyle())
+
+                Divider()
+                    .padding(.leading, 50)
+
+                Button(action: {
+                    print("Rate us tapped")
+                }) {
+                    settingsRow(
+                        icon: "star.fill",
+                        iconColor: themeManager.theme.primaryAccent,
+                        title: "Rate Us",
+                        trailing: {
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(themeManager.theme.tertiaryText)
+                        }
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
         }
     }
 
-    // MARK: - Settings Row Component
-    private func SettingsRow(icon: String, iconColor: Color, title: String, showChevron: Bool = false) -> some View {
-        HStack(spacing: 16) {
+    // MARK: - Helper Functions
+
+    private func sectionHeader(title: String, icon: String) -> some View {
+        HStack {
             Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(.white)
-                .frame(width: 28, height: 28)
-                .background(iconColor)
-                .cornerRadius(6)
+                .foregroundColor(themeManager.theme.primaryAccent)
+                .font(.caption)
+            Text(title)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(themeManager.theme.primaryText)
+            Spacer()
+        }
+    }
+
+    private func settingsRow<Content: View>(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        @ViewBuilder trailing: () -> Content
+    ) -> some View {
+        HStack(spacing: 16) {
+            Circle()
+                .fill(iconColor.opacity(0.2))
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundColor(iconColor)
+                )
 
             Text(title)
-                .font(.system(size: 16))
-                .foregroundColor(.primary)
+                .font(.subheadline)
+                .foregroundColor(themeManager.theme.primaryText)
 
             Spacer()
 
-            if showChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.secondary)
-            }
+            trailing()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -598,12 +806,173 @@ struct ProfileView: View {
                 return "\(mostListened.key)"
             }
         }
-        
+
         return "None"
+    }
+
+    // MARK: - Notification Handlers
+
+    private func handlePrayerRemindersToggle(_ isEnabled: Bool) {
+        Task {
+            if isEnabled {
+                // Request notification permission if needed
+                let granted = await prayerNotificationService.requestNotificationPermission()
+                if granted {
+                    // Save to both UserDefaults and App Group
+                    UserDefaults.standard.set(true, forKey: "prayerRemindersEnabled")
+                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                        groupDefaults.set(true, forKey: "prayerRemindersEnabled")
+                        groupDefaults.synchronize()
+                    }
+
+                    // Trigger immediate update via BackgroundRefreshService
+                    await BackgroundRefreshService.shared.triggerManualRefresh(reason: "Prayer reminders enabled")
+                } else {
+                    // Permission denied, turn toggle back off
+                    await MainActor.run {
+                        prayerRemindersEnabled = false
+                    }
+                }
+            } else {
+                // Save to both UserDefaults and App Group
+                UserDefaults.standard.set(false, forKey: "prayerRemindersEnabled")
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(false, forKey: "prayerRemindersEnabled")
+                    groupDefaults.synchronize()
+                }
+
+                // Clear prayer reminders
+                prayerNotificationService.clearPrePrayerNotifications()
+            }
+        }
+    }
+
+    private func handleDhikrRemindersToggle(_ isEnabled: Bool) {
+        Task {
+            if isEnabled {
+                // Request notification permission if needed
+                let granted = await prayerNotificationService.requestNotificationPermission()
+                if granted {
+                    scheduleDhikrReminders()
+                } else {
+                    // Permission denied, turn toggle back off
+                    await MainActor.run {
+                        dhikrRemindersEnabled = false
+                    }
+                }
+            } else {
+                // Clear dhikr reminders
+                clearDhikrReminders()
+            }
+        }
+    }
+
+    private func scheduleDhikrReminders() {
+        // Schedule daily dhikr reminders at specific times
+        let notificationCenter = UNUserNotificationCenter.current()
+
+        // Clear existing dhikr reminders first
+        clearDhikrReminders()
+
+        // Schedule 3 daily reminders
+        let reminderTimes = [
+            (hour: 9, minute: 0, message: "Start your day with dhikr"),
+            (hour: 15, minute: 0, message: "Take a moment for dhikr"),
+            (hour: 21, minute: 0, message: "End your day with dhikr")
+        ]
+
+        for (index, time) in reminderTimes.enumerated() {
+            let content = UNMutableNotificationContent()
+            content.title = "Dhikr Reminder"
+            content.body = time.message
+            content.sound = .default
+
+            var dateComponents = DateComponents()
+            dateComponents.hour = time.hour
+            dateComponents.minute = time.minute
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+            let request = UNNotificationRequest(
+                identifier: "dhikr_reminder_\(index)",
+                content: content,
+                trigger: trigger
+            )
+
+            notificationCenter.add(request) { error in
+                if let error = error {
+                    print("❌ Failed to schedule dhikr reminder: \(error)")
+                } else {
+                    print("✅ Scheduled dhikr reminder at \(time.hour):\(time.minute)")
+                }
+            }
+        }
+    }
+
+    private func clearDhikrReminders() {
+        let notificationCenter = UNUserNotificationCenter.current()
+        let identifiers = ["dhikr_reminder_0", "dhikr_reminder_1", "dhikr_reminder_2"]
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+        print("🗑️ Cleared dhikr reminders")
     }
 }
 
 // MARK: - Enhanced Supporting Views
+
+// Theme Option Button
+struct ThemeOptionButton: View {
+    let theme: AppThemeStyle
+    let isSelected: Bool
+    let action: () -> Void
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Circle()
+                    .fill(themePreviewGradient)
+                    .frame(width: 50, height: 50)
+                    .overlay(
+                        Image(systemName: theme.icon)
+                            .font(.title3)
+                            .foregroundColor(.white)
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected ? themeManager.theme.primaryAccent : Color.clear, lineWidth: 3)
+                    )
+
+                Text(theme.rawValue)
+                    .font(.caption)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundColor(isSelected ? themeManager.theme.primaryAccent : themeManager.theme.secondaryText)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var themePreviewGradient: LinearGradient {
+        switch theme {
+        case .light:
+            return LinearGradient(
+                colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .dark:
+            return LinearGradient(
+                colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .liquidGlass:
+            return LinearGradient(
+                colors: [Color.cyan.opacity(0.6), Color.purple.opacity(0.6), Color.pink.opacity(0.6)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
 
 struct StatPill: View {
     let value: String
@@ -649,7 +1018,8 @@ struct EnhancedStatCard: View {
     let gradient: [Color]
     let description: String
     var isLarge: Bool = false
-    
+    @StateObject private var themeManager = ThemeManager.shared
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -662,41 +1032,41 @@ struct EnhancedStatCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                
+
                 Spacer()
-                
+
                 if !isLarge {
                     Circle()
                         .fill(gradient[0].opacity(0.2))
                         .frame(width: 8, height: 8)
                 }
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
                     .font(isLarge ? .title : .title2)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .foregroundColor(themeManager.theme.primaryText)
                     .lineLimit(isLarge ? 2 : 1)
                     .minimumScaleFactor(0.8)
-                
+
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
+                    .foregroundColor(themeManager.theme.primaryText)
+
                 Text(description)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(themeManager.theme.secondaryText)
                 }
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(themeManager.theme.cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 16)
                         .stroke(
                             LinearGradient(
                                 colors: [gradient[0].opacity(0.3), gradient[1].opacity(0.1)],
@@ -706,11 +1076,10 @@ struct EnhancedStatCard: View {
                             lineWidth: 1
                         )
                 )
-                .shadow(color: gradient[0].opacity(0.1), radius: 8, x: 0, y: 4)
         )
         .gridCellColumns(isLarge ? 2 : 1)
-            }
-        }
+    }
+}
 
 struct EnhancedQuickActionRow: View {
     let title: String
@@ -951,104 +1320,99 @@ struct InteractiveStreakCard: View {
     @ObservedObject var dhikrService: DhikrService
     @Binding var showingHighest: Bool
     @State private var isAnimating = false
-    
+    @StateObject private var themeManager = ThemeManager.shared
+
     var body: some View {
         let streakInfo = dhikrService.getHighestStreakInfo()
         let currentValue = showingHighest ? streakInfo.highest : streakInfo.current
         let currentTitle = showingHighest ? "Highest Streak" : "Current Streak"
         let currentDescription = showingHighest ? streakInfo.achievement : "Days in a row"
-        
+
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "flame.fill")
                     .font(.title2)
                     .foregroundStyle(
                         LinearGradient(
-                            colors: showingHighest ? [.red, .orange] : [.orange, .yellow],
+                            colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .scaleEffect(isAnimating ? 1.2 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
-                
+
                 Spacer()
-                
+
                 if showingHighest && streakInfo.isCurrentBest {
                     Image(systemName: "crown.fill")
                         .font(.caption)
-                        .foregroundColor(.yellow)
+                        .foregroundColor(themeManager.theme.primaryAccent)
                         .scaleEffect(isAnimating ? 1.1 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
                 } else {
                     Circle()
-                        .fill((showingHighest ? Color.red : Color.orange).opacity(0.2))
+                        .fill(themeManager.theme.primaryAccent.opacity(0.2))
                         .frame(width: 8, height: 8)
                 }
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("\(currentValue)")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.primary)
+                        .foregroundColor(themeManager.theme.primaryText)
                         .contentTransition(.numericText())
-                    
+
                     if showingHighest && streakInfo.current > 0 && !streakInfo.isCurrentBest {
                         Text("(Current: \(streakInfo.current))")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(themeManager.theme.secondaryText)
                             .transition(.opacity.combined(with: .scale))
                     }
                 }
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingHighest)
-                
+
                 Text(currentTitle)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                    .foregroundColor(themeManager.theme.primaryText)
                     .contentTransition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: showingHighest)
-                
+
                 Text(currentDescription)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(themeManager.theme.secondaryText)
                     .lineLimit(2)
                     .contentTransition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: showingHighest)
             }
-            
+
             // Tap indicator
             HStack {
                 Spacer()
                 Text(showingHighest ? "Tap for current" : "Tap for highest")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(themeManager.theme.secondaryText)
                     .opacity(0.7)
             }
         }
-        .padding(18)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(themeManager.theme.cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 16)
                         .stroke(
                             LinearGradient(
-                                colors: showingHighest ? 
-                                    [Color.red.opacity(0.3), Color.orange.opacity(0.1)] :
-                                    [Color.orange.opacity(0.3), Color.yellow.opacity(0.1)],
+                                colors: [themeManager.theme.primaryAccent.opacity(0.3), themeManager.theme.primaryAccent.opacity(0.1)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
                             lineWidth: 1
                         )
-                )
-                .shadow(
-                    color: (showingHighest ? Color.red : Color.orange).opacity(0.1), 
-                    radius: 8, x: 0, y: 4
                 )
         )
         .onTapGesture {
@@ -1328,9 +1692,10 @@ struct WallpaperThumbnail: View {
 
 struct ProfileView_Previews: PreviewProvider {
     static var previews: some View {
-    ProfileView()
-        .environmentObject(DhikrService.shared)
-        .environmentObject(AudioPlayerService.shared)
-        .environmentObject(BluetoothService())
-} 
+        ProfileView()
+            .environmentObject(DhikrService.shared)
+            .environmentObject(AudioPlayerService.shared)
+            .environmentObject(BluetoothService())
+            .environmentObject(LocationService())
+    }
 } 

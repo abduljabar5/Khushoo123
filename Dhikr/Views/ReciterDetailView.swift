@@ -33,28 +33,19 @@ struct ReciterDetailView: View {
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(spacing: 16) {
-            KFImage(reciter.artworkURL)
-                .resizable()
-                .placeholder {
-            Image(systemName: "person.circle.fill")
-                        .font(.system(size: 120))
-                        .foregroundColor(.gray)
-                }
-                .scaledToFill()
-                .frame(width: 120, height: 120)
-                .clipShape(Circle())
-                .shadow(radius: 8)
-                .padding(.top)
+            ReciterArtworkImage(
+                artworkURL: reciter.artworkURL,
+                reciterName: reciter.name,
+                size: 120
+            )
+            .shadow(radius: 8)
+            .padding(.top)
             
             VStack(spacing: 4) {
                 Text(reciter.englishName)
                     .font(.title2)
                     .fontWeight(.bold)
-                
-                Text(reciter.name)
-                    .font(.title3)
-                    .foregroundColor(.secondary)
-                
+
                 Text("Language: \(reciter.language.uppercased())")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -97,25 +88,10 @@ struct ReciterDetailView: View {
         Task {
             do {
                 let allSurahs = try await quranAPIService.fetchSurahs()
-                let quranCentralPrefix = "qurancentral_"
 
-                if reciter.identifier.hasPrefix(quranCentralPrefix) {
-                    // This is a Quran Central reciter, so fetch their specific surah list.
-                    let slug = String(reciter.identifier.dropFirst(quranCentralPrefix.count))
-                    let availableSurahNumbers = try await QuranCentralService.shared.fetchAvailableSurahNumbers(for: slug)
-                    
-                    let filteredSurahs = allSurahs.filter { availableSurahNumbers.contains($0.number) }
-                    
-                    await MainActor.run {
-                        self.surahs = filteredSurahs
-                        self.isLoading = false
-                    }
-                } else {
-                    // This is an MP3Quran.net reciter, load all surahs.
                 await MainActor.run {
-                        self.surahs = allSurahs
+                    self.surahs = allSurahs
                     self.isLoading = false
-                    }
                 }
             } catch {
                 print("Error loading surahs: \(error)")

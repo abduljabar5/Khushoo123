@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VoiceConfirmationView: View {
-    @StateObject private var speechService = SpeechRecognitionService()
+    @EnvironmentObject var speechService: SpeechRecognitionService
     @ObservedObject var blockingState: BlockingStateService
     @StateObject private var themeManager = ThemeManager.shared
     @AppStorage("focusStrictMode") private var strictMode = false

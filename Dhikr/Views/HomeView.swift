@@ -17,7 +17,7 @@ struct HomeView: View {
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var blockingState = BlockingStateService.shared
     @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var prayerViewModel = PrayerTimeViewModel()
+    @EnvironmentObject var prayerViewModel: PrayerTimeViewModel
     @State private var earlyUnlockTickHome = 0
     
     @State private var featuredReciter: Reciter?
@@ -40,31 +40,31 @@ struct HomeView: View {
     // Timer for auto-switching slideshow
     @State private var slideshowTimer: Timer?
     
-    // Static lists of reciter names
+    // Static lists of reciter names (English names as they appear in the API)
     private let popularReciterNames = [
-        "Abdur Rahman As-Sudais",
-        "Mishary Rashid Alafasy",
-        "Saad al-Ghamdi",
+        "Maher Al Meaqli",
+        "Abdulbasit Abdulsamad",
+        "Mishary Alafasi",
         "Saud Al-Shuraim",
-        "Ahmed Al Ajmi",
-        "Muhammad Siddiq al-Minshawi",
-        "Abu Bakr al-Shatri",
-        "Nasser Al Qatami",
-        "Bandar Baleela",
-        "Yasser Al Dossari"
+        "Abdulrahman Alsudaes",
+        "Ahmad Al-Ajmy",
+        "Fares Abbad",
+        "Yasser Al-Dosari",
+        "Mohammed Ayyub",
+        "Idrees Abkr"
     ]
 
     private let soothingReciterNames = [
-        "Islam Sobhi",
-        "Omar Hisham Al Arabi",
-        "Hazza Al Balushi",
-        "Noreen Muhammad Siddique",
-        "Raad Muhammad Al-Kurdi",
-        "Salman Al-Utaybi",
-        "Wadee Hammadi Al Yamani",
-        "Abdul Wadood Haneef",
-        "Abdul-Kareem Al Hazmi",
-        "Mahmoud Ali Al Banna"
+        "Maher Al Meaqli",
+        "Mishary Alafasi",
+        "Saad Al-Ghamdi",
+        "Abdulbasit Abdulsamad",
+        "Yasser Al-Dosari",
+        "Idrees Abkr",
+        "Nasser Alqatami",
+        "Ahmad Al-Ajmy",
+        "Abdullah Al-Johany",
+        "Mohammed Siddiq Al-Minshawi"
     ]
     
     var body: some View {
@@ -150,9 +150,11 @@ struct HomeView: View {
             allRecitersSheet(title: "Soothing Reciters", reciters: soothingReciters)
         }
         .sheet(isPresented: $showingProfile) {
-            ProfileView()
-                .environmentObject(audioPlayerService)
-                .environmentObject(quranAPIService)
+            NavigationView {
+                ProfileView()
+                    .environmentObject(audioPlayerService)
+                    .environmentObject(quranAPIService)
+            }
         }
     }
 
@@ -426,6 +428,14 @@ struct HomeView: View {
         ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
             KFImage(reciter.artworkURL)
+                .placeholder {
+                    ZStack {
+                        themeManager.theme.tertiaryBackground
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 80))
+                            .foregroundColor(themeManager.theme.tertiaryText)
+                    }
+                }
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity)
@@ -618,6 +628,14 @@ struct HomeView: View {
         ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
             KFImage(reciter.artworkURL)
+                .placeholder {
+                    ZStack {
+                        themeManager.theme.tertiaryBackground
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(themeManager.theme.tertiaryText)
+                    }
+                }
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(height: 180)
@@ -1163,12 +1181,12 @@ struct HomeView: View {
     private func reciterCardView(reciter: Reciter, showBadge: Bool) -> some View {
         VStack(spacing: 12) {
             ZStack(alignment: .topTrailing) {
-                // Reciter Image
-                KFImage(reciter.artworkURL)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 100, height: 100)
-                    .clipShape(Circle())
+                // Reciter Image with automatic fallback
+                ReciterArtworkImage(
+                    artworkURL: reciter.artworkURL,
+                    reciterName: reciter.name,
+                    size: 100
+                )
 
                 // Stats badge (only for Most Listened)
                 if showBadge {
@@ -1254,6 +1272,14 @@ struct HomeView: View {
             // Rank Badge + Image (fills to edges)
             ZStack(alignment: .topLeading) {
                 KFImage(reciter.artworkURL)
+                    .placeholder {
+                        ZStack {
+                            themeManager.theme.tertiaryBackground
+                            Image(systemName: "person.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(themeManager.theme.tertiaryText)
+                        }
+                    }
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 120, height: 120)
@@ -1662,23 +1688,23 @@ struct HomeView: View {
     private var mostListenedToBanner: some View {
         HStack(spacing: 16) {
             if let mostListenedReciter = getMostListenedReciter() {
-                // Reciter avatar
-                KFImage(mostListenedReciter.artworkURL)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 50, height: 50)
-                    .clipShape(Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 2
-                            )
-                    )
+                // Reciter avatar with automatic fallback
+                ReciterArtworkImage(
+                    artworkURL: mostListenedReciter.artworkURL,
+                    reciterName: mostListenedReciter.name,
+                    size: 50
+                )
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                )
 
                 // Info section
                 VStack(alignment: .leading, spacing: 4) {
@@ -2191,6 +2217,14 @@ struct HomeView: View {
                 ZStack(alignment: .bottomLeading) {
                     // Background Image
                     KFImage(reciter.artworkURL)
+                        .placeholder {
+                            ZStack {
+                                themeManager.theme.tertiaryBackground
+                                Image(systemName: "person.circle.fill")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(themeManager.theme.tertiaryText)
+                            }
+                        }
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(height: 200)
@@ -2430,27 +2464,17 @@ struct HomeView: View {
     private func processReciters(_ reciters: [Reciter]) {
         print("🏠 [HomeView] Processing \(reciters.count) reciters...")
 
-                // Use Quran Central reciters for the curated lists if possible
-                let quranCentralReciters = reciters.filter { $0.identifier.hasPrefix("qurancentral_") }
+        // Filter reciters by English name
+        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
 
-                    self.popularReciters = Array(quranCentralReciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-                    self.soothingReciters = Array(quranCentralReciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+        // Randomly select featured reciters from popular list
+        let shuffledPopular = self.popularReciters.shuffled()
+        self.featuredReciter = shuffledPopular.first ?? reciters.randomElement()
+        self.secondReciter = shuffledPopular.dropFirst().first ?? reciters.randomElement()
+        self.thirdReciter = shuffledPopular.dropFirst(2).first ?? reciters.randomElement()
 
-                    // Fallback to any reciter if the curated list is empty
-                    if self.popularReciters.isEmpty {
-                        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-                    }
-                    if self.soothingReciters.isEmpty {
-                        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
-                    }
-
-                    // Randomly select featured reciters from popular list
-                    let shuffledPopular = self.popularReciters.shuffled()
-                    self.featuredReciter = shuffledPopular.first ?? reciters.randomElement()
-                    self.secondReciter = shuffledPopular.dropFirst().first ?? reciters.randomElement()
-                    self.thirdReciter = shuffledPopular.dropFirst(2).first ?? reciters.randomElement()
-
-                    self.isLoading = false
+        self.isLoading = false
         print("✅ [HomeView] Data loaded and UI updated. Popular: \(popularReciters.count), Soothing: \(soothingReciters.count), Featured: \(featuredReciter?.englishName ?? "none"), #2: \(secondReciter?.englishName ?? "none"), #3: \(thirdReciter?.englishName ?? "none")")
     }
 
@@ -2511,19 +2535,7 @@ struct HomeView: View {
         Task {
             do {
                 let allSurahs = try await quranAPIService.fetchSurahs()
-                var surahToPlay: Surah?
-
-                let quranCentralPrefix = "qurancentral_"
-                if reciter.identifier.hasPrefix(quranCentralPrefix) {
-                    // It's a Quran Central reciter; we must fetch their specific list.
-                    let slug = String(reciter.identifier.dropFirst(quranCentralPrefix.count))
-                    let availableNumbers = try await QuranCentralService.shared.fetchAvailableSurahNumbers(for: slug)
-                    let availableSurahs = allSurahs.filter { availableNumbers.contains($0.number) }
-                    surahToPlay = availableSurahs.randomElement()
-                } else {
-                    // It's an MP3Quran reciter; any surah is fine.
-                    surahToPlay = allSurahs.randomElement()
-                }
+                let surahToPlay = allSurahs.randomElement()
 
                 if let surah = surahToPlay {
                     await MainActor.run {
@@ -2621,15 +2633,15 @@ struct CategoryRow<Item: Identifiable, ItemView: View>: View {
 // MARK: - Reciter Card
 struct ReciterCard: View {
     let reciter: Reciter
-    
+
     var body: some View {
         VStack {
-            KFImage(reciter.artworkURL)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 120, height: 120)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
+            ReciterArtworkImage(
+                artworkURL: reciter.artworkURL,
+                reciterName: reciter.name,
+                size: 120
+            )
+            .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
 
             Text(reciter.englishName)
                 .font(.footnote)

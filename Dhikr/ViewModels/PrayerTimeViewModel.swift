@@ -32,17 +32,18 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     // MARK: - Private Properties
-    private let locationManager = CLLocationManager()
+    private let locationService: LocationService
     private let prayerTimeService = PrayerTimeService()
     private var timer: Timer?
-    private var currentLocation: CLLocation?
+    private var cancellables = Set<AnyCancellable>()
     private var prayerTimes: Timings?
     private var todaysPrayers: [Prayer] = []
 
     // MARK: - Initialization
-    override init() {
+    init(locationService: LocationService) {
+        self.locationService = locationService
         super.init()
-        setupLocationManager()
+        setupLocationObserver()
         loadSavedData()
         setupPrayers()
         startTimer()
@@ -55,10 +56,35 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     // MARK: - Setup Methods
-    private func setupLocationManager() {
-        locationManager.delegate = self
-        locationManager.requestWhenInUseAuthorization()
-        locationManager.requestLocation()
+    private func setupLocationObserver() {
+        // Subscribe to location updates from shared LocationService
+        locationService.$location
+            .compactMap { $0 }
+            .sink { [weak self] location in
+                self?.handleLocationUpdate(location)
+            }
+            .store(in: &cancellables)
+
+        // Request location if we don't have it yet
+        if locationService.location == nil {
+            locationService.requestLocation()
+        }
+    }
+
+    private func handleLocationUpdate(_ location: CLLocation) {
+        // Reverse geocode to get city name
+        let geocoder = CLGeocoder()
+        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
+            if let placemark = placemarks?.first {
+                self?.updateLocationInfo(from: placemark)
+            }
+            self?.isRefreshingLocation = false
+        }
+
+        // Fetch prayer times if we don't have cached data for today
+        if !loadCachedPrayerTimes() {
+            fetchPrayerTimesInBackground()
+        }
     }
 
     private func loadSavedData() {
@@ -250,7 +276,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     // MARK: - Public Methods
     func refreshLocation() {
         isRefreshingLocation = true
-        locationManager.requestLocation()
+        locationService.requestLocation()
     }
 
     func fetchPrayerTimes(for date: Date) {
@@ -276,7 +302,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     private func fetchFuturePrayerTimes(for date: Date) {
-        guard let location = currentLocation else { return }
+        guard let location = locationService.location else { return }
 
         isLoadingFuturePrayers = true
 
@@ -511,7 +537,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
 
     // MARK: - API Methods
     private func fetchPrayerTimes() {
-        guard let location = currentLocation else { return }
+        guard let location = locationService.location else { return }
 
         Task {
             do {
@@ -528,9 +554,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     private func fetchPrayerTimesInBackground() {
-        guard let location = currentLocation else {
+        guard let location = locationService.location else {
             // If no location, try to get it first
-            locationManager.requestLocation()
+            locationService.requestLocation()
             return
         }
 
@@ -627,35 +653,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         UserDefaults.standard.set(cityName, forKey: "savedCity")
         UserDefaults.standard.set(stateName, forKey: "savedState")
         UserDefaults.standard.set(countryName, forKey: "savedCountry")
-    }
-}
-
-// MARK: - Location Manager Delegate
-extension PrayerTimeViewModel: CLLocationManagerDelegate {
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else {
-            isRefreshingLocation = false
-            return
-        }
-        currentLocation = location
-
-        // Reverse geocode to get city name
-        let geocoder = CLGeocoder()
-        geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            if let placemark = placemarks?.first {
-                self?.updateLocationInfo(from: placemark)
-            }
-            self?.isRefreshingLocation = false
-        }
-
-        // Fetch prayer times for new location
-        fetchPrayerTimes()
-    }
-
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("Location manager error: \(error)")
-        isRefreshingLocation = false
-        // Use default location (Minneapolis)
     }
 }
 

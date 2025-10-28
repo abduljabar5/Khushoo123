@@ -9,6 +9,7 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 import UIKit
+import FirebaseAuth
 
 // MARK: - Audio Player Service
 class AudioPlayerService: NSObject, ObservableObject {
@@ -77,7 +78,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     private override init() {
         super.init()
         print("🎵 [AudioPlayerService] Initialized")
-        
+
         // Setup audio interruption handling
         setupAudioInterruptionHandling()
 
@@ -93,13 +94,17 @@ class AudioPlayerService: NSObject, ObservableObject {
         } else {
             self.likedItems = []
         }
-        
+
         // Load listening statistics
         self.totalListeningTime = UserDefaults.standard.double(forKey: "totalListeningTime")
         if let completedArray = UserDefaults.standard.array(forKey: "completedSurahNumbers") as? [Int] {
             self.completedSurahNumbers = Set(completedArray)
         }
         print("🎵 [AudioPlayerService] Loaded listening stats: \(Int(totalListeningTime))s total, \(completedSurahNumbers.count) completed surahs")
+
+        // Load auto-play setting (default to true)
+        self.isAutoplayEnabled = UserDefaults.standard.object(forKey: "autoPlayNextSurah") as? Bool ?? true
+        print("🎵 [AudioPlayerService] Auto-play enabled: \(isAutoplayEnabled)")
     }
     
     // MARK: - Activation
@@ -1035,6 +1040,30 @@ class AudioPlayerService: NSObject, ObservableObject {
         self.currentArtwork = newImage
         updateNowPlayingInfo()
     }
+
+    private func fetchSurahCoverArtwork(for surah: Surah) async {
+        // Only fetch if user is authenticated
+        guard Auth.auth().currentUser != nil else {
+            await MainActor.run {
+                self.currentArtwork = nil
+            }
+            print("ℹ️ [AudioPlayerService] User not authenticated - no artwork shown")
+            return
+        }
+
+        // Fetch from Firebase Storage
+        if let image = await SurahImageService.shared.fetchSurahCover(for: surah.number) {
+            await MainActor.run {
+                self.currentArtwork = image
+                print("✅ [AudioPlayerService] Loaded surah cover for surah \(surah.number)")
+            }
+        } else {
+            await MainActor.run {
+                self.currentArtwork = nil
+            }
+            print("⚠️ [AudioPlayerService] Failed to load surah cover for surah \(surah.number)")
+        }
+    }
     
     private func loadAndPlay(surah: Surah, reciter: Reciter, startTime: TimeInterval? = nil) async {
         await MainActor.run {
@@ -1072,7 +1101,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         
         // Log the track to the recents manager
         RecentsManager.shared.addTrack(surah: surah, reciter: reciter)
-        
+
+        // Fetch surah cover image (only for authenticated users)
+        await fetchSurahCoverArtwork(for: surah)
+
         do {
             let audioURLString = try await QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
             guard let audioURL = URL(string: audioURLString) else {
@@ -1256,8 +1288,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Playlist Management
     private func buildPlaylist(for reciter: Reciter) async {
         print("🏗️ [AudioPlayerService] Building playlist for reciter: \(reciter.englishName)")
-        
-        // Fetch all 114 surahs to serve as the master list
+
+        // Fetch all 114 surahs to serve as the playlist
         guard let allSurahs = try? await QuranAPIService.shared.fetchSurahs() else {
             print("❌ [AudioPlayerService] Could not fetch master surah list to build playlist.")
             await MainActor.run {
@@ -1265,27 +1297,12 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
             return
         }
-        
-        var availableSurahs: [Surah] = []
-        let quranCentralPrefix = "qurancentral_"
 
-        if reciter.identifier.hasPrefix(quranCentralPrefix) {
-            let slug = String(reciter.identifier.dropFirst(quranCentralPrefix.count))
-            if let availableNumbers = try? await QuranCentralService.shared.fetchAvailableSurahNumbers(for: slug) {
-                availableSurahs = allSurahs.filter { availableNumbers.contains($0.number) }
-                print("✅ [AudioPlayerService] Found \(availableSurahs.count) available surahs for Quran Central reciter.")
-            } else {
-                print("⚠️ [AudioPlayerService] Could not fetch available surah numbers for Quran Central reciter. Playlist will be empty.")
-            }
-        } else {
-            // For MP3Quran reciters, assume all 114 are available as per previous logic.
-            availableSurahs = allSurahs
-            print("✅ [AudioPlayerService] Assuming all 114 surahs are available for MP3Quran reciter.")
-        }
-        
+        print("✅ [AudioPlayerService] Building playlist with all 114 surahs for reciter.")
+
         await MainActor.run {
-            self.currentPlaylist = availableSurahs
-            
+            self.currentPlaylist = allSurahs
+
             // If shuffle is on, we need to regenerate the shuffled indices for the new playlist.
             if self.isShuffleEnabled {
                 self.shuffledPlaylistIndices = Array(0..<self.currentPlaylist.count)

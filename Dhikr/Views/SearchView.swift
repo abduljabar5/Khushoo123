@@ -15,7 +15,9 @@ import Combine
 struct SearchView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var screenTimeAuth: ScreenTimeAuthorizationService
+    @EnvironmentObject var speechService: SpeechRecognitionService
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var showingAppPicker = false
     @State private var appSelection = FamilyActivitySelection()
 
@@ -29,6 +31,7 @@ struct SearchView: View {
     @State private var hasInitializedSettings = false
     @State private var reschedulingTimer: Timer?
     @State private var isUpdatingSchedule = false
+    @State private var prayerStorage: PrayerTimeStorage? = nil
     
     // Persistent flag to track if we've ever scheduled blocking (survives app restarts)
     private var hasScheduledInitialBlocking: Bool {
@@ -36,11 +39,12 @@ struct SearchView: View {
     }
     
     // Settings that trigger activity monitor updates (persisted)
-    @AppStorage("focusSelectedFajr") private var selectedFajr = true
-    @AppStorage("focusSelectedDhuhr") private var selectedDhuhr = true
-    @AppStorage("focusSelectedAsr") private var selectedAsr = true
-    @AppStorage("focusSelectedMaghrib") private var selectedMaghrib = true
-    @AppStorage("focusSelectedIsha") private var selectedIsha = true
+    // Default to false (disabled) for new users - they must opt-in
+    @AppStorage("focusSelectedFajr") private var selectedFajr = false
+    @AppStorage("focusSelectedDhuhr") private var selectedDhuhr = false
+    @AppStorage("focusSelectedAsr") private var selectedAsr = false
+    @AppStorage("focusSelectedMaghrib") private var selectedMaghrib = false
+    @AppStorage("focusSelectedIsha") private var selectedIsha = false
     
     private var selectedPrayers: Set<String> {
         var prayers: Set<String> = []
@@ -71,11 +75,11 @@ struct SearchView: View {
     @AppStorage("focusStrictMode") private var strictMode = false
 
     // Other UI settings (don't trigger updates)
-    @State private var prePrayerNotification = true
+    @AppStorage("prayerRemindersEnabled") private var prePrayerNotification = true
     @State private var showingUnlockConfirmation = false
-    
+
     // Services
-    private let locationService = LocationService()
+    @EnvironmentObject var locationService: LocationService
     private let prayerTimeService = PrayerTimeService()
     @StateObject private var blockingStateService = BlockingStateService.shared
     @StateObject private var notificationService = PrayerNotificationService.shared
@@ -87,7 +91,148 @@ struct SearchView: View {
             // Theme-aware background
             backgroundView
 
-            ScrollView {
+            // Main content (always show for blur effect)
+            mainContent
+                .blur(radius: subscriptionService.isPremium ? 0 : 10)
+
+            // Premium lock overlay
+            if !subscriptionService.isPremium {
+                PremiumLockedView(feature: .focus)
+            }
+        }
+        .onChange(of: blockingDuration) { newValue in
+            // Clamp to 15..60 in 5-min steps
+            let clamped = min(60, max(15, round(newValue / 5) * 5))
+            if clamped != newValue {
+                blockingDuration = clamped
+            }
+            // Sync to App Group in background
+            Task.detached(priority: .background) {
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(await self.blockingDuration, forKey: "focusBlockingDuration")
+                    groupDefaults.synchronize()
+                }
+            }
+            scheduleUserTriggeredUpdate()
+        }
+        .onChange(of: selectedPrayers) { _ in
+            // Sync to App Group first
+            syncPrayerSelectionsToAppGroup()
+            scheduleUserTriggeredUpdate()
+            scheduleNotificationsIfNeeded()
+        }
+        .onChange(of: strictMode) { newValue in
+            // Request speech and microphone permissions when strict mode is first enabled
+            if newValue && !speechService.hasPermissions {
+                speechService.requestPermissions()
+            }
+
+            // Sync strict mode to App Group in background
+            Task.detached(priority: .background) {
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(newValue, forKey: "focusStrictMode")
+                    groupDefaults.synchronize()
+                }
+            }
+            // Do not interrupt current block; update future schedule only
+            performUserTriggeredScheduleUpdate()
+        }
+        .onChange(of: prePrayerNotification) { newValue in
+            // Sync to App Group
+            Task.detached(priority: .background) {
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(newValue, forKey: "prayerRemindersEnabled")
+                    groupDefaults.synchronize()
+                }
+            }
+
+            if newValue {
+                scheduleNotificationsIfNeeded()
+            } else {
+                // Clear notifications when disabled
+                notificationService.clearPrePrayerNotifications()
+            }
+        }
+        .foregroundColor(theme.primaryText)
+        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
+
+        .sheet(isPresented: $showingAppPicker) {
+            if #available(iOS 15.0, *) {
+        NavigationView {
+                    AppPickerView()
+                        .environmentObject(ThemeManager.shared)
+                }
+            }
+        }
+        .sheet(isPresented: $showingUnlockConfirmation) {
+            SpeechConfirmationView(isPresented: $showingUnlockConfirmation, theme: theme) {
+                // Mock success action
+            } onCancel: {
+                // Mock cancel action
+            }
+                }
+        .onAppear {
+            // Clamp any previously persisted value
+            let clamped = min(60, max(15, round(blockingDuration / 5) * 5))
+            if clamped != blockingDuration {
+                blockingDuration = clamped
+            }
+
+            // Check Screen Time authorization status
+            screenTimeAuth.updateAuthorizationStatus()
+
+            // Fetch prayer times
+            fetchPrayerTimesIfNeeded()
+
+            // Sync settings to UserDefaults in background after initialization
+            Task.detached(priority: .background) {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+                await MainActor.run {
+                    // Mark as initialized first to prevent triggering updates
+                    self.hasInitializedSettings = true
+                }
+
+                // Sync current settings to UserDefaults in background
+                let defaults = UserDefaults.standard
+                let fajr = await self.selectedFajr
+                let dhuhr = await self.selectedDhuhr
+                let asr = await self.selectedAsr
+                let maghrib = await self.selectedMaghrib
+                let isha = await self.selectedIsha
+                let duration = await self.blockingDuration
+                let strict = await self.strictMode
+
+                defaults.set(fajr, forKey: "focusSelectedFajr")
+                defaults.set(dhuhr, forKey: "focusSelectedDhuhr")
+                defaults.set(asr, forKey: "focusSelectedAsr")
+                defaults.set(maghrib, forKey: "focusSelectedMaghrib")
+                defaults.set(isha, forKey: "focusSelectedIsha")
+                defaults.set(duration, forKey: "focusBlockingDuration")
+
+                let prayerReminders = await self.prePrayerNotification
+                defaults.set(prayerReminders, forKey: "prayerRemindersEnabled")
+
+                // Sync ALL settings to App Group for extension access
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(strict, forKey: "focusStrictMode")
+                    groupDefaults.set(fajr, forKey: "focusSelectedFajr")
+                    groupDefaults.set(dhuhr, forKey: "focusSelectedDhuhr")
+                    groupDefaults.set(asr, forKey: "focusSelectedAsr")
+                    groupDefaults.set(maghrib, forKey: "focusSelectedMaghrib")
+                    groupDefaults.set(isha, forKey: "focusSelectedIsha")
+                    groupDefaults.set(duration, forKey: "focusBlockingDuration")
+                    groupDefaults.set(prayerReminders, forKey: "prayerRemindersEnabled")
+                    groupDefaults.synchronize()
+                }
+            }
+        }
+    }
+
+    // MARK: - Private Methods
+
+    private var mainContent: some View {
+        ScrollView {
                 VStack(spacing: 0) {
                     // Simple Header like mockup
                     VStack(spacing: 8) {
@@ -212,113 +357,6 @@ struct SearchView: View {
                 }
             }
         }
-        .onChange(of: blockingDuration) { newValue in
-            // Clamp to 15..60 in 5-min steps
-            let clamped = min(60, max(15, round(newValue / 5) * 5))
-            if clamped != newValue {
-                blockingDuration = clamped
-            }
-            // Sync to App Group in background
-            Task.detached(priority: .background) {
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(await self.blockingDuration, forKey: "focusBlockingDuration")
-                    groupDefaults.synchronize()
-                }
-            }
-            scheduleUserTriggeredUpdate()
-        }
-        .onChange(of: selectedPrayers) { _ in
-            // Sync to App Group first
-            syncPrayerSelectionsToAppGroup()
-            scheduleUserTriggeredUpdate()
-            scheduleNotificationsIfNeeded()
-        }
-        .onChange(of: strictMode) { newValue in
-            // Sync strict mode to App Group in background
-            Task.detached(priority: .background) {
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(newValue, forKey: "focusStrictMode")
-                    groupDefaults.synchronize()
-                }
-            }
-            // Do not interrupt current block; update future schedule only
-            performUserTriggeredScheduleUpdate()
-        }
-        .onChange(of: prePrayerNotification) { _ in
-            scheduleNotificationsIfNeeded()
-        }
-        .foregroundColor(theme.primaryText)
-        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
-
-        .sheet(isPresented: $showingAppPicker) {
-            if #available(iOS 15.0, *) {
-        NavigationView {
-                    AppPickerView()
-                        .environmentObject(ThemeManager.shared)
-                }
-            }
-        }
-        .sheet(isPresented: $showingUnlockConfirmation) {
-            SpeechConfirmationView(isPresented: $showingUnlockConfirmation, theme: theme) {
-                // Mock success action
-            } onCancel: {
-                // Mock cancel action
-            }
-                }
-        .onAppear {
-            // Clamp any previously persisted value
-            let clamped = min(60, max(15, round(blockingDuration / 5) * 5))
-            if clamped != blockingDuration {
-                blockingDuration = clamped
-            }
-            
-            // Check Screen Time authorization status
-            screenTimeAuth.updateAuthorizationStatus()
-            
-            // Fetch prayer times
-            fetchPrayerTimesIfNeeded()
-            
-            // Sync settings to UserDefaults in background after initialization
-            Task.detached(priority: .background) {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                
-                await MainActor.run {
-                    // Mark as initialized first to prevent triggering updates
-                    self.hasInitializedSettings = true
-                }
-                
-                // Sync current settings to UserDefaults in background
-                let defaults = UserDefaults.standard
-                let fajr = await self.selectedFajr
-                let dhuhr = await self.selectedDhuhr
-                let asr = await self.selectedAsr
-                let maghrib = await self.selectedMaghrib
-                let isha = await self.selectedIsha
-                let duration = await self.blockingDuration
-                let strict = await self.strictMode
-                
-                defaults.set(fajr, forKey: "focusSelectedFajr")
-                defaults.set(dhuhr, forKey: "focusSelectedDhuhr")
-                defaults.set(asr, forKey: "focusSelectedAsr")
-                defaults.set(maghrib, forKey: "focusSelectedMaghrib")
-                defaults.set(isha, forKey: "focusSelectedIsha")
-                defaults.set(duration, forKey: "focusBlockingDuration")
-                
-                // Sync ALL settings to App Group for extension access
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(strict, forKey: "focusStrictMode")
-                    groupDefaults.set(fajr, forKey: "focusSelectedFajr")
-                    groupDefaults.set(dhuhr, forKey: "focusSelectedDhuhr")
-                    groupDefaults.set(asr, forKey: "focusSelectedAsr")
-                    groupDefaults.set(maghrib, forKey: "focusSelectedMaghrib")
-                    groupDefaults.set(isha, forKey: "focusSelectedIsha")
-                    groupDefaults.set(duration, forKey: "focusBlockingDuration")
-                    groupDefaults.synchronize()
-                }
-            }
-        }
-        
-    }
 
     // MARK: - Private Methods
 
@@ -380,20 +418,39 @@ struct SearchView: View {
     }
     
     private func fetchPrayerTimesIfNeeded() {
-        // Check if we need to fetch prayer times
-        let now = Date()
-        
-        // Only fetch if:
-        // 1. We don't have any prayer times, OR
-        // 2. It's been more than 12 hours since last fetch, OR  
-        // 3. We have an error and no prayer times
-        let shouldFetch = prayerTimes.isEmpty || 
-                         (lastPrayerTimeFetch == nil) ||
-                         (lastPrayerTimeFetch != nil && now.timeIntervalSince(lastPrayerTimeFetch!) > 12 * 3600) ||
-                         (prayerTimesError != nil && prayerTimes.isEmpty)
-        
+        print("🔍 [PrayerBlocking] Checking if prayer times need to be fetched...")
+
+        // Try to load existing storage first
+        if prayerStorage == nil {
+            prayerStorage = prayerTimeService.loadStorage()
+        }
+
+        // Check if we need to fetch
+        let shouldFetch: Bool
+        if let storage = prayerStorage {
+            shouldFetch = storage.shouldRefresh
+            if shouldFetch {
+                print("🔄 [PrayerBlocking] Storage needs refresh (too old or invalid)")
+            } else {
+                print("✅ [PrayerBlocking] Storage is valid, using cached data")
+                // Load prayer times from storage for display
+                loadPrayerTimesFromStorage(storage)
+                // Check if rolling window needs update
+                checkRollingWindowUpdate()
+                return
+            }
+        } else {
+            shouldFetch = true
+            print("🔍 [PrayerBlocking] No storage found, will fetch 6 months")
+        }
+
         if shouldFetch {
             fetchPrayerTimes()
+        } else {
+            // Load existing storage for display
+            if let storage = prayerStorage {
+                loadPrayerTimesFromStorage(storage)
+            }
         }
     }
     
@@ -457,82 +514,116 @@ struct SearchView: View {
     private func fetchPrayerTimesForLocation(_ location: CLLocation) {
         Task {
             do {
-                // Try cache first (once per day per approx location)
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    let todayStart = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
-                    let cachedDay = groupDefaults.object(forKey: "PrayerTimesCacheFetchedDay") as? TimeInterval
-                    let cachedLat = groupDefaults.object(forKey: "PrayerTimesCacheLat") as? Double
-                    let cachedLon = groupDefaults.object(forKey: "PrayerTimesCacheLon") as? Double
-                    let locationTolerance = 0.02 // ~2 km tolerance
-                    if let cachedDay = cachedDay,
-                       let cachedLat = cachedLat,
-                       let cachedLon = cachedLon,
-                       abs(cachedLat - location.coordinate.latitude) <= locationTolerance,
-                       abs(cachedLon - location.coordinate.longitude) <= locationTolerance,
-                       cachedDay == todayStart,
-                       let cachedArray = groupDefaults.object(forKey: "PrayerTimesCacheArray") as? [[String: Any]] {
-                        let cached: [PrayerTime] = cachedArray.compactMap { dict in
-                            guard let name = dict["name"] as? String,
-                                  let ts = dict["date"] as? TimeInterval else { return nil }
-                            return PrayerTime(name: name, date: Date(timeIntervalSince1970: ts))
-                        }
-                        if !cached.isEmpty {
-                            await MainActor.run {
-                                self.prayerTimes = cached
-                                self.isLoadingPrayerTimes = false
-                                self.prayerTimesError = nil
-                                self.lastPrayerTimeFetch = Date()
-                                // Cache loaded - schedule notifications if enabled
-                                self.scheduleNotificationsIfNeeded()
-                            }
-                            return
-                        }
+                // Check if existing storage needs location refresh
+                if let storage = prayerStorage {
+                    if prayerTimeService.needsRefreshForLocation(location, storage: storage) {
+                        print("🔄 [PrayerBlocking] Location changed, clearing old storage")
+                        prayerTimeService.clearStorage()
+                        prayerStorage = nil
+                    } else {
+                        print("✅ [PrayerBlocking] Location hasn't changed significantly")
                     }
                 }
-                
-                var allPrayerTimes: [PrayerTime] = []
-                let today = Date()
-                
-                // Fetch prayer times for 5 days (today + 4 more days) to ensure we have 20 future prayers
-                for dayOffset in 0..<5 {
-                    guard let targetDate = Calendar.current.date(byAdding: .day, value: dayOffset, to: today) else {
-                        continue
-                    }
-                    
-                    let timings = try await prayerTimeService.fetchPrayerTimes(for: location, on: targetDate)
-                    let parsedTimes = parsePrayerTimes(timings: timings, for: targetDate)
-                    allPrayerTimes.append(contentsOf: parsedTimes)
-                }
-                
+
+                print("🕌 [PrayerBlocking] Fetching 6 months of prayer times...")
+
+                // Fetch 6 months of prayer times
+                let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location)
+
+                // Save storage
+                prayerTimeService.saveStorage(storage)
+                prayerStorage = storage
+
+                // Load prayer times for display (next 4 days)
                 await MainActor.run {
-                    self.prayerTimes = allPrayerTimes
+                    self.loadPrayerTimesFromStorage(storage)
                     self.isLoadingPrayerTimes = false
                     self.prayerTimesError = nil
                     self.lastPrayerTimeFetch = Date()
 
-                    // Prayer times fetched - schedule notifications if enabled
+                    // Schedule notifications if enabled
                     self.scheduleNotificationsIfNeeded()
+
+                    // Schedule rolling window
+                    self.scheduleRollingWindowFromStorage()
                 }
-                
-                // Save cache (once per day per approx location)
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    let cacheArray = allPrayerTimes.map { [
-                        "name": $0.name,
-                        "date": $0.date.timeIntervalSince1970
-                    ] }
-                    groupDefaults.set(cacheArray, forKey: "PrayerTimesCacheArray")
-                    groupDefaults.set(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970, forKey: "PrayerTimesCacheFetchedDay")
-                    groupDefaults.set(location.coordinate.latitude, forKey: "PrayerTimesCacheLat")
-                    groupDefaults.set(location.coordinate.longitude, forKey: "PrayerTimesCacheLon")
-                }
-                
+
             } catch {
+                print("❌ [PrayerBlocking] Failed to fetch 6 months: \(error.localizedDescription)")
                 await MainActor.run {
                     self.prayerTimesError = "Failed to fetch prayer times: \(error.localizedDescription)"
                     self.isLoadingPrayerTimes = false
                 }
             }
         }
+    }
+
+    private func loadPrayerTimesFromStorage(_ storage: PrayerTimeStorage) {
+        print("📖 [PrayerBlocking] Loading prayer times from storage for display")
+
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
+
+        // Load next 4 days for UI display
+        guard let endOfDisplay = calendar.date(byAdding: .day, value: 4, to: startOfToday) else { return }
+
+        let displayTimes = storage.prayerTimes.filter { $0.date >= startOfToday && $0.date < endOfDisplay }
+
+        var prayerTimes: [PrayerTime] = []
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+
+        for storedTime in displayTimes {
+            let prayers = [
+                ("Fajr", storedTime.fajr),
+                ("Dhuhr", storedTime.dhuhr),
+                ("Asr", storedTime.asr),
+                ("Maghrib", storedTime.maghrib),
+                ("Isha", storedTime.isha)
+            ]
+
+            for (name, timeString) in prayers {
+                let cleanTimeString = timeString.components(separatedBy: " ").first ?? timeString
+                guard let time = timeFormatter.date(from: cleanTimeString) else { continue }
+
+                let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+                if let prayerDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                                  minute: timeComponents.minute ?? 0,
+                                                  second: 0,
+                                                  of: storedTime.date) {
+                    prayerTimes.append(PrayerTime(name: name, date: prayerDate))
+                }
+            }
+        }
+
+        self.prayerTimes = prayerTimes.sorted { $0.date < $1.date }
+        print("📖 [PrayerBlocking] Loaded \(self.prayerTimes.count) prayer times for display")
+    }
+
+    private func checkRollingWindowUpdate() {
+        guard let storage = prayerStorage else { return }
+
+        if DeviceActivityService.shared.needsRollingWindowUpdate() {
+            print("🔄 [PrayerBlocking] Rolling window needs update")
+            scheduleRollingWindowFromStorage()
+        } else {
+            print("✅ [PrayerBlocking] Rolling window is up to date")
+        }
+    }
+
+    private func scheduleRollingWindowFromStorage() {
+        guard let storage = prayerStorage else {
+            print("⚠️ [PrayerBlocking] No storage available for rolling window")
+            return
+        }
+
+        print("📅 [PrayerBlocking] Scheduling rolling window from storage")
+        DeviceActivityService.shared.scheduleRollingWindow(
+            from: storage,
+            duration: blockingDuration,
+            selectedPrayers: selectedPrayers
+        )
     }
     
     private func parsePrayerTimes(timings: Timings, for date: Date) -> [PrayerTime] {
@@ -644,8 +735,8 @@ struct SearchView: View {
             }
         }
     }
-    
 }
+
 // MARK: - Early Unlock Inline Section (Focus page)
 private struct EarlyUnlockInlineSection: View {
     let theme: AppTheme

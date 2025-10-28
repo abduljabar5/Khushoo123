@@ -135,12 +135,46 @@ class AuthenticationService: ObservableObject {
     // MARK: - Sign Out
     func signOut() throws {
         do {
+            print("🚪 [AuthService] Signing out user...")
+
+            // 1. Sign out from Firebase Auth
             try auth.signOut()
+
+            // 2. Clear local state
             isAuthenticated = false
             currentUser = nil
+
+            // 3. Clear subscription status (will be handled by SubscriptionService auth listener)
+            // The SubscriptionService automatically clears premium status when auth state changes
+
+            // 4. Clear any cached user data from UserDefaults
+            clearUserCache()
+
+            print("✅ [AuthService] User signed out successfully")
         } catch {
+            print("❌ [AuthService] Sign out failed: \(error)")
             throw AuthError.unknown("Failed to sign out")
         }
+    }
+
+    // MARK: - Clear User Cache
+    private func clearUserCache() {
+        let defaults = UserDefaults.standard
+
+        // List of keys to clear (add any app-specific user data keys here)
+        let keysToRemove = [
+            "lastLoggedInUserID",
+            "userPreferences",
+            // Add any other user-specific keys you're storing
+        ]
+
+        keysToRemove.forEach { key in
+            defaults.removeObject(forKey: key)
+        }
+
+        defaults.synchronize()
+
+        print("🧹 [AuthService] User cache cleared")
     }
 
     // MARK: - Password Reset

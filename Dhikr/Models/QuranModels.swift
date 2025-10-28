@@ -58,7 +58,7 @@ struct Reciter: Codable, Identifiable, Equatable {
     
     // For mock data and easier use
     static var mock: Reciter {
-        Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil, country: "Kuwait", dialect: "Hafs", artworkURL: URL(string: "https://artwork.qurancentral.com/mishary-rashid-alafasy.jpg"))
+        Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil, country: "Kuwait", dialect: "Hafs", artworkURL: nil)
     }
 }
 

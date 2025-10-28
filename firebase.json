@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "source": "functions",
+    "predeploy": [],
+    "runtime": "nodejs18"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

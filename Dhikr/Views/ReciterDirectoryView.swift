@@ -12,6 +12,7 @@ struct ReciterDirectoryView: View {
     @EnvironmentObject var quranAPIService: QuranAPIService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @ObservedObject var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
 
     @State private var allReciters: [Reciter] = []
     @State private var filteredReciters: [Reciter] = []
@@ -53,7 +54,7 @@ struct ReciterDirectoryView: View {
                 .hidden()
             }
 
-            // Main Content
+            // Main Content (always show for blur effect)
             Group {
                 if isLoading {
                     VStack {
@@ -84,26 +85,32 @@ struct ReciterDirectoryView: View {
                     }
                 }
             }
-            .onAppear {
-                loadData()
+            .blur(radius: subscriptionService.isPremium ? 0 : 10)
+
+            // Premium lock overlay
+            if !subscriptionService.isPremium {
+                PremiumLockedView(feature: .reciterSearch)
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                updateFavoritesCache()
-            }
-            .onReceive(quranAPIService.$reciters) { reciters in
-                // Update when global reciters are loaded
-                if !reciters.isEmpty && self.allReciters.isEmpty {
-                    print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
-                    self.allReciters = reciters
-                    self.filteredReciters = reciters
-                    self.isLoading = false
-                }
-            }
-            .onChange(of: searchText) { newValue in
-                performDebouncedSearch(query: newValue)
-            }
-            .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
         }
+        .onAppear {
+            loadData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            updateFavoritesCache()
+        }
+        .onReceive(quranAPIService.$reciters) { reciters in
+            // Update when global reciters are loaded
+            if !reciters.isEmpty && self.allReciters.isEmpty {
+                print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
+                self.allReciters = reciters
+                self.filteredReciters = reciters
+                self.isLoading = false
+            }
+        }
+        .onChange(of: searchText) { newValue in
+            performDebouncedSearch(query: newValue)
+        }
+        .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
         .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
     }
 
@@ -283,19 +290,11 @@ struct RecentlySearchedView: View {
                     ForEach(reciters) { reciter in
                         Button(action: { onReciterTapped(reciter) }) {
                             VStack {
-                                KFImage(reciter.artworkURL)
-                                    .resizable()
-                                    .loadDiskFileSynchronously()
-                                    .diskCacheExpiration(.never)
-                                    .fade(duration: 0.1)
-                                    .placeholder {
-                                        Image(systemName: "person.circle.fill")
-                                            .font(.system(size: 60))
-                                            .foregroundColor(theme.tertiaryText)
-                                    }
-                                    .scaledToFill()
-                                    .frame(width: 60, height: 60)
-                                    .clipShape(Circle())
+                                ReciterArtworkImage(
+                                    artworkURL: reciter.artworkURL,
+                                    reciterName: reciter.name,
+                                    size: 60
+                                )
                                 
                                 Text(reciter.englishName.components(separatedBy: " ").first ?? "")
                                     .font(.caption)
@@ -356,27 +355,15 @@ struct ReciterRow: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            KFImage(reciter.artworkURL)
-                .resizable()
-                .loadDiskFileSynchronously()
-                .diskCacheExpiration(.never)
-                .fade(duration: 0.1)
-                .placeholder {
-                    Circle()
-                        .fill(theme.tertiaryBackground)
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(theme.tertiaryText)
-                        )
-                }
-                .scaledToFill()
-                .frame(width: 50, height: 50)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(theme.hasGlassEffect ? theme.primaryAccent.opacity(0.2) : .clear, lineWidth: 1)
-                )
+            ReciterArtworkImage(
+                artworkURL: reciter.artworkURL,
+                reciterName: reciter.name,
+                size: 50
+            )
+            .overlay(
+                Circle()
+                    .stroke(theme.hasGlassEffect ? theme.primaryAccent.opacity(0.2) : .clear, lineWidth: 1)
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(reciter.englishName)

@@ -1,0 +1,16 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Surah cover images - only authenticated users can read
+    match /surah-covers/{imageId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins can upload via console
+    }
+
+    // Default rule - deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

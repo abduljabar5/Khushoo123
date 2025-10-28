@@ -80,45 +80,17 @@ class QuranAPIService: ObservableObject {
     
     // MARK: - Internal fetch method (does the actual work)
     private func fetchRecitersInternal() async throws -> [Reciter] {
-        print("🔍 [QuranAPIService] Fetching reciters from all sources...")
+        print("🔍 [QuranAPIService] Fetching reciters from MP3Quran...")
 
-        var mp3quranReciters: [Reciter] = []
-        var quranCentralReciters: [Reciter] = []
-        
-        // Try to fetch from MP3Quran
-        do {
-            mp3quranReciters = try await fetchMP3QuranReciters()
-            print("✅ [QuranAPIService] Fetched \(mp3quranReciters.count) reciters from MP3Quran.net")
-        } catch {
-            print("⚠️ [QuranAPIService] Failed to fetch from MP3Quran: \(error)")
-        }
-        
-        // Try to fetch from QuranCentral
-        do {
-            quranCentralReciters = try await QuranCentralService.shared.fetchAllReciters()
-            print("✅ [QuranAPIService] Fetched \(quranCentralReciters.count) reciters from Quran Central")
-        } catch {
-            print("⚠️ [QuranAPIService] Failed to fetch from Quran Central: \(error)")
-        }
-        
-        // If both services failed, throw an error
-        if mp3quranReciters.isEmpty && quranCentralReciters.isEmpty {
-            print("❌ [QuranAPIService] All services failed to fetch reciters")
+        let reciters = try await fetchMP3QuranReciters()
+        print("✅ [QuranAPIService] Fetched \(reciters.count) reciters from MP3Quran.net")
+
+        if reciters.isEmpty {
+            print("❌ [QuranAPIService] Failed to fetch reciters")
             throw QuranAPIError.networkError
         }
 
-        // De-duplication logic: Prioritize Quran Central reciters.
-        var uniqueReciters = quranCentralReciters
-        let quranCentralNames = Set(quranCentralReciters.map { $0.englishName.lowercased() })
-        
-        for mp3Reciter in mp3quranReciters {
-            if !quranCentralNames.contains(mp3Reciter.englishName.lowercased()) {
-                uniqueReciters.append(mp3Reciter)
-            }
-        }
-        
-        print("✅ [QuranAPIService] Combined unique reciters: \(uniqueReciters.count)")
-        return uniqueReciters
+        return reciters
     }
     
     // MARK: - API Base URLs
@@ -249,52 +221,39 @@ class QuranAPIService: ObservableObject {
 
     private func fetchMP3QuranReciters() async throws -> [Reciter] {
         print("🔍 [QuranAPIService] Fetching reciters from MP3Quran API...")
-        
+
         guard let url = URL(string: "\(mp3QuranBaseURL)/reciters?language=eng") else {
             throw QuranAPIError.invalidURL
         }
-        
-            let (data, response) = try await URLSession.shared.data(from: url)
-            
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                throw QuranAPIError.networkError
+            throw QuranAPIError.networkError
+        }
+
+        let mp3QuranResponse = try JSONDecoder().decode(MP3QuranRecitersResponse.self, from: data)
+
+        // Convert MP3Quran reciters to our Reciter model
+        let reciters = mp3QuranResponse.reciters.compactMap { mp3Reciter -> Reciter? in
+            guard let completeMoshaf = mp3Reciter.moshaf.first(where: { $0.surahTotal == 114 && $0.moshafType == 11 }) else {
+                return nil
             }
-            
-            let mp3QuranResponse = try JSONDecoder().decode(MP3QuranRecitersResponse.self, from: data)
-            
-            // Convert MP3Quran reciters to our Reciter model
-            let reciters = mp3QuranResponse.reciters.compactMap { mp3Reciter -> Reciter? in
-                guard let completeMoshaf = mp3Reciter.moshaf.first(where: { $0.surahTotal == 114 && $0.moshafType == 11 }) else {
-                    return nil
-                }
-            
-            // A manual mapping for reciters whose names don't match their artwork slugs.
-            let slugMap = [
-                "Abdul Basit 'Abd us-Samad": "abdul-basit-abd-us-samad"
-            ]
-            
-            // Create a slug from the name to attempt to find artwork on Quran Central.
-            // Use the map if available, otherwise generate it automatically.
-            let generatedSlug = mp3Reciter.name.lowercased()
-                .replacingOccurrences(of: " ", with: "-")
-                .replacingOccurrences(of: "--", with: "-")
-            let slug = slugMap[mp3Reciter.name] ?? generatedSlug
-            let artworkURL = URL(string: "https://artwork.qurancentral.com/\(slug).jpg")
-                
-                return Reciter(
-                    identifier: "mp3quran_\(mp3Reciter.id)",
-                    language: "ar",
-                    name: mp3Reciter.name,
+
+            return Reciter(
+                identifier: "mp3quran_\(mp3Reciter.id)",
+                language: "ar",
+                name: mp3Reciter.name,
                 englishName: mp3Reciter.name,
-                    server: completeMoshaf.server,
+                server: completeMoshaf.server,
                 reciterId: mp3Reciter.id,
                 country: nil,
                 dialect: nil,
-                artworkURL: artworkURL
-                )
-            }
-            
-            return reciters
+                artworkURL: nil
+            )
+        }
+
+        return reciters
     }
     
     // MARK: - Fetch Surahs
@@ -306,31 +265,14 @@ class QuranAPIService: ObservableObject {
     
     // MARK: - Construct Audio URL
     func constructAudioURL(surahNumber: Int, reciter: Reciter) async throws -> String {
-        let quranCentralPrefix = "qurancentral_"
-        
-        if reciter.identifier.hasPrefix(quranCentralPrefix) {
-            // This is a Quran Central reciter. Use the new service.
-            print("▶️ [QuranAPIService] Using Quran Central service for reciter: \(reciter.englishName)")
-            
-            // Find the surah name to pass to the new service for more robust searching
-            guard let surah = self.getHardcodedSurahs().first(where: { $0.number == surahNumber }) else {
-                print("❌ [QuranAPIService] Could not find surah details for number \(surahNumber)")
-                throw QuranAPIError.audioNotFound
-            }
-            
-            let slug = String(reciter.identifier.dropFirst(quranCentralPrefix.count))
-            let url = try await QuranCentralService.shared.fetchAudioURL(for: surahNumber, surahName: surah.englishName, reciterSlug: slug)
-            return url.absoluteString
-            
-        } else {
-            // This is an MP3Quran.net reciter. Use the original logic.
-            print("▶️ [QuranAPIService] Using MP3Quran service for reciter: \(reciter.englishName)")
+        print("▶️ [QuranAPIService] Constructing audio URL for reciter: \(reciter.englishName)")
+
         guard let server = reciter.server else {
             throw QuranAPIError.audioNotFound
         }
+
         let formattedSurahNumber = String(format: "%03d", surahNumber)
         return "\(server)/\(formattedSurahNumber).mp3"
-        }
     }
     
     // MARK: - Validate Audio URL

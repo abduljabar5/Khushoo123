@@ -14,14 +14,20 @@ import UserNotifications
 @available(iOS 15.0, *)
 class DeviceActivityService: ObservableObject {
     static let shared = DeviceActivityService()
-    
+
     private let center = DeviceActivityCenter()
     private let prayerScheduleKey = "PrayerTimeSchedules"
     private var activeActivityNames: [DeviceActivityName] = []
     private var lastScheduleInvocationAt: Date? = nil
     private var sessionScheduledActivityNames: Set<String> = []
-    
-    private init() {}
+    private let maxSchedules = 20 // Apple's DeviceActivity limit
+    private let rollingWindowDays = 4 // Maintain 4 days of schedules
+    private let updateIntervalDays = 3 // Update every 3 days
+
+    private init() {
+        print("📅 [PrayerBlocking] DeviceActivityService initialized")
+        print("📅 [PrayerBlocking] Max schedules: \(maxSchedules), Rolling window: \(rollingWindowDays) days")
+    }
     
     /// Normalize a date to minute precision for consistent activity naming
     private func normalizeTimestamp(_ date: Date) -> Int {
@@ -30,7 +36,142 @@ class DeviceActivityService: ObservableObject {
         let normalized = calendar.date(from: components) ?? date
         return Int(normalized.timeIntervalSince1970)
     }
-    
+
+    // MARK: - Rolling Window Management
+
+    /// Schedule rolling 4-day window of prayer times from storage
+    func scheduleRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) {
+        print("🔄 [PrayerBlocking] Starting rolling window schedule")
+
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
+
+        // Calculate end of rolling window (4 days from today)
+        guard let endOfWindow = calendar.date(byAdding: .day, value: rollingWindowDays, to: startOfToday) else {
+            print("❌ [PrayerBlocking] Failed to calculate window end date")
+            return
+        }
+
+        // Filter prayer times within rolling window
+        let prayerTimesInWindow = storage.prayerTimes.filter { storedTime in
+            storedTime.date >= startOfToday && storedTime.date < endOfWindow
+        }
+
+        print("📅 [PrayerBlocking] Rolling window: \(rollingWindowDays) days starting from today")
+        print("📅 [PrayerBlocking] Found \(prayerTimesInWindow.count) prayer times in window")
+
+        // Convert to PrayerTime objects
+        var prayerTimes: [PrayerTime] = []
+        for storedTime in prayerTimesInWindow {
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+
+            let prayers = [
+                ("Fajr", storedTime.fajr),
+                ("Dhuhr", storedTime.dhuhr),
+                ("Asr", storedTime.asr),
+                ("Maghrib", storedTime.maghrib),
+                ("Isha", storedTime.isha)
+            ]
+
+            for (name, timeString) in prayers {
+                // Skip if not selected
+                guard selectedPrayers.contains(name) else { continue }
+
+                // Parse time string
+                let cleanTimeString = timeString.components(separatedBy: " ").first ?? timeString
+                guard let time = timeFormatter.date(from: cleanTimeString) else { continue }
+
+                let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+                if let prayerDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                                  minute: timeComponents.minute ?? 0,
+                                                  second: 0,
+                                                  of: storedTime.date) {
+                    // Only add future prayers
+                    if prayerDate > now {
+                        prayerTimes.append(PrayerTime(name: name, date: prayerDate))
+                    }
+                }
+            }
+        }
+
+        // Sort by date and take only what fits in 20 schedule limit
+        let sortedPrayers = prayerTimes.sorted { $0.date < $1.date }
+        let prayersToSchedule = Array(sortedPrayers.prefix(maxSchedules))
+
+        print("📅 [PrayerBlocking] Scheduling \(prayersToSchedule.count) prayers (max \(maxSchedules))")
+
+        // Stop all existing schedules first
+        stopAllMonitoring()
+
+        // Schedule the prayers
+        schedulePrayerTimeBlocking(prayerTimes: prayersToSchedule, duration: duration, selectedPrayers: selectedPrayers)
+
+        // Save last update time
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastRollingWindowUpdate")
+            groupDefaults.synchronize()
+            print("💾 [PrayerBlocking] Saved rolling window update time")
+        }
+    }
+
+    /// Check if rolling window needs update (every 3 days)
+    func needsRollingWindowUpdate() -> Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+              let lastUpdateTs = groupDefaults.object(forKey: "lastRollingWindowUpdate") as? TimeInterval else {
+            print("🔍 [PrayerBlocking] No previous rolling window update found - needs update")
+            return true
+        }
+
+        let lastUpdate = Date(timeIntervalSince1970: lastUpdateTs)
+        let daysSinceUpdate = Calendar.current.dateComponents([.day], from: lastUpdate, to: Date()).day ?? 0
+
+        let needsUpdate = daysSinceUpdate >= updateIntervalDays
+
+        if needsUpdate {
+            print("🔄 [PrayerBlocking] Rolling window update needed: \(daysSinceUpdate) days since last update")
+        } else {
+            print("✅ [PrayerBlocking] Rolling window up to date: \(daysSinceUpdate) days since last update")
+        }
+
+        return needsUpdate
+    }
+
+    /// Update rolling window (remove old schedules, add new ones)
+    func updateRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) {
+        print("🔄 [PrayerBlocking] Updating rolling window")
+
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Count prayers before update
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+           let existingSchedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] {
+
+            let oldCount = existingSchedules.count
+            let passedCount = existingSchedules.filter { schedule in
+                guard let timestamp = schedule["date"] as? TimeInterval,
+                      let duration = schedule["duration"] as? Double else { return false }
+                let endTime = Date(timeIntervalSince1970: timestamp).addingTimeInterval(duration)
+                return endTime < now
+            }.count
+
+            print("🔄 [PrayerBlocking] Old schedules: \(oldCount) total, \(passedCount) passed")
+        }
+
+        // Reschedule with new rolling window
+        scheduleRollingWindow(from: storage, duration: duration, selectedPrayers: selectedPrayers)
+
+        // Count prayers after update
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+           let newSchedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] {
+            print("🔄 [PrayerBlocking] New schedules: \(newSchedules.count) total")
+        }
+    }
+
+    // MARK: - Manual Blocking
+
     /// Schedule app blocking for a specified duration with a 30-second delay
     func scheduleBlocking(for duration: TimeInterval) {
         // Stop any existing monitoring first to ensure a clean state

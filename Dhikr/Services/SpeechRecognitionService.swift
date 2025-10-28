@@ -15,9 +15,20 @@ class SpeechRecognitionService: ObservableObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     
     init() {
-        requestPermissions()
+        // Check current permission status without requesting
+        checkPermissionStatus()
     }
-    
+
+    func checkPermissionStatus() {
+        // Check speech recognition status
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        isAuthorized = speechStatus == .authorized
+
+        // Check microphone status
+        let micStatus = AVAudioSession.sharedInstance().recordPermission
+        hasPermissions = isAuthorized && micStatus == .granted
+    }
+
     func requestPermissions() {
         // Request speech recognition permission
         SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in

@@ -24,6 +24,8 @@
 		818191F02EA6993600CFB28C /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 818191EF2EA6993600CFB28C /* FirebaseMessaging */; };
 		818191F22EA6994800CFB28C /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 818191F12EA6994800CFB28C /* FirebaseFirestore */; };
 		818191F42EA6994800CFB28C /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 818191F32EA6994800CFB28C /* FirebaseMessaging */; };
+		8181920E2EA749C800CFB28C /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 8181920D2EA749C800CFB28C /* FirebaseFunctions */; };
+		81A231CD2EB17166001AF36D /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81A231CC2EB17166001AF36D /* StoreKit.framework */; };
 		81F4B8C82E6550E10089E266 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81432C092E3EFBCC00BCCEF2 /* ManagedSettings.framework */; };
 		81F4B8D02E6550E10089E266 /* DhikrShieldAction.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 81F4B8C72E6550E00089E266 /* DhikrShieldAction.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -93,6 +95,8 @@
 		814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PrayerBlockerMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		814326BD2E3888DF00BCCEF2 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		81432C092E3EFBCC00BCCEF2 /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
+		81A231CC2EB17166001AF36D /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		81A231CE2EB17497001AF36D /* Dhikr.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Dhikr.storekit; sourceTree = "<group>"; };
 		81F4B8C72E6550E00089E266 /* DhikrShieldAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DhikrShieldAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -188,9 +192,11 @@
 				815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */,
 				815736292E1744DD00DD29EF /* SwiftSoup in Frameworks */,
 				818191EA2EA698B000CFB28C /* FirebaseMessaging in Frameworks */,
+				8181920E2EA749C800CFB28C /* FirebaseFunctions in Frameworks */,
 				818191E62EA698B000CFB28C /* FirebaseCrashlytics in Frameworks */,
 				818191E22EA698B000CFB28C /* FirebaseAnalytics in Frameworks */,
 				818191EC2EA698B000CFB28C /* FirebaseStorage in Frameworks */,
+				81A231CD2EB17166001AF36D /* StoreKit.framework in Frameworks */,
 				818191E42EA698B000CFB28C /* FirebaseAuth in Frameworks */,
 				818191E82EA698B000CFB28C /* FirebaseFirestore in Frameworks */,
 			);
@@ -245,6 +251,7 @@
 		81254FC72E07941E0035AD52 = {
 			isa = PBXGroup;
 			children = (
+				81A231CE2EB17497001AF36D /* Dhikr.storekit */,
 				812550CB2E0D052D0035AD52 /* DhikrtrackerExtension.entitlements */,
 				81254FD22E07941E0035AD52 /* Dhikr */,
 				81254FE02E0794200035AD52 /* DhikrTests */,
@@ -273,6 +280,7 @@
 		8125501A2E079D0B0035AD52 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				81A231CC2EB17166001AF36D /* StoreKit.framework */,
 				8125501B2E079D0B0035AD52 /* WidgetKit.framework */,
 				8125501D2E079D0C0035AD52 /* SwiftUI.framework */,
 				814326BD2E3888DF00BCCEF2 /* DeviceActivity.framework */,
@@ -313,6 +321,7 @@
 				818191E72EA698B000CFB28C /* FirebaseFirestore */,
 				818191E92EA698B000CFB28C /* FirebaseMessaging */,
 				818191EB2EA698B000CFB28C /* FirebaseStorage */,
+				8181920D2EA749C800CFB28C /* FirebaseFunctions */,
 			);
 			productName = Dhikr;
 			productReference = 81254FD02E07941E0035AD52 /* Dhikr.app */;
@@ -1191,6 +1200,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 818191E02EA698B000CFB28C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseMessaging;
+		};
+		8181920D2EA749C800CFB28C /* FirebaseFunctions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 818191E02EA698B000CFB28C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFunctions;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

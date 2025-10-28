@@ -2,10 +2,12 @@ import SwiftUI
 import CoreLocation
 
 struct PrayerTimeView: View {
-    @StateObject private var viewModel = PrayerTimeViewModel()
+    @EnvironmentObject var viewModel: PrayerTimeViewModel
     @ObservedObject var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var animateProgress = false
     @State private var showingDatePicker = false
+    @State private var showingPaywall = false
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -61,6 +63,9 @@ struct PrayerTimeView: View {
             )
             .presentationDetents([.height(500)])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView()
         }
     }
 
@@ -405,8 +410,13 @@ struct PrayerTimeView: View {
                         viewModel.toggleReminder(for: prayer.name)
                     },
                     onToggleComplete: {
-                        viewModel.togglePrayerCompletion(for: prayer.name)
-                    }
+                        if subscriptionService.isPremium {
+                            viewModel.togglePrayerCompletion(for: prayer.name)
+                        } else {
+                            showingPaywall = true
+                        }
+                    },
+                    isPremium: subscriptionService.isPremium
                 )
             }
         }
@@ -436,6 +446,7 @@ struct PrayerRowView: View {
     let theme: AppTheme
     let onToggleReminder: () -> Void
     let onToggleComplete: () -> Void
+    let isPremium: Bool
 
     var body: some View {
         HStack(spacing: 16) {
@@ -482,9 +493,17 @@ struct PrayerRowView: View {
             // Completion Checkbox (not for Sunrise and not for future dates)
             if prayer.name != "Sunrise" && isToday {
                 Button(action: onToggleComplete) {
-                    Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(prayer.isCompleted ? theme.accentGreen : theme.tertiaryText)
+                    ZStack {
+                        Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(prayer.isCompleted ? theme.accentGreen : theme.tertiaryText)
+
+                        if !isPremium {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
                 }
             } else {
                 // Spacer to maintain alignment for Sunrise and future dates
