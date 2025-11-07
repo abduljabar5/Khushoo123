@@ -76,6 +76,20 @@ class FavoritesManager: ObservableObject {
         do {
             let data = try JSONEncoder().encode(favoriteReciters)
             UserDefaults.standard.set(data, forKey: newFavoritesKey)
+
+            // Log the saved data
+            let favoritesData = favoriteReciters.map { item in
+                return [
+                    "identifier": item.identifier,
+                    "dateAdded": ISO8601DateFormatter().string(from: item.dateAdded)
+                ]
+            }
+
+            if let json = try? JSONSerialization.data(withJSONObject: ["favoriteReciters": favoritesData, "count": favoriteReciters.count], options: .prettyPrinted),
+               let jsonString = String(data: json, encoding: .utf8) {
+                print("💾 [FavoritesManager] Favorite Reciters - Data Saved:")
+                print(jsonString)
+            }
         } catch {
             print("❌ [FavoritesManager] Failed to encode and save v2 favorites: \(error)")
         }

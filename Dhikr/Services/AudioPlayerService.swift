@@ -106,6 +106,79 @@ class AudioPlayerService: NSObject, ObservableObject {
         // Load auto-play setting (default to true)
         self.isAutoplayEnabled = UserDefaults.standard.object(forKey: "autoPlayNextSurah") as? Bool ?? true
         print("🎵 [AudioPlayerService] Auto-play enabled: \(isAutoplayEnabled)")
+
+        // Log all tracking data on app launch
+        logAllTrackingData()
+    }
+
+    // MARK: - Tracking Data Logging
+    private func logAllTrackingData() {
+        print("📊 ==================== TRACKING DATA SNAPSHOT (App Launch) ====================")
+
+        // Audio Player Tracking Data
+        let audioTrackingData: [String: Any] = [
+            "totalListeningTime": totalListeningTime,
+            "totalListeningTimeFormatted": getTotalListeningTimeString(),
+            "completedSurahNumbers": Array(completedSurahNumbers).sorted(),
+            "completedSurahCount": completedSurahNumbers.count,
+            "likedItemsCount": likedItems.count,
+            "likedItems": likedItems.map { ["surahNumber": $0.surahNumber, "reciterIdentifier": $0.reciterIdentifier, "dateAdded": ISO8601DateFormatter().string(from: $0.dateAdded)] },
+            "autoPlayEnabled": isAutoplayEnabled
+        ]
+
+        if let audioJSON = try? JSONSerialization.data(withJSONObject: audioTrackingData, options: .prettyPrinted),
+           let audioJSONString = String(data: audioJSON, encoding: .utf8) {
+            print("📊 [AudioPlayerService] Tracking Data:")
+            print(audioJSONString)
+        }
+
+        // Recent Plays
+        let recentPlays = RecentsManager.shared.recentItems.map { item in
+            return [
+                "surah": "\(item.surah.number). \(item.surah.englishName)",
+                "reciter": item.reciter.englishName,
+                "playedAt": ISO8601DateFormatter().string(from: item.playedAt)
+            ]
+        }
+
+        if let recentsJSON = try? JSONSerialization.data(withJSONObject: ["recentPlays": recentPlays], options: .prettyPrinted),
+           let recentsJSONString = String(data: recentsJSON, encoding: .utf8) {
+            print("📊 [RecentsManager] Recent Plays (\(recentPlays.count) items):")
+            print(recentsJSONString)
+        }
+
+        // Favorite Reciters
+        let favoriteReciters = FavoritesManager.shared.favoriteReciters.map { item in
+            return [
+                "identifier": item.identifier,
+                "dateAdded": ISO8601DateFormatter().string(from: item.dateAdded)
+            ]
+        }
+
+        if let favoritesJSON = try? JSONSerialization.data(withJSONObject: ["favoriteReciters": favoriteReciters], options: .prettyPrinted),
+           let favoritesJSONString = String(data: favoritesJSON, encoding: .utf8) {
+            print("📊 [FavoritesManager] Favorite Reciters (\(favoriteReciters.count) items):")
+            print(favoritesJSONString)
+        }
+
+        // Last Played Info
+        if let lastPlayed = getLastPlayedInfo() {
+            let lastPlayedData: [String: Any] = [
+                "surah": "\(lastPlayed.surah.number). \(lastPlayed.surah.englishName)",
+                "reciter": lastPlayed.reciter.englishName,
+                "time": lastPlayed.time
+            ]
+
+            if let lastPlayedJSON = try? JSONSerialization.data(withJSONObject: ["lastPlayed": lastPlayedData], options: .prettyPrinted),
+               let lastPlayedJSONString = String(data: lastPlayedJSON, encoding: .utf8) {
+                print("📊 [AudioPlayerService] Last Played:")
+                print(lastPlayedJSONString)
+            }
+        } else {
+            print("📊 [AudioPlayerService] Last Played: None")
+        }
+
+        print("📊 ============================================================================")
     }
     
     // MARK: - Activation
@@ -396,12 +469,12 @@ class AudioPlayerService: NSObject, ObservableObject {
     func play() {
         if player?.currentItem != nil {
             print("🎵 [AudioPlayerService] Play requested")
-            
+
             guard let player = player else {
                 print("❌ [AudioPlayerService] No player available")
                 return
             }
-            
+
             // Ensure audio session is active
             if !isAudioSessionActive {
                 print("🎵 [AudioPlayerService] Reactivating audio session for playback")
@@ -413,7 +486,16 @@ class AudioPlayerService: NSObject, ObservableObject {
             player.play()
             isPlaying = true
             hasPlayedOnce = true
-            lastRecordedTime = currentTime // Reset tracking when playback starts
+
+            // Only initialize lastRecordedTime on first play, not on resume
+            // This ensures accurate time tracking when resuming from pause
+            if lastRecordedTime == 0 {
+                lastRecordedTime = currentTime
+                print("🎵 [AudioPlayerService] Initialized time tracking at \(currentTime)s")
+            } else {
+                print("🎵 [AudioPlayerService] Resuming time tracking from \(lastRecordedTime)s")
+            }
+
             updateNowPlayingInfo()
             print("✅ [AudioPlayerService] Playback started")
         }
@@ -804,12 +886,12 @@ class AudioPlayerService: NSObject, ObservableObject {
     private func clearCurrentAudio() {
         print("🎵 [AudioPlayerService] Clearing current audio state...")
         isReadyToPlay = false
-        
+
         // Stop current playback
         if let player = player {
             player.pause()
         }
-        
+
         // Clear current track info
         currentSurah = nil
         currentReciter = nil
@@ -817,10 +899,13 @@ class AudioPlayerService: NSObject, ObservableObject {
         isPlaying = false
         currentTime = 0
         duration = 0
-        
+
+        // Reset listening time tracking for new track
+        lastRecordedTime = 0
+
         // Clear Now Playing info
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        
+
         print("🎵 [AudioPlayerService] Audio state cleared")
     }
     
@@ -908,6 +993,8 @@ class AudioPlayerService: NSObject, ObservableObject {
             currentSurah = surah
             currentReciter = reciter
             isPreloaded = false
+            // Reset time tracking for this playback session
+            lastRecordedTime = 0
 
             // Log to recents manager now that user is actually playing
             RecentsManager.shared.addTrack(surah: surah, reciter: reciter)
@@ -1003,16 +1090,46 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Listening Stats
     func markSurahCompleted(_ surah: Surah) {
+        let wasNew = !completedSurahNumbers.contains(surah.number)
         completedSurahNumbers.insert(surah.number)
+
         // Persist the completed surahs
         let completedArray = Array(completedSurahNumbers)
         UserDefaults.standard.set(completedArray, forKey: "completedSurahNumbers")
+
+        // Log the update
+        if wasNew {
+            let data: [String: Any] = [
+                "surah": "\(surah.number). \(surah.englishName)",
+                "totalCompleted": completedSurahNumbers.count,
+                "completedList": completedArray.sorted()
+            ]
+            if let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
+               let jsonString = String(data: json, encoding: .utf8) {
+                print("💾 [AudioPlayerService] Surah Completed - Data Saved:")
+                print(jsonString)
+            }
+        }
     }
-    
+
     func addListeningTime(_ seconds: TimeInterval) {
         totalListeningTime += seconds
         // Persist the total listening time
         UserDefaults.standard.set(totalListeningTime, forKey: "totalListeningTime")
+
+        // Log the update (throttled - only log every 10 seconds to avoid spam)
+        if Int(totalListeningTime) % 10 == 0 {
+            let data: [String: Any] = [
+                "totalSeconds": totalListeningTime,
+                "formatted": getTotalListeningTimeString(),
+                "incrementSeconds": seconds
+            ]
+            if let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
+               let jsonString = String(data: json, encoding: .utf8) {
+                print("💾 [AudioPlayerService] Listening Time Updated - Data Saved:")
+                print(jsonString)
+            }
+        }
     }
     
     func getTotalListeningTimeString() -> String {
@@ -1104,6 +1221,8 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.isPreloaded = false
             self.preloadedSurah = nil
             self.preloadedReciter = nil
+            // Reset time tracking for new track
+            self.lastRecordedTime = 0
         }
         
         // Log the track to the recents manager
@@ -1346,6 +1465,21 @@ class AudioPlayerService: NSObject, ObservableObject {
         do {
             let data = try JSONEncoder().encode(likedItems)
             UserDefaults.standard.set(data, forKey: likedItemsKey)
+
+            // Log the saved data
+            let likedData = likedItems.map { item in
+                return [
+                    "surahNumber": item.surahNumber,
+                    "reciterIdentifier": item.reciterIdentifier,
+                    "dateAdded": ISO8601DateFormatter().string(from: item.dateAdded)
+                ]
+            }
+
+            if let json = try? JSONSerialization.data(withJSONObject: ["likedItems": likedData, "count": likedItems.count], options: .prettyPrinted),
+               let jsonString = String(data: json, encoding: .utf8) {
+                print("💾 [AudioPlayerService] Liked Items - Data Saved:")
+                print(jsonString)
+            }
         } catch {
             print("❌ [AudioPlayerService] Failed to encode liked items: \(error)")
         }

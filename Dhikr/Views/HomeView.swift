@@ -85,6 +85,9 @@ struct HomeView: View {
                         // Greeting Section
                         greetingSection
 
+                        // Continue Listening Card
+                        continueListeningCard
+
                         // Prayer Time Card
                         prayerTimeCard
 
@@ -232,6 +235,75 @@ struct HomeView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    // MARK: - Continue Listening Card
+    @ViewBuilder
+    private var continueListeningCard: some View {
+        if let lastPlayed = audioPlayerService.getLastPlayedInfo(),
+           lastPlayed.time > 15.0 { // Only show if played more than 15 seconds
+            Button(action: {
+                audioPlayerService.continueLastPlayed()
+            }) {
+                HStack(spacing: 16) {
+                    // Play icon
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 56, height: 56)
+
+                        Image(systemName: "play.fill")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                    }
+
+                    // Surah info
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Continue Listening")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(themeManager.theme.secondaryText)
+                            .textCase(.uppercase)
+
+                        Text(lastPlayed.surah.englishName)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        HStack(spacing: 8) {
+                            Text(lastPlayed.reciter.englishName)
+                                .font(.subheadline)
+                                .foregroundColor(themeManager.theme.secondaryText)
+
+                            Text("•")
+                                .foregroundColor(themeManager.theme.secondaryText.opacity(0.5))
+
+                            Text(formatTime(lastPlayed.time))
+                                .font(.subheadline)
+                                .foregroundColor(themeManager.theme.primaryAccent)
+                        }
+                    }
+
+                    Spacer()
+
+                    // Chevron
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+                .padding(16)
+                .background(themeManager.theme.cardBackground)
+                .cornerRadius(16)
+                .shadow(color: themeManager.theme.primaryAccent.opacity(0.15), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
     }
 
     // MARK: - Prayer Time Card
@@ -2036,7 +2108,7 @@ struct HomeView: View {
     private func formatListeningTime(_ seconds: TimeInterval) -> String {
         let hours = Int(seconds) / 3600
         let minutes = (Int(seconds) % 3600) / 60
-        
+
         if hours > 0 {
             return "\(hours)h \(minutes)m"
         } else if minutes > 0 {
@@ -2045,7 +2117,13 @@ struct HomeView: View {
             return "0m"
         }
     }
-    
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        let minutes = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return String(format: "%d:%02d", minutes, secs)
+    }
+
     // MARK: - Slideshow Timer Functions
     private func startSlideshowTimer() {
         slideshowTimer?.invalidate()

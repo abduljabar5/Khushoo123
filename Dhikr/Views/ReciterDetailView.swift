@@ -12,6 +12,7 @@ struct ReciterDetailView: View {
     let reciter: Reciter
     @EnvironmentObject var quranAPIService: QuranAPIService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
+    @ObservedObject private var recentsManager = RecentsManager.shared
     @State private var surahs: [Surah] = []
     @State private var isLoading = true
     
@@ -20,7 +21,10 @@ struct ReciterDetailView: View {
             VStack(spacing: 24) {
                 // Header
                 headerSection
-                
+
+                // Reciter Statistics
+                reciterStatsSection
+
                 // Surahs
                 surahsSection
             }
@@ -53,7 +57,65 @@ struct ReciterDetailView: View {
         }
         .padding()
     }
-    
+
+    // MARK: - Reciter Statistics Section
+    private var reciterStatsSection: some View {
+        HStack(spacing: 16) {
+            // Total Plays
+            ReciterStatBubble(
+                icon: "play.circle.fill",
+                label: "Total Plays",
+                value: "\(getReciterPlayCount())",
+                color: .blue
+            )
+
+            // Unique Surahs
+            ReciterStatBubble(
+                icon: "music.note.list",
+                label: "Surahs",
+                value: "\(getUniqueSurahsCount())",
+                color: .purple
+            )
+
+            // Last Played
+            ReciterStatBubble(
+                icon: "clock.fill",
+                label: "Last Played",
+                value: getLastPlayedText(),
+                color: .orange
+            )
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(16)
+        .padding(.horizontal)
+    }
+
+    // MARK: - Reciter Statistics Helpers
+    private func getReciterPlayCount() -> Int {
+        return recentsManager.recentItems.filter { $0.reciter.identifier == reciter.identifier }.count
+    }
+
+    private func getUniqueSurahsCount() -> Int {
+        let uniqueSurahs = Set(recentsManager.recentItems
+            .filter { $0.reciter.identifier == reciter.identifier }
+            .map { $0.surah.number })
+        return uniqueSurahs.count
+    }
+
+    private func getLastPlayedText() -> String {
+        guard let lastPlayed = recentsManager.recentItems
+            .filter({ $0.reciter.identifier == reciter.identifier })
+            .first else {
+            return "Never"
+        }
+
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: lastPlayed.playedAt, relativeTo: Date())
+    }
+
     // MARK: - Surahs Section
     private var surahsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -107,29 +169,49 @@ struct ReciterDetailView: View {
 struct SurahRow: View {
     let surah: Surah
     var isPlaying: Bool = false
-    
+    @EnvironmentObject var audioPlayerService: AudioPlayerService
+
+    var isCompleted: Bool {
+        audioPlayerService.completedSurahNumbers.contains(surah.number)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            // Surah Number
-            Text("\(surah.number)")
-                .font(.caption)
-                .fontWeight(.bold)
-                .frame(width: 35, height: 35)
-                .background(Color.accentColor.opacity(0.1))
-                .clipShape(Circle())
-            
+            // Surah Number with completion indicator
+            ZStack(alignment: .bottomTrailing) {
+                Text("\(surah.number)")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .frame(width: 35, height: 35)
+                    .background(Color.accentColor.opacity(0.1))
+                    .clipShape(Circle())
+
+                // Completion checkmark badge
+                if isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.green)
+                        .background(
+                            Circle()
+                                .fill(Color(.secondarySystemBackground))
+                                .frame(width: 12, height: 12)
+                        )
+                        .offset(x: 2, y: 2)
+                }
+            }
+
             // Surah Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(surah.englishName)
                     .font(.headline)
-                
+
                 Text("\(surah.revelationType) - \(surah.numberOfAyahs) Ayahs")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             if isPlaying {
                 Image(systemName: "waveform")
                     .foregroundColor(.accentColor)
@@ -142,6 +224,35 @@ struct SurahRow: View {
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Reciter Stat Bubble
+struct ReciterStatBubble: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+
+            Text(value)
+                .font(.headline)
+                .fontWeight(.bold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
     }
 }
 

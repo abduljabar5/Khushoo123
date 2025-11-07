@@ -47,6 +47,11 @@ struct ProfileView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
 
+                // Completed Surahs Section
+                completedSurahsSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
                 // Subscription Section
                 subscriptionSection
                     .padding(.horizontal, 20)
@@ -218,27 +223,68 @@ struct ProfileView: View {
                     description: "Time spent listening"
                 )
 
-                EnhancedStatCard(
-                    title: "Surahs Completed",
-                    value: "\(audioPlayerService.getCompletedSurahCount())",
-                    icon: "checkmark.seal.fill",
-                    gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                    description: "Chapters finished"
-                )
+                // Surahs Completed Card with integrated progress bar
+                SurahsCompletedCard(completedCount: audioPlayerService.getCompletedSurahCount())
 
                 EnhancedStatCard(
                     title: "Favorite Reciter",
                     value: getMostListenedReciter(),
                     icon: "person.fill",
                     gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                    description: "Most played",
-                    isLarge: true
+                    description: "Most played"
                 )
 
                 InteractiveStreakCard(
                     dhikrService: dhikrService,
                     showingHighest: $showingHighestStreak
                 )
+            }
+        }
+    }
+
+    // MARK: - Completed Surahs Section
+    private var completedSurahsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                sectionHeader(title: "Completed Surahs", icon: "checkmark.seal.fill")
+                Spacer()
+                if audioPlayerService.completedSurahNumbers.count > 0 {
+                    NavigationLink(destination: CompletedSurahsListView()) {
+                        Text("View All")
+                            .font(.subheadline)
+                            .foregroundColor(themeManager.theme.primaryAccent)
+                    }
+                }
+            }
+
+            if audioPlayerService.completedSurahNumbers.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.seal")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary.opacity(0.5))
+
+                    Text("No surahs completed yet")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    Text("Complete a surah to see it here ✨")
+                        .font(.caption)
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+                .background(themeManager.theme.cardBackground.opacity(0.3))
+                .cornerRadius(16)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Array(audioPlayerService.completedSurahNumbers).sorted(), id: \.self) { surahNumber in
+                            CompletedSurahBadge(surahNumber: surahNumber)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 4)
+                }
             }
         }
     }
@@ -1133,6 +1179,103 @@ struct EnhancedStatCard: View {
     }
 }
 
+// MARK: - Surahs Completed Card with Progress Bar
+struct SurahsCompletedCard: View {
+    let completedCount: Int
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var progressPercentage: Int {
+        Int((Double(completedCount) / 114.0) * 100)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                Spacer()
+
+                Circle()
+                    .fill(themeManager.theme.primaryAccent.opacity(0.2))
+                    .frame(width: 8, height: 8)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(completedCount)/114")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                Text("Surahs Completed")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                Text("Chapters finished")
+                    .font(.caption)
+                    .foregroundColor(themeManager.theme.secondaryText)
+            }
+
+            // Progress bar integrated inside card
+            VStack(alignment: .leading, spacing: 4) {
+                ZStack(alignment: .leading) {
+                    // Background
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.2))
+                        .frame(height: 6)
+
+                    // Progress
+                    GeometryReader { geometry in
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.green, .green.opacity(0.7)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(
+                                width: geometry.size.width * CGFloat(completedCount) / 114.0,
+                                height: 6
+                            )
+                    }
+                }
+                .frame(height: 6)
+
+                // Percentage text
+                Text("\(progressPercentage)% Complete")
+                    .font(.caption2)
+                    .foregroundColor(themeManager.theme.secondaryText)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(themeManager.theme.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [themeManager.theme.primaryAccent.opacity(0.3), themeManager.theme.primaryAccent.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
+    }
+}
+
 struct EnhancedQuickActionRow: View {
     let title: String
     let subtitle: String
@@ -1739,6 +1882,113 @@ struct WallpaperThumbnail: View {
             return String(name.prefix(12)) + "..."
         }
         return name
+    }
+}
+
+// MARK: - Completed Surah Badge
+struct CompletedSurahBadge: View {
+    let surahNumber: Int
+    @State private var surahName: String = ""
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Number circle with checkmark
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.green, .green.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 60, height: 60)
+
+                VStack(spacing: 2) {
+                    Text("\(surahNumber)")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+
+                    Image(systemName: "checkmark")
+                        .font(.caption2)
+                        .foregroundColor(.white)
+                }
+            }
+            .shadow(color: .green.opacity(0.3), radius: 4, x: 0, y: 2)
+
+            // Surah name
+            if !surahName.isEmpty {
+                Text(surahName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .frame(maxWidth: 70)
+            } else {
+                Text("Surah \(surahNumber)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: 80)
+        .task {
+            await loadSurahName()
+        }
+    }
+
+    private func loadSurahName() async {
+        do {
+            let surahs = try await QuranAPIService.shared.fetchSurahs()
+            if let surah = surahs.first(where: { $0.number == surahNumber }) {
+                await MainActor.run {
+                    surahName = surah.englishName
+                }
+            }
+        } catch {
+            // Silently fail, will show "Surah X" as fallback
+        }
+    }
+}
+
+// MARK: - Completed Surahs List View
+struct CompletedSurahsListView: View {
+    @EnvironmentObject var audioPlayerService: AudioPlayerService
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Header stats
+                VStack(spacing: 8) {
+                    Text("\(audioPlayerService.completedSurahNumbers.count)")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(themeManager.theme.primaryAccent)
+
+                    Text("Surahs Completed")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+
+                    Text("\(Int((Double(audioPlayerService.completedSurahNumbers.count) / 114.0) * 100))% of the Quran")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 20)
+                .padding(.bottom, 32)
+
+                // Surah grid
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
+                    ForEach(Array(audioPlayerService.completedSurahNumbers).sorted(), id: \.self) { surahNumber in
+                        CompletedSurahBadge(surahNumber: surahNumber)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+        .navigationTitle("Completed Surahs")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(themeManager.theme.cardBackground)
     }
 }
 

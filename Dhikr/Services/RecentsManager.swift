@@ -56,6 +56,21 @@ class RecentsManager: ObservableObject {
         do {
             let data = try JSONEncoder().encode(recentItems)
             UserDefaults.standard.set(data, forKey: recentsKey)
+
+            // Log the saved data
+            let recentData = recentItems.map { item in
+                return [
+                    "surah": "\(item.surah.number). \(item.surah.englishName)",
+                    "reciter": item.reciter.englishName,
+                    "playedAt": ISO8601DateFormatter().string(from: item.playedAt)
+                ]
+            }
+
+            if let json = try? JSONSerialization.data(withJSONObject: ["recentItems": recentData, "count": recentItems.count], options: .prettyPrinted),
+               let jsonString = String(data: json, encoding: .utf8) {
+                print("💾 [RecentsManager] Recent Items - Data Saved:")
+                print(jsonString)
+            }
         } catch {
             print("❌ [RecentsManager] Error encoding recent items: \(error)")
         }

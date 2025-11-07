@@ -429,16 +429,31 @@ struct MainTabView: View {
                                 }
                             }) {
                                 HStack(spacing: 12) {
-                                    // Surah Number
-                                    Text("\(surah.number)")
-                                        .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                        .frame(width: 35, height: 35)
-                                        .background(
-                                            Circle()
-                                                .fill(audioPlayerService.currentSurah?.number == surah.number ? themeManager.theme.primaryAccent : Color.secondary.opacity(0.3))
-                                        )
+                                    // Surah Number with completion indicator
+                                    ZStack(alignment: .bottomTrailing) {
+                                        Text("\(surah.number)")
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                            .frame(width: 35, height: 35)
+                                            .background(
+                                                Circle()
+                                                    .fill(audioPlayerService.currentSurah?.number == surah.number ? themeManager.theme.primaryAccent : Color.secondary.opacity(0.3))
+                                            )
+
+                                        // Completion checkmark badge
+                                        if audioPlayerService.completedSurahNumbers.contains(surah.number) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(.green)
+                                                .background(
+                                                    Circle()
+                                                        .fill(themeManager.theme.cardBackground)
+                                                        .frame(width: 12, height: 12)
+                                                )
+                                                .offset(x: 2, y: 2)
+                                        }
+                                    }
 
                                     // Surah Info
                                     VStack(alignment: .leading, spacing: 4) {
