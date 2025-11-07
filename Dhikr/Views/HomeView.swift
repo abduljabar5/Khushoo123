@@ -68,76 +68,77 @@ struct HomeView: View {
     ]
     
     var body: some View {
-        ZStack {
-            // Background for themes
-            if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView()
-            } else if themeManager.currentTheme == .dark {
+            ZStack {
+                // Background for themes
+                if themeManager.currentTheme == .liquidGlass {
+                    LiquidGlassBackgroundView()
+                } else if themeManager.currentTheme == .dark {
                 Color.black
-                    .ignoresSafeArea()
-            } else {
+                        .ignoresSafeArea()
+                } else {
                 Color.white
-                    .ignoresSafeArea()
-            }
-
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Greeting Section
-                    greetingSection
-
-                    // Prayer Time Card
-                    prayerTimeCard
-
-                    // Featured Reciter
-                    featuredReciterCard
-
-                    // Quick Actions
-                    quickActionsRow
-
-                    // Reciter Carousels
-                    reciterSections
-
-                    // Statistics Slideshow
-                    statisticsSlideshow
-
-                    // Early Unlock Section (if applicable)
-                    earlyUnlockSection
+                        .ignoresSafeArea()
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, audioPlayerService.currentSurah != nil ? 130 : 80)
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Greeting Section
+                        greetingSection
+
+                        // Prayer Time Card
+                        prayerTimeCard
+
+                        // Featured Reciter
+                        featuredReciterCard
+
+                        // Quick Actions
+                        quickActionsRow
+
+                        // Reciter Carousels
+                        reciterSections
+
+                        // Statistics Slideshow
+                        statisticsSlideshow
+
+                        // Early Unlock Section (if applicable)
+                        earlyUnlockSection
+                    }
+                    .padding(.horizontal, 20)
+                .padding(.top, themeManager.currentTheme == .liquidGlass ? 50 : 8)
+                    .padding(.bottom, audioPlayerService.currentSurah != nil ? 130 : 80)
+                }
+            .ignoresSafeArea(edges: themeManager.currentTheme == .liquidGlass ? [] : .bottom)
             }
-        }
         .toolbar(.hidden, for: .navigationBar)
-        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
-        .onAppear {
-            loadData()
-            // Prayer time fetching starts automatically in the view model
-            // Double-check blocking state on first appearance of Home
-            BlockingStateService.shared.forceCheck()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
+            .onAppear {
+                loadData()
+                // Prayer time fetching starts automatically in the view model
+                // Double-check blocking state on first appearance of Home
                 BlockingStateService.shared.forceCheck()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    BlockingStateService.shared.forceCheck()
+                }
             }
-        }
-        .onReceive(quranAPIService.$reciters) { reciters in
-            // Update when global reciters are loaded
-            if !reciters.isEmpty && (featuredReciter == nil || popularReciters.isEmpty || soothingReciters.isEmpty) {
-                print("🔄 [HomeView] Global reciters loaded, updating UI")
-                processReciters(reciters)
+            .onReceive(quranAPIService.$reciters) { reciters in
+                // Update when global reciters are loaded
+                if !reciters.isEmpty && (featuredReciter == nil || popularReciters.isEmpty || soothingReciters.isEmpty) {
+                    print("🔄 [HomeView] Global reciters loaded, updating UI")
+                    processReciters(reciters)
+                }
             }
-        }
-        // Compact banner overlay at the very top (Home only)
-        .overlay(alignment: .top) {
-            if !blockingState.isStrictModeEnabled && blockingState.appsActuallyBlocked && !blockingState.isEarlyUnlockedActive {
-                EarlyUnlockCompactBannerHome()
-                    .padding(.top, 8)
-                    .padding(.horizontal)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+            // Compact banner overlay at the very top (Home only)
+            .overlay(alignment: .top) {
+                if !blockingState.isStrictModeEnabled && blockingState.appsActuallyBlocked && !blockingState.isEarlyUnlockedActive {
+                    EarlyUnlockCompactBannerHome()
+                        .padding(.top, 8)
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
-        }
-        // Smoothly tick the countdown once per second while Home is visible
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            earlyUnlockTick &+= 1
+            // Smoothly tick the countdown once per second while Home is visible
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+                earlyUnlockTick &+= 1
         }
         .sheet(isPresented: $showingRecents) {
             RecentsView()
@@ -427,30 +428,25 @@ struct HomeView: View {
     private func featuredMainCard(reciter: Reciter) -> some View {
         ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
-            KFImage(reciter.artworkURL)
+                    KFImage(reciter.artworkURL)
                 .placeholder {
-                    ZStack {
-                        themeManager.theme.tertiaryBackground
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(themeManager.theme.tertiaryText)
-                    }
+                    ReciterPlaceholder(iconSize: 80)
                 }
-                .resizable()
-                .aspectRatio(contentMode: .fill)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity)
                 .frame(height: 280)
-                .clipped()
-                .overlay(
-                    LinearGradient(
-                        colors: [
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
                             Color.black.opacity(0.1),
                             Color.black.opacity(0.8)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
 
             // Top Badges
             VStack {
@@ -470,7 +466,7 @@ struct HomeView: View {
                             .fill(Color.black.opacity(0.7))
                     )
 
-                    Spacer()
+                            Spacer()
 
                     // Share Button
                     Button(action: {
@@ -506,20 +502,20 @@ struct HomeView: View {
             }
 
             // Bottom Info
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(reciter.englishName)
+                        HStack(alignment: .bottom) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(reciter.englishName)
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
+                                    .foregroundColor(.white)
                         .lineLimit(1)
 
-                    if let country = reciter.country {
+                                    if let country = reciter.country {
                         HStack(spacing: 4) {
-                            Text(countryFlag(for: country))
+                                        Text(countryFlag(for: country))
                                 .font(.system(size: 12))
                             Text(country)
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
+                                        .foregroundColor(.white.opacity(0.9))
                         }
                     }
 
@@ -555,22 +551,22 @@ struct HomeView: View {
                             Capsule()
                                 .fill(Color.black.opacity(0.4))
                         )
-                    }
-                }
+                                }
+                            }
 
-                Spacer()
+                            Spacer()
 
                 // Play Button
-                Button(action: {
-                    Task {
-                        await playRandomSurah(for: reciter)
-                    }
-                }) {
+                            Button(action: {
+                                Task {
+                                    await playRandomSurah(for: reciter)
+                                }
+                            }) {
                     Circle()
                         .fill(themeManager.theme.primaryAccent)
                         .frame(width: 50, height: 50)
                         .overlay(
-                            Image(systemName: "play.fill")
+                                    Image(systemName: "play.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(.white)
                                 .offset(x: 2)
@@ -587,7 +583,7 @@ struct HomeView: View {
     // MARK: - Featured Main Card Placeholder
     private var featuredMainCardPlaceholder: some View {
         ZStack(alignment: .bottomLeading) {
-            Rectangle()
+                                                    Rectangle()
                 .fill(themeManager.theme.tertiaryBackground)
                 .frame(maxWidth: .infinity)
                 .frame(height: 280)
@@ -629,12 +625,7 @@ struct HomeView: View {
             // Reciter Image Background
             KFImage(reciter.artworkURL)
                 .placeholder {
-                    ZStack {
-                        themeManager.theme.tertiaryBackground
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(themeManager.theme.tertiaryText)
-                    }
+                    ReciterPlaceholder(iconSize: 60)
                 }
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -702,7 +693,7 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(
+                    .background(
                             Capsule()
                                 .fill(Color.black.opacity(0.4))
                         )
@@ -736,7 +727,7 @@ struct HomeView: View {
                     Circle()
                         .fill(themeManager.theme.primaryAccent)
                         .frame(width: 36, height: 36)
-                        .overlay(
+                    .overlay(
                             Image(systemName: "play.fill")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white)
@@ -804,36 +795,16 @@ struct HomeView: View {
                     .fill(themeManager.theme.primaryAccent)
                     .frame(width: 4, height: 24)
 
-                Text("Quick Actions")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(themeManager.theme.primaryText)
+            Text("Quick Actions")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(themeManager.theme.primaryText)
 
                 Spacer()
             }
 
             HStack(spacing: 12) {
-                // Dhikr
-                NavigationLink(destination:
-                    DhikrWidgetView()
-                        .environmentObject(dhikrService)
-                        .environmentObject(bluetoothService)
-                ) {
-                    VStack(spacing: 12) {
-                        Circle()
-                            .fill(themeManager.theme.primaryAccent)
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.white)
-                            )
-                        Text("Dhikr")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primaryText)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PlainButtonStyle())
+                // Qibla Compass
+                CompassView()
 
                 // Continue
                 Button(action: {
@@ -1119,13 +1090,13 @@ struct HomeView: View {
     // MARK: - Favorite Reciters Section
     @ViewBuilder
     private var favoriteRecitersSection: some View {
-        if !favoritesManager.favoriteReciters.isEmpty {
-            let sortedFavoriteIdentifiers = favoritesManager.favoriteReciters
-                .sorted { $0.dateAdded > $1.dateAdded }
-                .map { $0.identifier }
-            let reciterDict = Dictionary(uniqueKeysWithValues: quranAPIService.reciters.map { ($0.identifier, $0) })
-            let favoriteReciters = sortedFavoriteIdentifiers.compactMap { reciterDict[$0] }
-
+            if !favoritesManager.favoriteReciters.isEmpty {
+                let sortedFavoriteIdentifiers = favoritesManager.favoriteReciters
+                    .sorted { $0.dateAdded > $1.dateAdded }
+                    .map { $0.identifier }
+                let reciterDict = Dictionary(uniqueKeysWithValues: quranAPIService.reciters.map { ($0.identifier, $0) })
+                let favoriteReciters = sortedFavoriteIdentifiers.compactMap { reciterDict[$0] }
+                
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Rectangle()
@@ -1242,10 +1213,10 @@ struct HomeView: View {
                 )
         )
         .onTapGesture {
-            Task {
-                await playRandomSurah(for: reciter)
-            }
-        }
+                        Task {
+                            await playRandomSurah(for: reciter)
+                        }
+                    }
     }
 
     // MARK: - Stats Badge
@@ -1273,12 +1244,7 @@ struct HomeView: View {
             ZStack(alignment: .topLeading) {
                 KFImage(reciter.artworkURL)
                     .placeholder {
-                        ZStack {
-                            themeManager.theme.tertiaryBackground
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(themeManager.theme.tertiaryText)
-                        }
+                        ReciterPlaceholder(size: 120, iconSize: 40)
                     }
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -1390,7 +1356,7 @@ struct HomeView: View {
         ]
         return styles[name] ?? "Murattal Style"
     }
-
+    
     // MARK: - Statistics Slideshow
     private var statisticsSlideshow: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1403,7 +1369,7 @@ struct HomeView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(themeManager.theme.primaryText)
                 Spacer()
-
+                
                 // Page indicators
                 HStack(spacing: 6) {
                     ForEach(0..<3) { index in
@@ -1547,22 +1513,22 @@ struct HomeView: View {
         .frame(height: 120)
         .background(
             ZStack {
-                Group {
-                    if themeManager.theme.hasGlassEffect {
-                        // Enhanced liquid glass effect for iOS 26+
-                        if #available(iOS 26.0, *) {
-                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
-                                .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
-                                .fill(.ultraThinMaterial)
-                                .opacity(0.3)
-                        }
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
                     } else {
-                        // Standard background for light/dark themes
-                        themeManager.theme.secondaryBackground
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
                     }
+                } else {
+                    // Standard background for light/dark themes
+                    themeManager.theme.secondaryBackground
+                }
                 }
 
                 // Darkness gradient overlay (right side darker)
@@ -1575,7 +1541,7 @@ struct HomeView: View {
         )
         .cornerRadius(themeManager.theme.cardCornerRadius)
     }
-
+    
     // MARK: - Surahs Progress Banner
     private var surahsProgressBanner: some View {
         HStack(spacing: 20) {
@@ -1655,22 +1621,22 @@ struct HomeView: View {
         .frame(height: 120)
         .background(
             ZStack {
-                Group {
-                    if themeManager.theme.hasGlassEffect {
-                        // Enhanced liquid glass effect for iOS 26+
-                        if #available(iOS 26.0, *) {
-                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
-                                .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
-                                .fill(.ultraThinMaterial)
-                                .opacity(0.3)
-                        }
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
                     } else {
-                        // Standard background for light/dark themes
-                        themeManager.theme.secondaryBackground
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
                     }
+                } else {
+                    // Standard background for light/dark themes
+                    themeManager.theme.secondaryBackground
+                }
                 }
 
                 // Darkness gradient overlay (right side darker)
@@ -1683,7 +1649,7 @@ struct HomeView: View {
         )
         .cornerRadius(themeManager.theme.cardCornerRadius)
     }
-
+    
     // MARK: - Most Listened To Banner
     private var mostListenedToBanner: some View {
         HStack(spacing: 16) {
@@ -1694,17 +1660,17 @@ struct HomeView: View {
                     reciterName: mostListenedReciter.name,
                     size: 50
                 )
-                .overlay(
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2
-                        )
-                )
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [themeManager.theme.accentTeal, themeManager.theme.primaryAccent],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
 
                 // Info section
                 VStack(alignment: .leading, spacing: 4) {
@@ -1754,22 +1720,22 @@ struct HomeView: View {
         .frame(height: 120)
         .background(
             ZStack {
-                Group {
-                    if themeManager.theme.hasGlassEffect {
-                        // Enhanced liquid glass effect for iOS 26+
-                        if #available(iOS 26.0, *) {
-                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
-                                .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
-                                .fill(.ultraThinMaterial)
-                                .opacity(0.3)
-                        }
+            Group {
+                if themeManager.theme.hasGlassEffect {
+                    // Enhanced liquid glass effect for iOS 26+
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
+                            .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
                     } else {
-                        // Standard background for light/dark themes
-                        themeManager.theme.secondaryBackground
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.3)
                     }
+                } else {
+                    // Standard background for light/dark themes
+                    themeManager.theme.secondaryBackground
+                }
                 }
 
                 // Darkness gradient overlay (right side darker)
@@ -1782,7 +1748,7 @@ struct HomeView: View {
         )
         .cornerRadius(themeManager.theme.cardCornerRadius)
     }
-
+    
     // MARK: - Early Unlock Section
     private var earlyUnlockSection: some View {
         Group {
@@ -1799,7 +1765,7 @@ struct HomeView: View {
 
                         Spacer()
                     }
-
+                    
                     let remaining = blockingState.timeUntilEarlyUnlock()
                     if remaining > 0 {
                         VStack(alignment: .leading, spacing: 12) {
@@ -1819,7 +1785,7 @@ struct HomeView: View {
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(themeManager.theme.primaryText)
 
-                                    Text("You can unlock apps in")
+                        Text("You can unlock apps in")
                                         .font(.system(size: 13))
                                         .foregroundColor(themeManager.theme.secondaryText)
                                 }
@@ -1827,14 +1793,14 @@ struct HomeView: View {
                                 Spacer()
                             }
 
-                            HStack {
-                                Text(remaining.formattedForCountdown)
+                        HStack {
+                            Text(remaining.formattedForCountdown)
                                     .font(.system(size: 32, weight: .bold))
-                                    .foregroundColor(.orange)
+                                .foregroundColor(.orange)
                                     .monospacedDigit()
 
-                                Spacer()
-                            }
+                            Spacer()
+                        }
 
                             HStack(spacing: 8) {
                                 Image(systemName: "hourglass")
@@ -1843,8 +1809,8 @@ struct HomeView: View {
                                     .font(.system(size: 14, weight: .medium))
                             }
                             .foregroundColor(themeManager.theme.secondaryText)
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                        .frame(maxWidth: .infinity)
+                        .padding()
                             .background(Color.orange.opacity(0.1))
                             .cornerRadius(12)
                         }
@@ -1874,18 +1840,18 @@ struct HomeView: View {
                                 Spacer()
                             }
 
-                            Button(action: {
-                                blockingState.earlyUnlockCurrentInterval()
-                            }) {
+                        Button(action: {
+                            blockingState.earlyUnlockCurrentInterval()
+                        }) {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "checkmark.seal.fill")
+                                Image(systemName: "checkmark.seal.fill")
                                         .font(.system(size: 16))
-                                    Text("Unlock Apps Now")
+                                Text("Unlock Apps Now")
                                         .font(.system(size: 16, weight: .semibold))
-                                }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
+                            }
+                            .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
                                 .background(
                                     LinearGradient(
                                         colors: [Color.orange, Color.orange.opacity(0.8)],
@@ -1901,13 +1867,13 @@ struct HomeView: View {
                 .padding(20)
                 .background(
                     ZStack {
-                        Group {
+                    Group {
                             if themeManager.theme.hasGlassEffect {
                                 // Enhanced liquid glass effect for iOS 26+
                                 if #available(iOS 26.0, *) {
                                     RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius, style: .continuous)
                                         .glassEffect(.clear, in: .rect(cornerRadius: themeManager.theme.cardCornerRadius))
-                                } else {
+                        } else {
                                     // Fallback for older iOS versions
                                     RoundedRectangle(cornerRadius: themeManager.theme.cardCornerRadius)
                                         .fill(.ultraThinMaterial)
@@ -1915,9 +1881,9 @@ struct HomeView: View {
                                 }
                             } else {
                                 // Standard background for light/dark themes
-                                themeManager.theme.cardBackground
-                            }
+                            themeManager.theme.cardBackground
                         }
+                    }
 
                         // Darkness gradient overlay (right side darker)
                         LinearGradient(
@@ -1976,7 +1942,7 @@ struct HomeView: View {
                         Spacer()
                     }
 
-                    if remaining > 0 {
+                if remaining > 0 {
                         Text("Early Unlock Available Soon")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(themeManager.theme.primaryText)
@@ -1987,7 +1953,7 @@ struct HomeView: View {
                             .foregroundColor(themeManager.theme.secondaryText)
                             .monospacedDigit()
                             .lineLimit(1)
-                    } else {
+                } else {
                         Text("Early Unlock Ready")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(themeManager.theme.primaryText)
@@ -2218,12 +2184,7 @@ struct HomeView: View {
                     // Background Image
                     KFImage(reciter.artworkURL)
                         .placeholder {
-                            ZStack {
-                                themeManager.theme.tertiaryBackground
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(themeManager.theme.tertiaryText)
-                            }
+                            ReciterPlaceholder(iconSize: 60)
                         }
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -2426,19 +2387,19 @@ struct HomeView: View {
 
         // Load verse of the day
         loadVerseOfTheDay()
-
+        
         // Check if reciters are already available from the service
         if !quranAPIService.reciters.isEmpty {
             print("🏠 [HomeView] Using already loaded reciters from service: \(quranAPIService.reciters.count)")
             processReciters(quranAPIService.reciters)
             return
         }
-
+        
         // Check if service is currently loading
         if quranAPIService.isLoadingReciters {
             print("🏠 [HomeView] Service is loading, waiting...")
         }
-
+        
         Task {
             do {
                 print("🏠 [HomeView] Fetching reciters...")
@@ -2463,18 +2424,18 @@ struct HomeView: View {
     
     private func processReciters(_ reciters: [Reciter]) {
         print("🏠 [HomeView] Processing \(reciters.count) reciters...")
-
+                
         // Filter reciters by English name
-        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+                        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+                        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
 
         // Randomly select featured reciters from popular list
         let shuffledPopular = self.popularReciters.shuffled()
         self.featuredReciter = shuffledPopular.first ?? reciters.randomElement()
         self.secondReciter = shuffledPopular.dropFirst().first ?? reciters.randomElement()
         self.thirdReciter = shuffledPopular.dropFirst(2).first ?? reciters.randomElement()
-
-        self.isLoading = false
+                    
+                    self.isLoading = false
         print("✅ [HomeView] Data loaded and UI updated. Popular: \(popularReciters.count), Soothing: \(soothingReciters.count), Featured: \(featuredReciter?.englishName ?? "none"), #2: \(secondReciter?.englishName ?? "none"), #3: \(thirdReciter?.englishName ?? "none")")
     }
 
@@ -2530,7 +2491,7 @@ struct HomeView: View {
 
         verseOfTheDay = selectedVerse
     }
-
+    
     private func playRandomSurah(for reciter: Reciter) async {
         Task {
             do {
@@ -2633,7 +2594,7 @@ struct CategoryRow<Item: Identifiable, ItemView: View>: View {
 // MARK: - Reciter Card
 struct ReciterCard: View {
     let reciter: Reciter
-
+    
     var body: some View {
         VStack {
             ReciterArtworkImage(
@@ -2641,7 +2602,7 @@ struct ReciterCard: View {
                 reciterName: reciter.name,
                 size: 120
             )
-            .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
+                .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2))
 
             Text(reciter.englishName)
                 .font(.footnote)
@@ -2703,6 +2664,24 @@ struct SurahCard: View {
             .frame(width: 120)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Reciter Placeholder
+struct ReciterPlaceholder: View {
+    var size: CGFloat? = nil
+    var iconSize: CGFloat
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(colorScheme == .dark ? Color(hex: "0B1420") : Color(hex: "ECECEC"))
+            Image(systemName: "person.circle.fill")
+                .font(.system(size: iconSize))
+                .foregroundColor(colorScheme == .dark ? Color(hex: "78909C") : Color(hex: "CECECE"))
+        }
+        .frame(width: size, height: size)
     }
 }
 

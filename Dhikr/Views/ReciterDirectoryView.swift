@@ -145,6 +145,13 @@ struct ReciterDirectoryView: View {
     }
 
     private func loadData() {
+        // Skip loading if not premium (they can't see the content anyway)
+        guard subscriptionService.isPremium else {
+            print("🔒 [ReciterDirectoryView] Skipping reciter loading - user is not premium")
+            isLoading = false
+            return
+        }
+
         self.recentReciters = RecentRecitersManager.shared.loadRecentReciters()
         loadFavoritesCache()
 

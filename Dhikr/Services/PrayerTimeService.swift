@@ -12,16 +12,24 @@ struct PrayerTimeStorage: Codable {
     let fetchedAt: Date
 
     var isValid: Bool {
-        // Check if data is still valid (covers current date + at least 3 months)
+        // Check if data is still valid (covers current date + reasonable future coverage)
         let now = Date()
         guard now >= startDate && now <= endDate else { return false }
 
+        // For short-term data (< 7 days), just check if it covers today
+        let daysCovered = Calendar.current.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        if daysCovered < 7 {
+            // Short-term data (free users) - valid if covers today
+            return true
+        }
+
+        // For long-term data (>= 7 days), require at least 3 months future coverage
         let threeMonthsFromNow = Calendar.current.date(byAdding: .month, value: 3, to: now) ?? now
         return endDate >= threeMonthsFromNow
     }
 
     var shouldRefresh: Bool {
-        // Refresh if data is older than 6 months or doesn't cover next 6 months
+        // Refresh if data is older than 6 months or doesn't cover current needs
         let now = Date()
         let sixMonthsAgo = Calendar.current.date(byAdding: .month, value: -6, to: now) ?? now
         return fetchedAt < sixMonthsAgo || !isValid
@@ -70,40 +78,41 @@ class PrayerTimeService {
         return prayerTimeResponse.data.timings
     }
 
-    // MARK: - 6-Month Fetch
-    func fetch6MonthPrayerTimes(for location: CLLocation, startingFrom startDate: Date = Date()) async throws -> PrayerTimeStorage {
+    // MARK: - 6-Month Fetch (using calendar API for bulk fetching)
+    func fetch6MonthPrayerTimes(for location: CLLocation, startingFrom startDate: Date = Date(), daysToFetch: Int = 180) async throws -> PrayerTimeStorage {
         let latitude = location.coordinate.latitude
         let longitude = location.coordinate.longitude
 
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: startDate)
 
-        // Calculate end date (6 months from start)
-        guard let end = calendar.date(byAdding: .month, value: 6, to: start) else {
+        // Calculate end date based on days to fetch
+        guard let end = calendar.date(byAdding: .day, value: daysToFetch, to: start) else {
             throw NSError(domain: "PrayerTimeService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to calculate end date"])
         }
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "dd-MM-yyyy"
         let displayFormatter = DateFormatter()
         displayFormatter.dateFormat = "yyyy-MM-dd"
 
-        print("🕌 [PrayerBlocking] Starting 6-month prayer time fetch")
+        print("🕌 [PrayerBlocking] Starting prayer time fetch (\(daysToFetch) days) using calendar API")
         print("🕌 [PrayerBlocking] Date range: \(displayFormatter.string(from: start)) to \(displayFormatter.string(from: end))")
         print("🕌 [PrayerBlocking] Location: lat=\(String(format: "%.4f", latitude)), lon=\(String(format: "%.4f", longitude))")
 
         var storedTimes: [StoredPrayerTime] = []
         var currentDate = start
-        var fetchedDays = 0
-        var totalDays = 0
+        var fetchedMonths = 0
+        var totalMonths = 0
 
-        // Calculate total days for progress tracking
-        let components = calendar.dateComponents([.day], from: start, to: end)
-        totalDays = components.day ?? 180
+        // Calculate number of months to fetch
+        let monthComponents = calendar.dateComponents([.month], from: start, to: end)
+        totalMonths = max((monthComponents.month ?? 0) + 1, 1)
 
         while currentDate < end {
-            let dateString = dateFormatter.string(from: currentDate)
-            let urlString = "http://api.aladhan.com/v1/timings/\(dateString)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
+            let year = calendar.component(.year, from: currentDate)
+            let month = calendar.component(.month, from: currentDate)
+
+            // Use calendar API to fetch entire month at once
+            let urlString = "http://api.aladhan.com/v1/calendar/\(year)/\(month)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
 
             guard let url = URL(string: urlString) else {
                 throw URLError(.badURL)
@@ -116,39 +125,48 @@ class PrayerTimeService {
                     throw URLError(.badServerResponse)
                 }
 
-                let prayerTimeResponse = try JSONDecoder().decode(PrayerTimeResponse.self, from: data)
-                let timings = prayerTimeResponse.data.timings
+                let calendarResponse = try JSONDecoder().decode(CalendarResponse.self, from: data)
 
-                let storedTime = StoredPrayerTime(
-                    date: currentDate,
-                    fajr: timings.Fajr,
-                    dhuhr: timings.Dhuhr,
-                    asr: timings.Asr,
-                    maghrib: timings.Maghrib,
-                    isha: timings.Isha
-                )
+                // Process each day in the month
+                for dayData in calendarResponse.data {
+                    // Convert timestamp string to TimeInterval
+                    guard let timestamp = TimeInterval(dayData.date.timestamp) else {
+                        print("⚠️ [PrayerBlocking] Failed to parse timestamp: \(dayData.date.timestamp)")
+                        continue
+                    }
 
-                storedTimes.append(storedTime)
-                fetchedDays += 1
+                    let dayDate = calendar.startOfDay(for: Date(timeIntervalSince1970: timestamp))
 
-                // Log progress every 30 days
-                if fetchedDays % 30 == 0 {
-                    print("🕌 [PrayerBlocking] Fetched \(fetchedDays)/\(totalDays) days (\(Int((Double(fetchedDays)/Double(totalDays))*100))%)")
+                    // Only include dates within our range
+                    if dayDate >= start && dayDate < end {
+                        let storedTime = StoredPrayerTime(
+                            date: dayDate,
+                            fajr: dayData.timings.Fajr,
+                            dhuhr: dayData.timings.Dhuhr,
+                            asr: dayData.timings.Asr,
+                            maghrib: dayData.timings.Maghrib,
+                            isha: dayData.timings.Isha
+                        )
+                        storedTimes.append(storedTime)
+                    }
                 }
 
-                // Small delay to avoid overwhelming the API (50ms per request)
-                try await Task.sleep(nanoseconds: 50_000_000)
+                fetchedMonths += 1
+                print("🕌 [PrayerBlocking] Fetched month \(fetchedMonths)/\(totalMonths) (\(year)-\(String(format: "%02d", month)))")
+
+                // Small delay to be respectful to API (100ms per month request)
+                try await Task.sleep(nanoseconds: 100_000_000)
 
             } catch {
-                print("❌ [PrayerBlocking] Failed to fetch prayer times for \(dateString): \(error.localizedDescription)")
+                print("❌ [PrayerBlocking] Failed to fetch prayer times for \(year)-\(month): \(error.localizedDescription)")
                 throw error
             }
 
-            // Move to next day
-            guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else {
+            // Move to next month
+            guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: currentDate) else {
                 break
             }
-            currentDate = nextDate
+            currentDate = nextMonth
         }
 
         let storage = PrayerTimeStorage(
@@ -161,7 +179,7 @@ class PrayerTimeService {
             fetchedAt: Date()
         )
 
-        print("🕌 [PrayerBlocking] Completed 6-month fetch: \(fetchedDays) days")
+        print("🕌 [PrayerBlocking] Completed 6-month fetch: \(storedTimes.count) days from \(fetchedMonths) months")
         print("🕌 [PrayerBlocking] Date range: \(displayFormatter.string(from: start)) to \(displayFormatter.string(from: end))")
 
         return storage
@@ -222,20 +240,90 @@ class PrayerTimeService {
         print("🗑️ [PrayerBlocking] Cleared stored prayer times")
     }
 
-    // MARK: - Location Validation
-    func needsRefreshForLocation(_ location: CLLocation, storage: PrayerTimeStorage) -> Bool {
-        let locationTolerance = 0.5 // ~50km tolerance (increased from 2km for better UX)
+    // MARK: - Location Validation (Tiered System)
+    func needsRefreshForLocation(_ location: CLLocation, storage: PrayerTimeStorage) async -> Bool {
         let latDiff = abs(location.coordinate.latitude - storage.latitude)
         let lonDiff = abs(location.coordinate.longitude - storage.longitude)
 
-        let needsRefresh = latDiff > locationTolerance || lonDiff > locationTolerance
+        // Tiered thresholds
+        let smallChange = 0.18  // ~20km - prayer times differ by <1 minute
+        let mediumChange = 0.9  // ~100km - check if times actually changed
 
-        if needsRefresh {
-            print("🔄 [PrayerBlocking] Location changed significantly - needs refresh")
-            print("🔄 [PrayerBlocking] Old: lat=\(String(format: "%.4f", storage.latitude)), lon=\(String(format: "%.4f", storage.longitude))")
-            print("🔄 [PrayerBlocking] New: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude))")
+        let maxDiff = max(latDiff, lonDiff)
+
+        // Tier 1: Small change (<20km) - Don't refresh
+        if maxDiff <= smallChange {
+            print("✅ [PrayerBlocking] Location change small (<20km) - keeping data")
+            return false
         }
 
-        return needsRefresh
+        // Tier 2: Medium change (20-100km) - Fetch 1 day to check if times actually changed
+        if maxDiff <= mediumChange {
+            print("🔍 [PrayerBlocking] Location change medium (20-100km) - checking if times differ...")
+            print("🔍 [PrayerBlocking] Old: lat=\(String(format: "%.4f", storage.latitude)), lon=\(String(format: "%.4f", storage.longitude))")
+            print("🔍 [PrayerBlocking] New: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude))")
+
+            do {
+                // Fetch prayer times for today at new location
+                let newTimings = try await fetchPrayerTimes(for: location, on: Date())
+
+                // Get stored times for today
+                let calendar = Calendar.current
+                let today = calendar.startOfDay(for: Date())
+
+                if let todayStored = storage.prayerTimes.first(where: { calendar.isDate($0.date, inSameDayAs: today) }) {
+                    // Compare times - if any prayer differs by >5 minutes, refresh
+                    let timeDiff = maxTimeDifference(stored: todayStored, new: newTimings)
+
+                    if timeDiff > 5 {
+                        print("⚠️ [PrayerBlocking] Prayer times differ by \(timeDiff) minutes - needs refresh")
+                        return true
+                    } else {
+                        print("✅ [PrayerBlocking] Prayer times similar (diff: \(timeDiff) min) - keeping data")
+                        return false
+                    }
+                }
+            } catch {
+                print("⚠️ [PrayerBlocking] Failed to check time difference: \(error.localizedDescription) - refreshing to be safe")
+                return true
+            }
+        }
+
+        // Tier 3: Large change (>100km) - Always refresh
+        print("🔄 [PrayerBlocking] Location changed significantly (>100km) - needs refresh")
+        print("🔄 [PrayerBlocking] Old: lat=\(String(format: "%.4f", storage.latitude)), lon=\(String(format: "%.4f", storage.longitude))")
+        print("🔄 [PrayerBlocking] New: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude))")
+        return true
+    }
+
+    // Helper to calculate max time difference between stored and new timings
+    private func maxTimeDifference(stored: StoredPrayerTime, new: Timings) -> Int {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+
+        let prayers = [
+            (stored.fajr, new.Fajr),
+            (stored.dhuhr, new.Dhuhr),
+            (stored.asr, new.Asr),
+            (stored.maghrib, new.Maghrib),
+            (stored.isha, new.Isha)
+        ]
+
+        var maxDiff = 0
+        for (storedTime, newTime) in prayers {
+            // Parse times (format: "HH:mm" or "HH:mm (TZ)")
+            let storedCleaned = storedTime.components(separatedBy: " ").first ?? storedTime
+            let newCleaned = newTime.components(separatedBy: " ").first ?? newTime
+
+            guard let storedDate = formatter.date(from: storedCleaned),
+                  let newDate = formatter.date(from: newCleaned) else {
+                continue
+            }
+
+            let diff = Int(abs(storedDate.timeIntervalSince(newDate)) / 60)
+            maxDiff = max(maxDiff, diff)
+        }
+
+        return maxDiff
     }
 } 

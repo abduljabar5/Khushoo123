@@ -26,4 +26,18 @@ struct PrayerTime: Identifiable {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
+}
+
+// MARK: - Calendar API Response Models
+struct CalendarResponse: Decodable {
+    let data: [CalendarDayData]
+}
+
+struct CalendarDayData: Decodable {
+    let timings: Timings
+    let date: DateInfo
+}
+
+struct DateInfo: Decodable {
+    let timestamp: String
 } 

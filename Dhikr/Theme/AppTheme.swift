@@ -111,13 +111,13 @@ struct LightTheme: AppTheme {
     // Main Colors
     let primaryBackground = Color(hex: "F8F9FA")
     let secondaryBackground = Color.white
-    let tertiaryBackground = Color(hex: "F0F2F5")
+    let tertiaryBackground = Color(hex: "ECECEC")
     let cardBackground = Color.white
-    
+
     // Text Colors
     let primaryText = Color(hex: "2C3E50")
     let secondaryText = Color(hex: "7F8C8D")
-    let tertiaryText = Color(hex: "95A5A6")
+    let tertiaryText = Color(hex: "CECECE")
     
     // Accent Colors
     let primaryAccent = Color(hex: "1A9B8A")
@@ -146,29 +146,29 @@ struct LightTheme: AppTheme {
 struct DarkTheme: AppTheme {
     // Main Colors
     let primaryBackground = Color(hex: "0A1628")
-    let secondaryBackground = Color(hex: "1E3A5F")
-    let tertiaryBackground = Color(hex: "162544")
-    let cardBackground = Color(hex: "1E3A5F")
-    
+    let secondaryBackground = Color(hex: "0D1A2D")
+    let tertiaryBackground = Color(hex: "0B1420")
+    let cardBackground = Color(hex: "0D1A2D")
+
     // Text Colors
     let primaryText = Color.white
     let secondaryText = Color(hex: "B0BEC5")
     let tertiaryText = Color(hex: "78909C")
-    
+
     // Accent Colors
     let primaryAccent = Color(hex: "00D9FF")
     let secondaryAccent = Color(hex: "FFD700")
     let accentGreen = Color(hex: "00FF88")
     let accentGold = Color(hex: "FFD700")
     let accentTeal = Color(hex: "00CED1")
-    
+
     // Prayer Card
-    let prayerGradientStart = Color(hex: "1E3A5F")
+    let prayerGradientStart = Color(hex: "0F1F35")
     let prayerGradientEnd = Color(hex: "0A1628")
 
     // Featured Reciter Card
-    let featuredGradientStart = Color(hex: "2C5282")
-    let featuredGradientEnd = Color(hex: "1E3A5F")
+    let featuredGradientStart = Color(hex: "0E1D32")
+    let featuredGradientEnd = Color(hex: "0C1624")
     
     // Effects
     let shadowColor = Color(hex: "FFD700").opacity(0.2)

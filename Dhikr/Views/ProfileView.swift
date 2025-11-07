@@ -21,6 +21,7 @@ struct ProfileView: View {
     @State private var showingHighestStreak = false
     @State private var showingAuth = false
     @State private var showingPaywall = false
+    @State private var showingSetup = false
     @State private var refreshID = UUID()
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
     @AppStorage("showSleepTimer") private var showSleepTimer = true
@@ -48,6 +49,11 @@ struct ProfileView: View {
 
                 // Subscription Section
                 subscriptionSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 32)
+
+                // Setup & Permissions Section
+                setupSection
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
 
@@ -93,6 +99,10 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
+        }
+        .sheet(isPresented: $showingSetup) {
+            SetupFlowView()
+                .environmentObject(locationService)
         }
         .onChange(of: authService.isAuthenticated) { _ in
             refreshID = UUID()
@@ -326,6 +336,48 @@ struct ProfileView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
             }
+        }
+    }
+
+    // MARK: - Setup & Permissions Section
+    private var setupSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(title: "Setup & Permissions", icon: "gearshape.fill")
+
+            Button(action: {
+                showingSetup = true
+            }) {
+                HStack(spacing: 16) {
+                    Circle()
+                        .fill(themeManager.theme.primaryAccent.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                        .overlay(
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.title3)
+                                .foregroundColor(themeManager.theme.primaryAccent)
+                        )
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Focus & Permissions")
+                            .font(.headline)
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        Text("Configure app blocking and permissions")
+                            .font(.caption)
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.tertiaryText)
+                }
+                .padding(16)
+                .background(themeManager.theme.cardBackground)
+                .cornerRadius(16)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
     }
 

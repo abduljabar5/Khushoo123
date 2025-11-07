@@ -85,7 +85,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		81254FD02E07941E0035AD52 /* Dhikr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dhikr.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		81254FD02E07941E0035AD52 /* Kushoo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kushoo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		81254FDD2E0794200035AD52 /* DhikrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DhikrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		81254FE72E0794200035AD52 /* DhikrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DhikrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DhikrtrackerExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -108,12 +108,12 @@
 			);
 			target = 812550182E079D0B0035AD52 /* DhikrtrackerExtension */;
 		};
-		812552322E0E0E730035AD52 /* Exceptions for "Dhikr" folder in "Dhikr" target */ = {
+		812552322E0E0E730035AD52 /* Exceptions for "Dhikr" folder in "Kushoo" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 81254FCF2E07941E0035AD52 /* Dhikr */;
+			target = 81254FCF2E07941E0035AD52 /* Kushoo */;
 		};
 		814326CA2E3888DF00BCCEF2 /* Exceptions for "PrayerBlockerMonitor" folder in "PrayerBlockerMonitor" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -142,7 +142,7 @@
 		81254FD22E07941E0035AD52 /* Dhikr */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				812552322E0E0E730035AD52 /* Exceptions for "Dhikr" folder in "Dhikr" target */,
+				812552322E0E0E730035AD52 /* Exceptions for "Dhikr" folder in "Kushoo" target */,
 				814327512E388EFE00BCCEF2 /* Exceptions for "Dhikr" folder in "PrayerBlockerMonitor" target */,
 			);
 			path = Dhikr;
@@ -267,7 +267,7 @@
 		81254FD12E07941E0035AD52 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				81254FD02E07941E0035AD52 /* Dhikr.app */,
+				81254FD02E07941E0035AD52 /* Kushoo.app */,
 				81254FDD2E0794200035AD52 /* DhikrTests.xctest */,
 				81254FE72E0794200035AD52 /* DhikrUITests.xctest */,
 				812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */,
@@ -292,9 +292,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		81254FCF2E07941E0035AD52 /* Dhikr */ = {
+		81254FCF2E07941E0035AD52 /* Kushoo */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 81254FF12E0794200035AD52 /* Build configuration list for PBXNativeTarget "Dhikr" */;
+			buildConfigurationList = 81254FF12E0794200035AD52 /* Build configuration list for PBXNativeTarget "Kushoo" */;
 			buildPhases = (
 				81254FCC2E07941E0035AD52 /* Sources */,
 				81254FCD2E07941E0035AD52 /* Frameworks */,
@@ -311,7 +311,7 @@
 			fileSystemSynchronizedGroups = (
 				81254FD22E07941E0035AD52 /* Dhikr */,
 			);
-			name = Dhikr;
+			name = Kushoo;
 			packageProductDependencies = (
 				815731EF2E14EACE00DD29EF /* Kingfisher */,
 				815736282E1744DD00DD29EF /* SwiftSoup */,
@@ -324,7 +324,7 @@
 				8181920D2EA749C800CFB28C /* FirebaseFunctions */,
 			);
 			productName = Dhikr;
-			productReference = 81254FD02E07941E0035AD52 /* Dhikr.app */;
+			productReference = 81254FD02E07941E0035AD52 /* Kushoo.app */;
 			productType = "com.apple.product-type.application";
 		};
 		81254FDC2E0794200035AD52 /* DhikrTests */ = {
@@ -494,7 +494,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				81254FCF2E07941E0035AD52 /* Dhikr */,
+				81254FCF2E07941E0035AD52 /* Kushoo */,
 				81254FDC2E0794200035AD52 /* DhikrTests */,
 				81254FE62E0794200035AD52 /* DhikrUITests */,
 				812550182E079D0B0035AD52 /* DhikrtrackerExtension */,
@@ -597,12 +597,12 @@
 /* Begin PBXTargetDependency section */
 		81254FDF2E0794200035AD52 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 81254FCF2E07941E0035AD52 /* Dhikr */;
+			target = 81254FCF2E07941E0035AD52 /* Kushoo */;
 			targetProxy = 81254FDE2E0794200035AD52 /* PBXContainerItemProxy */;
 		};
 		81254FE92E0794200035AD52 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 81254FCF2E07941E0035AD52 /* Dhikr */;
+			target = 81254FCF2E07941E0035AD52 /* Kushoo */;
 			targetProxy = 81254FE82E0794200035AD52 /* PBXContainerItemProxy */;
 		};
 		8125502E2E079D0D0035AD52 /* PBXTargetDependency */ = {
@@ -750,6 +750,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
@@ -772,6 +773,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -784,6 +786,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
@@ -805,6 +808,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -945,6 +949,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = PrayerBlockerMonitor/PrayerBlockerMonitor.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
@@ -960,6 +965,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr.PrayerBlockerMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -971,6 +977,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = PrayerBlockerMonitor/PrayerBlockerMonitor.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
@@ -986,6 +993,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = fm.mrc.Dhikr.PrayerBlockerMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -1057,7 +1065,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		81254FF12E0794200035AD52 /* Build configuration list for PBXNativeTarget "Dhikr" */ = {
+		81254FF12E0794200035AD52 /* Build configuration list for PBXNativeTarget "Kushoo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				81254FF22E0794200035AD52 /* Debug */,

@@ -12,8 +12,8 @@ import FirebaseFirestore
 
 // MARK: - Subscription Product IDs
 enum SubscriptionProductID: String, CaseIterable {
-    case monthly = "com.dhikr.premium.monthly"
-    case yearly = "com.dhikr.premium.yearly"
+    case monthly = "khushoo.monthly"
+    case yearly = "khushoo.yearly"
 }
 
 // MARK: - Subscription Service
@@ -30,6 +30,7 @@ class SubscriptionService: ObservableObject {
     private let db = Firestore.firestore()
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     private var currentUserId: String?
+    private var isInitialSync: Bool = true  // Track if this is the first sync to avoid false "became premium" triggers
 
     enum PurchaseState: Equatable {
         case idle
@@ -83,8 +84,9 @@ class SubscriptionService: ObservableObject {
                     print("👤 [SubscriptionService] User signed in, syncing subscription...")
                     await self.syncSubscriptionStatus()
                 } else {
-                    print("👤 [SubscriptionService] User signed out, clearing all subscription data")
-                    self.clearSubscriptionData()
+                    print("👤 [SubscriptionService] User signed out, re-checking local subscription...")
+                    // Don't clear premium status - check StoreKit for local purchases
+                    await self.syncSubscriptionStatus()
                 }
             }
         }
@@ -118,14 +120,8 @@ class SubscriptionService: ObservableObject {
         var isPremiumActive = false
         var latestTransaction: StoreKit.Transaction?
 
-        // IMPORTANT: Premium requires being logged in
-        guard currentUserId != nil else {
-            print("⚠️ [SubscriptionService] No user logged in - premium disabled")
-            self.isPremium = false
-            return
-        }
-
-        // STEP 1: Check StoreKit for active subscriptions
+        // STEP 1: Check StoreKit for active subscriptions (works without login)
+        // Users can purchase and use premium without account, then sync later
         for await result in StoreKit.Transaction.currentEntitlements {
             do {
                 let transaction = try checkVerified(result)
@@ -156,10 +152,10 @@ class SubscriptionService: ObservableObject {
             }
         }
 
-        // STEP 2: Sync to Firebase if user is signed in
+        // STEP 2: Sync to Firebase if user is signed in (optional)
         if let userId = currentUserId {
             if isPremiumActive, let transaction = latestTransaction {
-                // Active subscription - sync to Firebase
+                // Active subscription from StoreKit - sync to Firebase
                 await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
             } else {
                 // No active subscription from StoreKit
@@ -173,10 +169,34 @@ class SubscriptionService: ObservableObject {
                     await markSubscriptionInactive(userId: userId)
                 }
             }
+        } else {
+            // User not logged in - premium still works via StoreKit
+            if isPremiumActive {
+                print("ℹ️ [SubscriptionService] Premium active locally (not synced to Firebase yet)")
+            }
         }
 
+        let wasPremium = self.isPremium
         self.isPremium = isPremiumActive
         print("✅ [SubscriptionService] Final premium status: \(isPremiumActive)")
+
+        // Only trigger state change notifications after the initial sync
+        if !isInitialSync {
+            // If user just became premium, trigger background data fetch
+            if isPremiumActive && !wasPremium {
+                print("🎉 [SubscriptionService] User just became premium! Triggering background fetch...")
+                NotificationCenter.default.post(name: NSNotification.Name("UserBecamePremium"), object: nil)
+            }
+
+            // If user lost premium status, turn off app blocking
+            if !isPremiumActive && wasPremium {
+                print("⚠️ [SubscriptionService] User lost premium status - disabling app blocking")
+                NotificationCenter.default.post(name: NSNotification.Name("UserLostPremium"), object: nil)
+            }
+        } else {
+            print("ℹ️ [SubscriptionService] Initial sync complete - skipping state change notifications")
+            isInitialSync = false
+        }
     }
 
     // MARK: - Firebase Sync Methods
@@ -274,11 +294,9 @@ class SubscriptionService: ObservableObject {
 
     // MARK: - Purchase Product
     func purchase(_ product: Product) async {
-        // Require user to be logged in to purchase
-        guard currentUserId != nil else {
-            print("⚠️ [SubscriptionService] Cannot purchase - user not logged in")
-            purchaseState = .failed(StoreError.userNotSignedIn)
-            return
+        // Allow purchases without login (will sync to Firebase when user logs in)
+        if currentUserId == nil {
+            print("ℹ️ [SubscriptionService] Purchasing without login - will sync when user creates account")
         }
 
         purchaseState = .purchasing
@@ -290,10 +308,14 @@ class SubscriptionService: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
 
-                // Sync to Firebase first
-                await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
+                // Sync to Firebase if user is logged in
+                if currentUserId != nil {
+                    await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
+                } else {
+                    print("ℹ️ [SubscriptionService] Purchase successful - will sync to Firebase when user logs in")
+                }
 
-                // Update subscription status
+                // Update subscription status (works locally via StoreKit)
                 await syncSubscriptionStatus()
 
                 // Finish the transaction

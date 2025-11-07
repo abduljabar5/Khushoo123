@@ -20,17 +20,23 @@ struct MainTabView: View {
     @AppStorage("showSleepTimer") private var showSleepTimer = true
     @Namespace private var animation
 
+    // Computed property to determine if mini player should be shown
+    private var shouldShowMiniPlayer: Bool {
+        audioPlayerService.currentSurah != nil && (audioPlayerService.isPlaying || audioPlayerService.hasPlayedOnce)
+    }
+
     var body: some View {
         ZStack {
             // Root background that shows during zoom transition - black to match system edges
             Color.black
                 .ignoresSafeArea()
 
-            Group {
-                if #available(iOS 26, *) {
-                    NativeTabView()
-                        .tabViewBottomAccessory {
-                        if audioPlayerService.currentSurah != nil {
+            if #available(iOS 26, *) {
+                // iOS 26: Always apply modifier, animate content height to prevent scroll jumping
+                NativeTabView()
+
+                    if shouldShowMiniPlayer {
+                        NativeTabView().tabViewBottomAccessory {
                             MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
                                 .environmentObject(audioPlayerService)
                                 .contentShape(Rectangle())
@@ -46,12 +52,14 @@ struct MainTabView: View {
                                 .onTapGesture {
                                     expandMiniPlayer.toggle()
                                 }
-                        }
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        };
                     }
+                    // .animation(.spring(response: 0.35, dampingFraction: 0.88), value: shouldShowMiniPlayer)
             } else {
                 NativeTabView(60)
                     .overlay(alignment: .bottom) {
-                        if audioPlayerService.currentSurah != nil {
+                        if shouldShowMiniPlayer {
                             MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
                                 .environmentObject(audioPlayerService)
                                 .padding(.vertical, 8)
@@ -81,10 +89,11 @@ struct MainTabView: View {
                                 }
                                 .offset(y: -52)
                                 .padding(.horizontal, 15)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
                     .ignoresSafeArea(.keyboard, edges: .all)
-            }
+                    .animation(.spring(response: 0.35, dampingFraction: 0.88), value: shouldShowMiniPlayer)
             }
         }
         .fullScreenCover(isPresented: $expandMiniPlayer) {
@@ -94,9 +103,20 @@ struct MainTabView: View {
                     let safeArea = geometry.safeAreaInsets
 
                     ZStack {
-                        // Background color that matches theme
-                        themeManager.theme.primaryBackground
-                            .ignoresSafeArea()
+                        // Background with heavy blur for liquid glass mode
+                        if themeManager.currentTheme == .liquidGlass {
+                            ZStack {
+                                LiquidGlassBackgroundView()
+
+                                // Heavy blur overlay
+                                Rectangle()
+                                    .fill(.ultraThickMaterial)
+                                    .ignoresSafeArea()
+                            }
+                        } else {
+                            themeManager.theme.primaryBackground
+                                .ignoresSafeArea()
+                        }
 
                         VStack(spacing: 10) {
                             /// Drag Indicator
@@ -117,7 +137,13 @@ struct MainTabView: View {
                     .navigationTransition(.zoom(sourceID: "MINIPLAYER", in: animation))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .presentationBackground(themeManager.theme.primaryBackground)
+                .presentationBackground {
+                    if themeManager.currentTheme == .liquidGlass {
+                        Color.clear.background(.ultraThickMaterial)
+                    } else {
+                        themeManager.theme.primaryBackground
+                    }
+                }
                 .onAppear {
                     // Set window background to match theme during presentation
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -550,7 +576,7 @@ struct MainTabView: View {
 
         case .dark:
             appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor(Color(hex: "1E3A5F"))
+            appearance.backgroundColor = UIColor(Color(hex: "0D1A2D"))
 
         case .liquidGlass:
             // Since UIDesignRequiresCompatibility is enabled globally,

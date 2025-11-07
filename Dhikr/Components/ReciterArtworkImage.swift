@@ -17,6 +17,7 @@ struct ReciterArtworkImage: View {
     let showPlaceholder: Bool
 
     @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     private var theme: AppTheme { themeManager.theme }
 
     init(
@@ -60,11 +61,11 @@ struct ReciterArtworkImage: View {
 
     private var placeholderView: some View {
         Circle()
-            .fill(theme.tertiaryBackground)
+            .fill(colorScheme == .dark ? Color(hex: "0B1420") : Color(hex: "ECECEC"))
             .overlay(
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: size * 0.6))
-                    .foregroundColor(theme.tertiaryText)
+                    .foregroundColor(colorScheme == .dark ? Color(hex: "78909C") : Color(hex: "CECECE"))
             )
             .frame(width: size, height: size)
     }
@@ -76,6 +77,7 @@ struct ReciterArtworkImageCompact: View {
     let reciterName: String
 
     @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
@@ -91,13 +93,13 @@ struct ReciterArtworkImageCompact: View {
                 .placeholder {
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 40))
-                        .foregroundColor(theme.tertiaryText)
+                        .foregroundColor(colorScheme == .dark ? Color(hex: "78909C") : Color(hex: "CECECE"))
                 }
                 .scaledToFill()
         } else {
             Image(systemName: "person.circle.fill")
                 .font(.system(size: 40))
-                .foregroundColor(theme.tertiaryText)
+                .foregroundColor(colorScheme == .dark ? Color(hex: "78909C") : Color(hex: "CECECE"))
         }
     }
 }

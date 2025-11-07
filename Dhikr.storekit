@@ -85,7 +85,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.dhikr.premium.monthly",
+          "productID" : "khushoo.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Premium Monthly",
           "subscriptionGroupID" : "21445098",
@@ -115,7 +115,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.dhikr.premium.yearly",
+          "productID" : "khushoo.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Premium Yearly",
           "subscriptionGroupID" : "21445098",

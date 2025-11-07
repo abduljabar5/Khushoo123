@@ -35,7 +35,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var currentArtwork: UIImage?
     @Published var sleepTimeRemaining: TimeInterval?
     @Published var likedItems: Set<LikedItem> = []
-    
+    @Published var hasPlayedOnce: Bool = false
+
     // MARK: - Private Properties
     private var player: AVPlayer?
     private var timeObserver: Any?
@@ -411,6 +412,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             print("🎵 [AudioPlayerService] Audio session active: \(isAudioSessionActive)")
             player.play()
             isPlaying = true
+            hasPlayedOnce = true
             lastRecordedTime = currentTime // Reset tracking when playback starts
             updateNowPlayingInfo()
             print("✅ [AudioPlayerService] Playback started")
@@ -901,15 +903,20 @@ class AudioPlayerService: NSObject, ObservableObject {
            surah.id == lastPlayedInfo.surah.id && reciter.id == lastPlayedInfo.reciter.id,
            isPreloaded && isReadyToPlay {
             print("✅ [AudioPlayerService] Audio already preloaded, activating and playing immediately")
-            
+
             // Now expose the preloaded audio to the UI
             currentSurah = surah
             currentReciter = reciter
             isPreloaded = false
-            
+
             // Log to recents manager now that user is actually playing
             RecentsManager.shared.addTrack(surah: surah, reciter: reciter)
-            
+
+            // Fetch artwork for the surah
+            Task {
+                await fetchSurahCoverArtwork(for: surah)
+            }
+
             seek(to: lastPlayedInfo.time) { [weak self] completed in
                 if completed {
                     self?.play()
@@ -1214,9 +1221,12 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.preloadedReciter = reciter
             self.isPreloaded = true
         }
-        
+
         // Don't log to recents manager yet - only when user actually plays
-        
+
+        // Fetch surah cover image (only for authenticated users) during preload
+        await fetchSurahCoverArtwork(for: surah)
+
         do {
             let audioURLString = try await QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
             guard let audioURL = URL(string: audioURLString) else {

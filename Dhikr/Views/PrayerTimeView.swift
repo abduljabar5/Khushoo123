@@ -25,6 +25,12 @@ struct PrayerTimeView: View {
                     }
 
                     VStack(spacing: 0) {
+                        // Add top padding for liquid glass mode
+                        if theme.hasGlassEffect {
+                            Color.clear
+                                .frame(height: 50)
+                        }
+
                         // Top prayer time section content
                         topPrayerSection
 
@@ -36,6 +42,11 @@ struct PrayerTimeView: View {
                             if Calendar.current.isDateInToday(viewModel.selectedDate) {
                                 progressSection
                             }
+
+                            // Qibla Compass
+                            CompactQiblaIndicator()
+                                .padding(.horizontal, 16)
+
                             prayerScheduleList
                             footerInfo
                         }
@@ -45,7 +56,7 @@ struct PrayerTimeView: View {
                     }
                 }
             }
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: theme.hasGlassEffect ? [] : .top)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.0)) {

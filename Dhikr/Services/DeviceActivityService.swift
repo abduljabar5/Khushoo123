@@ -385,7 +385,7 @@ class DeviceActivityService: ObservableObject {
     }
     
     /// Stop all active monitoring sessions
-    private func stopAllMonitoring() {
+    func stopAllMonitoring() {
         // Create a comprehensive list of activities to stop
         var allActivitiesToStop: Set<DeviceActivityName> = []
         

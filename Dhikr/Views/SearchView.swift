@@ -39,12 +39,12 @@ struct SearchView: View {
     }
     
     // Settings that trigger activity monitor updates (persisted)
-    // Default to false (disabled) for new users - they must opt-in
-    @AppStorage("focusSelectedFajr") private var selectedFajr = false
-    @AppStorage("focusSelectedDhuhr") private var selectedDhuhr = false
-    @AppStorage("focusSelectedAsr") private var selectedAsr = false
-    @AppStorage("focusSelectedMaghrib") private var selectedMaghrib = false
-    @AppStorage("focusSelectedIsha") private var selectedIsha = false
+    // Default to true (all prayers preselected) - matches onboarding defaults
+    @AppStorage("focusSelectedFajr") private var selectedFajr = true
+    @AppStorage("focusSelectedDhuhr") private var selectedDhuhr = true
+    @AppStorage("focusSelectedAsr") private var selectedAsr = true
+    @AppStorage("focusSelectedMaghrib") private var selectedMaghrib = true
+    @AppStorage("focusSelectedIsha") private var selectedIsha = true
     
     private var selectedPrayers: Set<String> {
         var prayers: Set<String> = []
@@ -70,7 +70,7 @@ struct SearchView: View {
         }
     }
     
-    @AppStorage("focusBlockingDuration") private var blockingDuration: Double = 15
+    @AppStorage("focusBlockingDuration") private var blockingDuration: Double = 30
     
     @AppStorage("focusStrictMode") private var strictMode = false
 
@@ -101,8 +101,8 @@ struct SearchView: View {
             }
         }
         .onChange(of: blockingDuration) { newValue in
-            // Clamp to 15..60 in 5-min steps
-            let clamped = min(60, max(15, round(newValue / 5) * 5))
+            // Clamp to 10..90
+            let clamped = min(90, max(10, newValue))
             if clamped != newValue {
                 blockingDuration = clamped
             }
@@ -172,8 +172,15 @@ struct SearchView: View {
             }
                 }
         .onAppear {
-            // Clamp any previously persisted value
-            let clamped = min(60, max(15, round(blockingDuration / 5) * 5))
+            // Skip if not premium - app blocking is premium only
+            guard subscriptionService.isPremium else {
+                print("🔒 [SearchView] Skipping initialization - user is not premium")
+                // Don't reset prayer selections - preserve user's previous settings
+                return
+            }
+
+            // Clamp any previously persisted value to new range (10-90)
+            let clamped = min(90, max(10, blockingDuration))
             if clamped != blockingDuration {
                 blockingDuration = clamped
             }
@@ -246,7 +253,7 @@ struct SearchView: View {
                             .font(.subheadline)
                             .foregroundColor(theme.secondaryText)
                     }
-                    .padding(.top, 20)
+                    .padding(.top, theme.hasGlassEffect ? 60 : 20)
                     .padding(.bottom, 30)
 
                     // Main Content with separate containers
@@ -514,14 +521,34 @@ struct SearchView: View {
     private func fetchPrayerTimesForLocation(_ location: CLLocation) {
         Task {
             do {
-                // Check if existing storage needs location refresh
-                if let storage = prayerStorage {
-                    if prayerTimeService.needsRefreshForLocation(location, storage: storage) {
-                        print("🔄 [PrayerBlocking] Location changed, clearing old storage")
+                // Check if existing storage is valid and location-appropriate
+                if let storage = prayerStorage ?? prayerTimeService.loadStorage() {
+                    // Check if storage is still valid (not expired)
+                    if !storage.shouldRefresh {
+                        // Check if location changed significantly
+                        let needsLocationRefresh = await prayerTimeService.needsRefreshForLocation(location, storage: storage)
+
+                        if !needsLocationRefresh {
+                            print("✅ [PrayerBlocking] Using cached prayer times")
+                            prayerStorage = storage
+                            await MainActor.run {
+                                self.loadPrayerTimesFromStorage(storage)
+                                self.isLoadingPrayerTimes = false
+                                self.prayerTimesError = nil
+                                self.lastPrayerTimeFetch = Date()
+                                self.scheduleNotificationsIfNeeded()
+                                self.scheduleRollingWindowFromStorage()
+                            }
+                            return
+                        } else {
+                            print("🔄 [PrayerBlocking] Location changed, clearing old storage")
+                            prayerTimeService.clearStorage()
+                            prayerStorage = nil
+                        }
+                    } else {
+                        print("🔄 [PrayerBlocking] Storage expired, fetching new data")
                         prayerTimeService.clearStorage()
                         prayerStorage = nil
-                    } else {
-                        print("✅ [PrayerBlocking] Location hasn't changed significantly")
                     }
                 }
 
@@ -1130,20 +1157,132 @@ private struct BlockingDurationView: View {
                         .foregroundColor(theme.primaryText)
                 }
 
-                Slider(value: $duration, in: 15...60, step: 5)
-                    .tint(Color(red: 0.2, green: 0.8, blue: 0.6))
-                    .accentColor(Color(red: 0.2, green: 0.8, blue: 0.6))
-                    .colorScheme(themeManager.currentTheme == .light ? .light : .dark)
-                    .disabled(isUpdating)
-                    .onChange(of: duration) { _ in
+                // Duration Buttons
+                HStack(spacing: 10) {
+                    DurationButton(value: 10, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                        duration = 10
                         isUpdating = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             isUpdating = false
                         }
                     }
+
+                    DurationButton(value: 15, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                        duration = 15
+                        isUpdating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isUpdating = false
+                        }
+                    }
+
+                    DurationButton(value: 20, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                        duration = 20
+                        isUpdating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isUpdating = false
+                        }
+                    }
+
+                    DurationButton(value: 30, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                        duration = 30
+                        isUpdating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isUpdating = false
+                        }
+                    }
+
+                    CustomDurationButton(current: Int(duration), theme: theme, isUpdating: isUpdating) { customValue in
+                        duration = Double(customValue)
+                        isUpdating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isUpdating = false
+                        }
+                    }
+                }
             }
             .padding()
             .background(containerBackground)
+        }
+    }
+}
+
+// MARK: - Duration Button Components
+
+private struct DurationButton: View {
+    let value: Int
+    let current: Int
+    let theme: AppTheme
+    let isUpdating: Bool
+    let action: () -> Void
+
+    var isSelected: Bool {
+        current == value
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text("\(value)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(isSelected ? .white : theme.primaryText)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(isSelected ? Color(hex: "1A9B8A") : Color.gray.opacity(0.2))
+                )
+        }
+        .disabled(isUpdating)
+        .opacity(isUpdating ? 0.6 : 1.0)
+    }
+}
+
+private struct CustomDurationButton: View {
+    let current: Int
+    let theme: AppTheme
+    let isUpdating: Bool
+    let onSet: (Int) -> Void
+
+    @State private var showingInput = false
+    @State private var customValue = ""
+
+    private var isCustomValue: Bool {
+        ![10, 15, 20, 30].contains(current)
+    }
+
+    var body: some View {
+        Button(action: {
+            customValue = "\(current)"
+            showingInput = true
+        }) {
+            VStack(spacing: 2) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
+                if isCustomValue {
+                    Text("\(current)")
+                        .font(.system(size: 10, weight: .bold))
+                }
+            }
+            .foregroundColor(isCustomValue ? .white : theme.primaryText)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isCustomValue ? Color(hex: "1A9B8A") : Color.gray.opacity(0.2))
+            )
+        }
+        .disabled(isUpdating)
+        .opacity(isUpdating ? 0.6 : 1.0)
+        .alert("Custom Duration", isPresented: $showingInput) {
+            TextField("Minutes (10-90)", text: $customValue)
+                .keyboardType(.numberPad)
+            Button("Cancel", role: .cancel) {}
+            Button("Set") {
+                if let value = Int(customValue), value >= 10, value <= 90 {
+                    onSet(value)
+                }
+            }
+        } message: {
+            Text("Enter blocking duration between 10 and 90 minutes")
         }
     }
 }
