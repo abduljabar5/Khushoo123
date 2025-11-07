@@ -22,7 +22,7 @@ struct MainTabView: View {
 
     // Computed property to determine if mini player should be shown
     private var shouldShowMiniPlayer: Bool {
-        audioPlayerService.currentSurah != nil && (audioPlayerService.isPlaying || audioPlayerService.hasPlayedOnce)
+        audioPlayerService.currentSurah != nil && (audioPlayerService.isPlaying || audioPlayerService.hasPlayedOnce || audioPlayerService.isLoading)
     }
 
     var body: some View {
@@ -31,31 +31,27 @@ struct MainTabView: View {
             Color.black
                 .ignoresSafeArea()
 
-            if #available(iOS 26, *) {
-                // iOS 26: Always apply modifier, animate content height to prevent scroll jumping
+            if #available(iOS 26.1, *) {
+                // iOS 26: Always apply modifier to prevent TabView recreation and scroll jumping
                 NativeTabView()
-
-                    if shouldShowMiniPlayer {
-                        NativeTabView().tabViewBottomAccessory {
-                            MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
-                                .environmentObject(audioPlayerService)
-                                .contentShape(Rectangle())
-                                .highPriorityGesture(
-                                    DragGesture(minimumDistance: 10)
-                                        .onEnded { value in
-                                            let velocity = value.predictedEndLocation.y - value.location.y
-                                            if value.translation.height < -20 || velocity < -100 {
-                                                expandMiniPlayer = true
-                                            }
+                    .tabViewBottomAccessory(isEnabled: shouldShowMiniPlayer) {
+                        
+                        MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
+                            .environmentObject(audioPlayerService)
+                            .contentShape(Rectangle())
+                            .highPriorityGesture(
+                                DragGesture(minimumDistance: 10)
+                                    .onEnded { value in
+                                        let velocity = value.predictedEndLocation.y - value.location.y
+                                        if value.translation.height < -20 || velocity < -100 {
+                                            expandMiniPlayer = true
                                         }
-                                )
-                                .onTapGesture {
-                                    expandMiniPlayer.toggle()
-                                }
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        };
+                                    }
+                            )
+                            .onTapGesture {
+                                expandMiniPlayer.toggle()
+                            }
                     }
-                    // .animation(.spring(response: 0.35, dampingFraction: 0.88), value: shouldShowMiniPlayer)
             } else {
                 NativeTabView(60)
                     .overlay(alignment: .bottom) {

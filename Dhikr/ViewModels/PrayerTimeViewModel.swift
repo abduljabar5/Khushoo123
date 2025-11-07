@@ -168,9 +168,10 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         }
     }
 
-    private func reloadTodaysCompletions() {
+    func reloadCompletions() {
         let today = dateKey(for: Date())
         if let completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] {
+            print("📥 Reloading prayer completions: \(completed)")
             // Update both today's prayers and current prayers if viewing today
             for i in 0..<todaysPrayers.count {
                 let isCompleted = completed.contains(todaysPrayers[i].name)
@@ -182,7 +183,13 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 }
             }
             updateProgressPercentage()
+        } else {
+            print("📥 No completed prayers found for \(today)")
         }
+    }
+
+    private func reloadTodaysCompletions() {
+        reloadCompletions()
     }
 
     // MARK: - Update Methods
@@ -373,14 +380,24 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     func togglePrayerCompletion(for prayerName: String) {
+        // Only allow toggling completion for today's prayers
+        guard Calendar.current.isDateInToday(selectedDate) else {
+            print("⚠️ Cannot mark prayers as completed for non-today dates")
+            return
+        }
+
+        // Only allow toggling if prayer has passed or is currently active
+        guard isPrayerPassed(prayerName) || prayerName == currentPrayer?.name else {
+            print("⚠️ Cannot mark future prayers as completed")
+            return
+        }
+
         if let index = prayers.firstIndex(where: { $0.name == prayerName }) {
             prayers[index].isCompleted.toggle()
 
-            // Update todaysPrayers if we're on today's date
-            if Calendar.current.isDateInToday(selectedDate) {
-                if let todayIndex = todaysPrayers.firstIndex(where: { $0.name == prayerName }) {
-                    todaysPrayers[todayIndex].isCompleted = prayers[index].isCompleted
-                }
+            // Update todaysPrayers
+            if let todayIndex = todaysPrayers.firstIndex(where: { $0.name == prayerName }) {
+                todaysPrayers[todayIndex].isCompleted = prayers[index].isCompleted
             }
 
             // Save completion status
@@ -396,9 +413,37 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             }
 
             UserDefaults.standard.set(completed, forKey: "completed_\(today)")
+            print("💾 Saved prayer completions for \(today): \(completed)")
             updateProgressPercentage()
             updateStreaks()
         }
+    }
+
+    func isPrayerPassed(_ prayerName: String) -> Bool {
+        guard let prayer = prayers.first(where: { $0.name == prayerName }) else {
+            return false
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+
+        guard let prayerTime = formatter.date(from: prayer.time) else {
+            return false
+        }
+
+        let calendar = Calendar.current
+        let now = Date()
+
+        var prayerComponents = calendar.dateComponents([.hour, .minute], from: prayerTime)
+        prayerComponents.year = calendar.component(.year, from: now)
+        prayerComponents.month = calendar.component(.month, from: now)
+        prayerComponents.day = calendar.component(.day, from: now)
+
+        guard let prayerDate = calendar.date(from: prayerComponents) else {
+            return false
+        }
+
+        return prayerDate <= now
     }
 
     private func checkAndUpdateStreakStatus() {

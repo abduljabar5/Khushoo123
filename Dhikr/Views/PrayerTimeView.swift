@@ -62,6 +62,8 @@ struct PrayerTimeView: View {
             withAnimation(.easeInOut(duration: 1.0)) {
                 animateProgress = true
             }
+            // Reload prayer completions when view appears
+            viewModel.reloadCompletions()
         }
         .sheet(isPresented: $showingDatePicker) {
             DatePickerSheet(
@@ -411,11 +413,13 @@ struct PrayerTimeView: View {
     // MARK: - Prayer Schedule List
     private var prayerScheduleList: some View {
         VStack(spacing: 12) {
+            let isToday = Calendar.current.isDateInToday(viewModel.selectedDate)
             ForEach(viewModel.prayers, id: \.name) { prayer in
                 PrayerRowView(
                     prayer: prayer,
-                    isActive: prayer.name == viewModel.currentPrayer?.name,
-                    isToday: Calendar.current.isDateInToday(viewModel.selectedDate),
+                    isActive: isToday && prayer.name == viewModel.currentPrayer?.name,
+                    isToday: isToday,
+                    isPrayerPassed: viewModel.isPrayerPassed(prayer.name),
                     theme: theme,
                     onToggleReminder: {
                         viewModel.toggleReminder(for: prayer.name)
@@ -454,6 +458,7 @@ struct PrayerRowView: View {
     let prayer: Prayer
     let isActive: Bool
     let isToday: Bool
+    let isPrayerPassed: Bool
     let theme: AppTheme
     let onToggleReminder: () -> Void
     let onToggleComplete: () -> Void
@@ -501,8 +506,8 @@ struct PrayerRowView: View {
                     .foregroundColor(prayer.hasReminder ? theme.accentGold : theme.tertiaryText)
             }
 
-            // Completion Checkbox (not for Sunrise and not for future dates)
-            if prayer.name != "Sunrise" && isToday {
+            // Completion Checkbox (not for Sunrise, only for today, and only for passed prayers or current prayer)
+            if prayer.name != "Sunrise" && isToday && (isPrayerPassed || isActive) {
                 Button(action: onToggleComplete) {
                     ZStack {
                         Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -517,7 +522,7 @@ struct PrayerRowView: View {
                     }
                 }
             } else {
-                // Spacer to maintain alignment for Sunrise and future dates
+                // Spacer to maintain alignment for Sunrise, future dates, and future prayers
                 Color.clear
                     .frame(width: 20, height: 20)
             }

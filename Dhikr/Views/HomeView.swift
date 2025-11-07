@@ -271,27 +271,29 @@ struct HomeView: View {
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.9))
 
-                    // Progress bar
+                    // Prayer time progress bar
                     HStack(spacing: 8) {
-                        Text("\(prayerViewModel.completedPrayers)/\(prayerViewModel.totalPrayers)")
+                        Text(getCurrentPrayerLabel())
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
 
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
+                                // Background track
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.white.opacity(0.3))
                                     .frame(height: 6)
 
+                                // Progress indicator based on current prayer time
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.white)
-                                    .frame(width: geometry.size.width * (CGFloat(prayerViewModel.completedPrayers) / CGFloat(prayerViewModel.totalPrayers)), height: 6)
-                                    .animation(.easeInOut, value: prayerViewModel.completedPrayers)
+                                    .frame(width: geometry.size.width * getCurrentPrayerProgress(), height: 6)
+                                    .animation(.easeInOut, value: prayerViewModel.currentPrayer?.name)
                             }
                         }
                         .frame(height: 6)
 
-                        Text("prayers today")
+                        Text("of the day")
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.9))
                     }
@@ -687,7 +689,7 @@ struct HomeView: View {
                             Image(systemName: "person.2.fill")
                                 .font(.system(size: 8))
                                 .foregroundColor(themeManager.theme.primaryAccent)
-                            Text("\(String(format: "%.1f", Double.random(in: 2...5)))M")
+                            Text(getConsistentListenerCount(for: reciter))
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.white)
                         }
@@ -1292,7 +1294,7 @@ struct HomeView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 10))
-                        Text("\(String(format: "%.1f", Double.random(in: 2...5)))M")
+                        Text(getConsistentListenerCount(for: reciter))
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundColor(themeManager.theme.secondaryText)
@@ -2175,7 +2177,56 @@ struct HomeView: View {
         ]
         return arabicNames[englishName] ?? ""
     }
-    
+
+    // Get the current prayer position as a progress value (0.0 to 1.0)
+    private func getCurrentPrayerProgress() -> CGFloat {
+        // Map prayer names to their position in the day (excluding Sunrise)
+        // Fajr=1/5, Dhuhr=2/5, Asr=3/5, Maghrib=4/5, Isha=5/5
+        guard let currentPrayer = prayerViewModel.currentPrayer?.name else {
+            return 0.0
+        }
+
+        switch currentPrayer {
+        case "Fajr":
+            return 1.0 / 5.0  // 0.2
+        case "Sunrise":
+            return 1.0 / 5.0  // Same as Fajr (we don't count Sunrise as a prayer)
+        case "Dhuhr":
+            return 2.0 / 5.0  // 0.4
+        case "Asr":
+            return 3.0 / 5.0  // 0.6
+        case "Maghrib":
+            return 4.0 / 5.0  // 0.8
+        case "Isha":
+            return 5.0 / 5.0  // 1.0
+        default:
+            return 0.0
+        }
+    }
+
+    // Get the label showing current prayer time
+    private func getCurrentPrayerLabel() -> String {
+        guard let currentPrayer = prayerViewModel.currentPrayer?.name else {
+            return "—"
+        }
+
+        // Don't show Sunrise as it's not a prayer
+        if currentPrayer == "Sunrise" {
+            return "Fajr"
+        }
+
+        return currentPrayer
+    }
+
+    // Get consistent listener count for a reciter (based on their identifier)
+    private func getConsistentListenerCount(for reciter: Reciter) -> String {
+        // Use the reciter's identifier to generate a consistent hash
+        let hash = abs(reciter.identifier.hashValue)
+        // Generate a number between 2.0M and 5.0M based on the hash
+        let value = 2.0 + (Double(hash % 1000) / 1000.0) * 3.0
+        return String(format: "%.1fM", value)
+    }
+
     // MARK: - Hero Banner (keeping for compatibility)
     private var heroBanner: some View {
         VStack(alignment: .leading, spacing: 16) {
