@@ -130,11 +130,11 @@ class BackgroundRefreshService: NSObject, ObservableObject {
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
         let duration = groupDefaults?.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
 
-        let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? true
-        let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? true
-        let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? true
-        let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? true
-        let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? true
+        let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
+        let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? false
+        let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? false
+        let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? false
+        let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? false
 
         var selectedPrayers: Set<String> = []
         if selectedFajr { selectedPrayers.insert("Fajr") }

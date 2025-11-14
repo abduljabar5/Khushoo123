@@ -7,6 +7,44 @@
 
 import Foundation
 
+// MARK: - Individual Dhikr Entry (with timestamp)
+struct DhikrEntry: Codable, Identifiable {
+    let id: UUID
+    let type: DhikrType
+    let timestamp: Date
+    let count: Int // For batch increments (e.g., +10, +33)
+
+    init(type: DhikrType, timestamp: Date = Date(), count: Int = 1) {
+        self.id = UUID()
+        self.type = type
+        self.timestamp = timestamp
+        self.count = count
+    }
+
+    // Time of day categorization
+    var timeOfDay: TimeOfDay {
+        let hour = Calendar.current.component(.hour, from: timestamp)
+        switch hour {
+        case 6..<12:
+            return .morning
+        case 12..<18:
+            return .afternoon
+        case 18..<22:
+            return .evening
+        default:
+            return .night
+        }
+    }
+}
+
+// MARK: - Time of Day Enum
+enum TimeOfDay: String, Codable {
+    case morning = "Morning"    // 6am-12pm
+    case afternoon = "Afternoon" // 12pm-6pm
+    case evening = "Evening"     // 6pm-10pm
+    case night = "Night"        // 10pm-6am
+}
+
 // MARK: - Dhikr Count Model
 struct DhikrCount: Codable {
     var subhanAllah: Int
@@ -127,7 +165,7 @@ struct DhikrCount: Codable {
 }
 
 // MARK: - Dhikr Type Enum
-enum DhikrType: String, CaseIterable, Hashable {
+enum DhikrType: String, CaseIterable, Hashable, Codable {
     case subhanAllah = "SubhanAllah"
     case alhamdulillah = "Alhamdulillah"
     case astaghfirullah = "Astaghfirullah"

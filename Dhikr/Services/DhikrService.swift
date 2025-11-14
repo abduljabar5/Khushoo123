@@ -84,9 +84,16 @@ class DhikrService: ObservableObject {
     private let lastStreakDateKey = "lastStreakDate"
     private let dailyStatsKey = "dailyStats"
     private let goalsKey = "dhikrGoals"
-    
+    private let dhikrEntriesKey = "dhikrEntries"
+
     // MARK: - UserDefaults
     private let userDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")!
+
+    // MARK: - Performance Settings
+    private let maxEntriesInMemory = 10000 // Keep last 10k entries (~3-4 months of heavy use)
+    private let entriesBatchSize = 50 // Write to disk every 50 entries
+    private var pendingEntries: [DhikrEntry] = []
+    private var entriesWriteTimer: Timer?
     
     // MARK: - Singleton
     static let shared = DhikrService()
@@ -103,10 +110,13 @@ class DhikrService: ObservableObject {
     // MARK: - Public Methods
     func incrementDhikr(_ type: DhikrType) {
         dhikrCount.increment(type)
-        
+
+        // Record individual entry with timestamp
+        recordEntry(type: type, count: 1)
+
         // Trigger haptic feedback
         triggerHapticFeedback()
-        
+
         // Post notification for UI updates
         NotificationCenter.default.post(name: .dhikrCountUpdated, object: type)
         updateTodayStats()
@@ -114,11 +124,19 @@ class DhikrService: ObservableObject {
     }
     
     func setDhikrCount(_ type: DhikrType, count: Int) {
+        let currentCount = dhikrCount.count(for: type)
+        let difference = count - currentCount
+
         dhikrCount.setCount(type, count: count)
-        
+
+        // Record the difference as an entry (if increased)
+        if difference > 0 {
+            recordEntry(type: type, count: difference)
+        }
+
         // Trigger haptic feedback
         triggerHapticFeedback()
-        
+
         // Post notification for UI updates
         NotificationCenter.default.post(name: .dhikrCountUpdated, object: type)
         updateTodayStats()
@@ -130,7 +148,7 @@ class DhikrService: ObservableObject {
         guard amount > 0 else { return }
         // Ensure daily reset behavior remains consistent
         dhikrCount.resetForNewDay()
-        
+
         switch type {
         case .subhanAllah:
             dhikrCount.subhanAllah += amount
@@ -140,7 +158,10 @@ class DhikrService: ObservableObject {
             dhikrCount.astaghfirullah += amount
         }
         dhikrCount.lastUpdated = Date()
-        
+
+        // Record batch entry with timestamp
+        recordEntry(type: type, count: amount)
+
         // Single haptic and single notification for the batch
         triggerHapticFeedback()
         NotificationCenter.default.post(name: .dhikrCountUpdated, object: type)
@@ -378,6 +399,106 @@ class DhikrService: ObservableObject {
     func getAllTimeTotal() -> Int {
         let statsDict = loadDailyStats()
         return statsDict.values.reduce(0) { $0 + $1.total }
+    }
+
+    // MARK: - Individual Entry Management
+
+    /// Record a dhikr entry with timestamp (batched for performance)
+    private func recordEntry(type: DhikrType, count: Int) {
+        let entry = DhikrEntry(type: type, timestamp: Date(), count: count)
+        pendingEntries.append(entry)
+
+        // Batch write: Only write to disk when we have enough entries or after a delay
+        if pendingEntries.count >= entriesBatchSize {
+            flushPendingEntries()
+        } else {
+            // Debounce writes - save after 2 seconds of inactivity
+            entriesWriteTimer?.invalidate()
+            entriesWriteTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+                self?.flushPendingEntries()
+            }
+        }
+    }
+
+    /// Write pending entries to disk
+    private func flushPendingEntries() {
+        guard !pendingEntries.isEmpty else { return }
+
+        var allEntries = loadAllEntries()
+        allEntries.append(contentsOf: pendingEntries)
+
+        // Trim old entries if we exceed the limit (keep most recent)
+        if allEntries.count > maxEntriesInMemory {
+            allEntries = Array(allEntries.suffix(maxEntriesInMemory))
+        }
+
+        saveAllEntries(allEntries)
+        pendingEntries.removeAll()
+
+        print("✅ [DhikrService] Flushed \(pendingEntries.count) entries to storage")
+    }
+
+    /// Load all entries from storage
+    private func loadAllEntries() -> [DhikrEntry] {
+        guard let data = userDefaults.data(forKey: dhikrEntriesKey),
+              let entries = try? JSONDecoder().decode([DhikrEntry].self, from: data) else {
+            return []
+        }
+        return entries
+    }
+
+    /// Save all entries to storage
+    private func saveAllEntries(_ entries: [DhikrEntry]) {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        userDefaults.set(data, forKey: dhikrEntriesKey)
+    }
+
+    /// Get entries for a specific date range
+    func getEntries(from startDate: Date, to endDate: Date) -> [DhikrEntry] {
+        // Flush any pending entries first
+        flushPendingEntries()
+
+        let allEntries = loadAllEntries()
+        return allEntries.filter { entry in
+            entry.timestamp >= startDate && entry.timestamp <= endDate
+        }
+    }
+
+    /// Get entries for a specific month
+    func getEntriesForMonth(_ date: Date) -> [DhikrEntry] {
+        let calendar = Calendar.current
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date)),
+              let monthEnd = calendar.date(byAdding: DateComponents(month: 1, day: -1), to: monthStart) else {
+            return []
+        }
+        return getEntries(from: monthStart, to: monthEnd)
+    }
+
+    /// Calculate time breakdown from actual entries
+    func calculateTimeBreakdown(for entries: [DhikrEntry]) -> (morning: Int, afternoon: Int, evening: Int, night: Int) {
+        var breakdown: [TimeOfDay: Int] = [
+            .morning: 0,
+            .afternoon: 0,
+            .evening: 0,
+            .night: 0
+        ]
+
+        for entry in entries {
+            breakdown[entry.timeOfDay, default: 0] += entry.count
+        }
+
+        return (
+            morning: breakdown[.morning] ?? 0,
+            afternoon: breakdown[.afternoon] ?? 0,
+            evening: breakdown[.evening] ?? 0,
+            night: breakdown[.night] ?? 0
+        )
+    }
+
+    /// Ensure pending entries are saved when app goes to background
+    func savePendingData() {
+        flushPendingEntries()
+        flushPendingUpdates()
     }
 }
 

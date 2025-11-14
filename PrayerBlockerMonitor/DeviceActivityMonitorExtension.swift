@@ -54,11 +54,11 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         // Skip this check for ManualBlocking (test blocking)
         if let prayerName = prayerName, activity.rawValue != "ManualBlocking" {
             let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-            let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? true
-            let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? true
-            let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? true
-            let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? true
-            let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? true
+            let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
+            let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? false
+            let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? false
+            let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? false
+            let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? false
             
             var isPrayerSelected = false
             switch prayerName {
@@ -95,6 +95,51 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             print("✅ [\(ts)] Prayer \(prayerName) is selected for blocking, applying restrictions")
         }
         
+        // CRITICAL: Check if user is premium before blocking (app blocking is premium-only)
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let isPremiumUser = groupDefaults?.bool(forKey: "isPremiumUser") ?? false
+
+        if !isPremiumUser {
+            print("🔒 [\(ts)] User is not premium - skipping app blocking")
+            print("⚠️ [\(ts)] App blocking is a premium feature. User must subscribe to use this feature.")
+
+            // Send notification to user about premium requirement
+            let content = UNMutableNotificationContent()
+            content.title = "Dhikr - Premium Required"
+            content.body = "App blocking is a premium feature. Please upgrade to continue using prayer time blocking."
+            content.sound = .default
+            content.categoryIdentifier = "DHIKR_PREMIUM"
+
+            let request = UNNotificationRequest(
+                identifier: "premium-required-\(activity.rawValue)",
+                content: content,
+                trigger: nil
+            )
+
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("❌ [\(ts)] Failed to send premium notification: \(error.localizedDescription)")
+                } else {
+                    print("📬 [\(ts)] Notification sent: Premium required")
+                }
+            }
+
+            // Update the monitoring list but don't apply restrictions
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                var activeNames = groupDefaults.stringArray(forKey: "currentlyMonitoredActivityNames") ?? []
+                if activeNames.count > 30 {
+                    activeNames = Array(activeNames.suffix(25))
+                }
+                if !activeNames.contains(activity.rawValue) {
+                    activeNames.append(activity.rawValue)
+                    groupDefaults.set(activeNames, forKey: "currentlyMonitoredActivityNames")
+                }
+            }
+            return
+        }
+
+        print("✅ [\(ts)] User is premium - proceeding with app blocking")
+
         // Check what's currently blocked before we apply new restrictions
         let currentlyBlockedApps = store.shield.applications?.count ?? 0
         let currentlyBlockedCategories = store.shield.applicationCategories != nil ? 1 : 0

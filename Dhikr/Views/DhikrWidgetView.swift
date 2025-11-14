@@ -812,10 +812,10 @@ struct MonthlyActivityContainer: View {
                     .foregroundColor(.white)
 
                 VStack(alignment: .leading, spacing: 16) {
-                    timeSlotRow(label: "Morning (6-12)", percentage: monthStats.timeBreakdown.morning)
-                    timeSlotRow(label: "Afternoon (12-18)", percentage: monthStats.timeBreakdown.afternoon)
-                    timeSlotRow(label: "Evening (18-22)", percentage: monthStats.timeBreakdown.evening)
-                    timeSlotRow(label: "Night (22-6)", percentage: monthStats.timeBreakdown.night)
+                    timeSlotRow(label: "Morning", percentage: monthStats.timeBreakdown.morning)
+                    timeSlotRow(label: "Afternoon", percentage: monthStats.timeBreakdown.afternoon)
+                    timeSlotRow(label: "Evening", percentage: monthStats.timeBreakdown.evening)
+                    timeSlotRow(label: "Night", percentage: monthStats.timeBreakdown.night)
                 }
                 .padding(20)
                 .background(
@@ -952,54 +952,34 @@ struct MonthlyActivityContainer: View {
     }
 
     private func calculateTimeBreakdown(from stats: [DailyDhikrStats]) -> TimeBreakdown {
-        // Since we don't track exact times, we'll create a realistic distribution
-        // based on typical usage patterns
-        guard !stats.isEmpty else {
+        // Get the date range for the stats
+        guard let firstDate = stats.first?.date,
+              let lastDate = stats.last?.date else {
             return TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         }
 
-        let totalCount = stats.reduce(0) { $0 + $1.total }
-        guard totalCount > 0 else {
+        // Get actual entries from DhikrService
+        let entries = dhikrService.getEntries(from: min(firstDate, lastDate), to: max(firstDate, lastDate))
+
+        // If no entries yet (new user or old data), show default distribution
+        guard !entries.isEmpty else {
             return TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         }
 
-        // Generate a semi-random but consistent distribution based on the data
-        // Using day of week patterns: weekends vs weekdays have different patterns
-        var morningTotal = 0
-        var afternoonTotal = 0
-        var eveningTotal = 0
-        var nightTotal = 0
+        // Use real time breakdown calculation
+        let breakdown = dhikrService.calculateTimeBreakdown(for: entries)
+        let total = breakdown.morning + breakdown.afternoon + breakdown.evening + breakdown.night
 
-        for stat in stats {
-            let calendar = Calendar.current
-            let weekday = calendar.component(.weekday, from: stat.date)
-            let isWeekend = weekday == 1 || weekday == 7 // Sunday or Saturday
-
-            if isWeekend {
-                // Weekend pattern: more morning and evening
-                morningTotal += Int(Double(stat.total) * 0.35)
-                afternoonTotal += Int(Double(stat.total) * 0.25)
-                eveningTotal += Int(Double(stat.total) * 0.38)
-                nightTotal += Int(Double(stat.total) * 0.02)
-            } else {
-                // Weekday pattern: more evening and afternoon
-                morningTotal += Int(Double(stat.total) * 0.30)
-                afternoonTotal += Int(Double(stat.total) * 0.28)
-                eveningTotal += Int(Double(stat.total) * 0.40)
-                nightTotal += Int(Double(stat.total) * 0.02)
-            }
-        }
-
-        let sumTotal = morningTotal + afternoonTotal + eveningTotal + nightTotal
-        guard sumTotal > 0 else {
-            return TimeBreakdown(morning: 25, afternoon: 25, evening: 45, night: 5)
+        // Convert to percentages
+        guard total > 0 else {
+            return TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         }
 
         return TimeBreakdown(
-            morning: (morningTotal * 100) / sumTotal,
-            afternoon: (afternoonTotal * 100) / sumTotal,
-            evening: (eveningTotal * 100) / sumTotal,
-            night: (nightTotal * 100) / sumTotal
+            morning: (breakdown.morning * 100) / total,
+            afternoon: (breakdown.afternoon * 100) / total,
+            evening: (breakdown.evening * 100) / total,
+            night: (breakdown.night * 100) / total
         )
     }
 

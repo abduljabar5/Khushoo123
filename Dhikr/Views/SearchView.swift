@@ -259,27 +259,6 @@ struct SearchView: View {
                     // Main Content with separate containers
                     VStack(spacing: 20) {
                         // Show loading overlay when updating schedule
-                        if isUpdatingSchedule {
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Schedule Update")
-                                    .font(.headline)
-                                    .foregroundColor(theme.primaryText)
-
-                                HStack {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .tint(theme.primaryAccent)
-                                    Text("Updating schedule...")
-                                        .font(.caption)
-                                        .foregroundColor(theme.secondaryText)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(containerBackground)
-                            }
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        }
-
                         // Voice confirmation section (appears when blocking is active in strict mode)
                         VoiceConfirmationView(blockingState: blockingStateService)
 
@@ -1837,6 +1816,8 @@ private struct MockupPrayerToggleRow: View {
     @StateObject private var themeManager = ThemeManager.shared
     private var theme: AppTheme { themeManager.theme }
 
+    @State private var isUpdating = false
+
     var body: some View {
         HStack {
             Image(systemName: icon)
@@ -1849,12 +1830,26 @@ private struct MockupPrayerToggleRow: View {
 
             Spacer()
 
+            if isUpdating {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .padding(.trailing, 8)
+            }
+
             Toggle("", isOn: $isSelected)
                 .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
                 .labelsHidden()
+                .disabled(isUpdating)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .onChange(of: isSelected) { _ in
+            // Show loading indicator for this prayer only
+            isUpdating = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                isUpdating = false
+            }
+        }
     }
 }
 

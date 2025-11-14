@@ -139,11 +139,14 @@ struct DhikrApp: App {
         case .background:
             print("📲 App entering background")
             audioPlayerService.saveLastPlayed()
-            
+
+            // Save pending dhikr entries to disk
+            dhikrService.savePendingData()
+
             // Check blocking state immediately when app goes to background
             BlockingStateService.shared.forceCheck()
             print("✅ Force check triggered for background")
-            
+
             // Clean up resources when app goes to background
             Task {
                 await BackgroundTaskManager.shared.cancelAllTasks()
@@ -208,6 +211,7 @@ struct DhikrApp: App {
             groupDefaults.set(false, forKey: "focusSelectedAsr")
             groupDefaults.set(false, forKey: "focusSelectedMaghrib")
             groupDefaults.set(false, forKey: "focusSelectedIsha")
+            groupDefaults.set(false, forKey: "isPremiumUser") // Ensure premium flag is false
             groupDefaults.synchronize()
         }
 
@@ -254,6 +258,7 @@ struct DhikrApp: App {
             groupDefaults.set(false, forKey: "focusSelectedAsr")
             groupDefaults.set(false, forKey: "focusSelectedMaghrib")
             groupDefaults.set(false, forKey: "focusSelectedIsha")
+            groupDefaults.set(false, forKey: "isPremiumUser") // Ensure premium flag is false
             groupDefaults.synchronize()
 
             // Also update main UserDefaults

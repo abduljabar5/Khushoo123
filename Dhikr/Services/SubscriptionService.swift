@@ -180,6 +180,13 @@ class SubscriptionService: ObservableObject {
         self.isPremium = isPremiumActive
         print("✅ [SubscriptionService] Final premium status: \(isPremiumActive)")
 
+        // Sync premium status to App Group UserDefaults for monitor extension
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            groupDefaults.set(isPremiumActive, forKey: "isPremiumUser")
+            groupDefaults.synchronize()
+            print("📝 [SubscriptionService] Synced premium status to App Group: \(isPremiumActive)")
+        }
+
         // Only trigger state change notifications after the initial sync
         if !isInitialSync {
             // If user just became premium, trigger background data fetch

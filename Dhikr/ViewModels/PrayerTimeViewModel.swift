@@ -360,6 +360,15 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
 
             prayers = updatedPrayers
 
+            // Load completion data for the selected date
+            let dateKeyString = dateKey(for: date)
+            if let completed = UserDefaults.standard.array(forKey: "completed_\(dateKeyString)") as? [String] {
+                print("📖 Loaded prayer completions for \(dateKeyString): \(completed)")
+                for i in 0..<prayers.count {
+                    prayers[i].isCompleted = completed.contains(prayers[i].name)
+                }
+            }
+
             // For future dates, don't show current/next prayer for the selected date
             if !Calendar.current.isDateInToday(date) {
                 currentPrayer = nil

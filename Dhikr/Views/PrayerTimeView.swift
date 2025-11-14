@@ -414,11 +414,13 @@ struct PrayerTimeView: View {
     private var prayerScheduleList: some View {
         VStack(spacing: 12) {
             let isToday = Calendar.current.isDateInToday(viewModel.selectedDate)
+            let isPastDate = viewModel.selectedDate < Date() && !isToday
             ForEach(viewModel.prayers, id: \.name) { prayer in
                 PrayerRowView(
                     prayer: prayer,
                     isActive: isToday && prayer.name == viewModel.currentPrayer?.name,
                     isToday: isToday,
+                    isPastDate: isPastDate,
                     isPrayerPassed: viewModel.isPrayerPassed(prayer.name),
                     theme: theme,
                     onToggleReminder: {
@@ -458,6 +460,7 @@ struct PrayerRowView: View {
     let prayer: Prayer
     let isActive: Bool
     let isToday: Bool
+    let isPastDate: Bool
     let isPrayerPassed: Bool
     let theme: AppTheme
     let onToggleReminder: () -> Void
@@ -506,23 +509,37 @@ struct PrayerRowView: View {
                     .foregroundColor(prayer.hasReminder ? theme.accentGold : theme.tertiaryText)
             }
 
-            // Completion Checkbox (not for Sunrise, only for today, and only for passed prayers or current prayer)
-            if prayer.name != "Sunrise" && isToday && (isPrayerPassed || isActive) {
-                Button(action: onToggleComplete) {
-                    ZStack {
-                        Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(prayer.isCompleted ? theme.accentGreen : theme.tertiaryText)
+            // Completion Checkbox
+            // Show for: Today (past prayers/active) OR past dates
+            // Interactive only for today's prayers
+            if prayer.name != "Sunrise" {
+                if isToday && (isPrayerPassed || isActive) {
+                    // Today's prayers - interactive
+                    Button(action: onToggleComplete) {
+                        ZStack {
+                            Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(prayer.isCompleted ? theme.accentGreen : theme.tertiaryText)
 
-                        if !isPremium {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
+                            if !isPremium {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
                         }
                     }
+                } else if isPastDate {
+                    // Past dates - display only (non-interactive)
+                    Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(prayer.isCompleted ? theme.accentGreen.opacity(0.6) : theme.tertiaryText.opacity(0.3))
+                } else {
+                    // Future dates or today's future prayers - empty spacer
+                    Color.clear
+                        .frame(width: 20, height: 20)
                 }
             } else {
-                // Spacer to maintain alignment for Sunrise, future dates, and future prayers
+                // Sunrise - always empty spacer
                 Color.clear
                     .frame(width: 20, height: 20)
             }
