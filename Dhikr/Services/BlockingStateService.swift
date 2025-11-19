@@ -538,7 +538,9 @@ class BlockingStateService: ObservableObject {
 
         let now = Date()
         let today = dateKey(for: now)
-        var completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] ?? []
+        // Use App Group defaults for completed prayers so Widget can see/modify them
+        let completedKey = "completed_\(today)"
+        var completed = groupDefaults.array(forKey: completedKey) as? [String] ?? []
 
         // In strict mode, if blocking has been active for multiple prayer times,
         // mark all prayers between blockingStartTime and now as completed
@@ -561,8 +563,8 @@ class BlockingStateService: ObservableObject {
             }
         }
 
-        // Save the updated completed prayers
-        UserDefaults.standard.set(completed, forKey: "completed_\(today)")
+        // Save the updated completed prayers to App Group
+        groupDefaults.set(completed, forKey: completedKey)
 
         // Post notification to update UI if PrayerTimeViewModel is active
         NotificationCenter.default.post(name: NSNotification.Name("PrayersCompletedUpdated"), object: nil)
@@ -644,11 +646,16 @@ class BlockingStateService: ObservableObject {
         guard !currentPrayerName.isEmpty && currentPrayerName != "Sunrise" else { return }
 
         let today = dateKey(for: Date())
-        var completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] ?? []
+        let completedKey = "completed_\(today)"
+        
+        // Use App Group defaults
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+        
+        var completed = groupDefaults.array(forKey: completedKey) as? [String] ?? []
 
         if !completed.contains(currentPrayerName) {
             completed.append(currentPrayerName)
-            UserDefaults.standard.set(completed, forKey: "completed_\(today)")
+            groupDefaults.set(completed, forKey: completedKey)
             print("🕌 Marking \(currentPrayerName) as completed (early unlock)")
 
             // Post notification to update UI

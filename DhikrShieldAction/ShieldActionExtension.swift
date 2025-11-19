@@ -11,115 +11,103 @@ import UserNotifications
 
 class ShieldActionExtension: ShieldActionDelegate {
     override func handle(action: ShieldAction, for application: ApplicationToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
+        handleAction(action: action, completionHandler: completionHandler)
+    }
+    
+    override func handle(action: ShieldAction, for webDomain: WebDomainToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
+        handleAction(action: action, completionHandler: completionHandler)
+    }
+    
+    override func handle(action: ShieldAction, for category: ActivityCategoryToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
+        handleAction(action: action, completionHandler: completionHandler)
+    }
+    
+    private func handleAction(action: ShieldAction, completionHandler: @escaping (ShieldActionResponse) -> Void) {
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
         let isStrictMode = groupDefaults?.bool(forKey: "focusStrictMode") ?? false
         
         switch action {
         case .primaryButtonPressed:
             if isStrictMode {
-                // In strict mode, primary button says "Open Dhikr App"
-                // We can't actually open the app, but we can notify the user
                 notifyUserToOpenApp()
                 completionHandler(.defer)
             } else {
-                handlePrayerComplete()
-                completionHandler(.close)
+                attemptUnblock(completionHandler: completionHandler)
             }
         case .secondaryButtonPressed:
-            if isStrictMode {
-                // In strict mode, secondary button shows voice requirement info
-                completionHandler(.defer)
-            } else {
-                handleRemindLater()
-                completionHandler(.defer)
-            }
-        @unknown default:
-            completionHandler(.close)
-        }
-    }
-    
-    override func handle(action: ShieldAction, for webDomain: WebDomainToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
-        switch action {
-        case .primaryButtonPressed:
-            handlePrayerComplete()
-            completionHandler(.close)
-        case .secondaryButtonPressed:
-            handleRemindLater()
+            // "Wait" or "Cancel" button - just keep shield
             completionHandler(.defer)
         @unknown default:
             completionHandler(.close)
         }
     }
     
-    override func handle(action: ShieldAction, for category: ActivityCategoryToken, completionHandler: @escaping (ShieldActionResponse) -> Void) {
-        switch action {
-        case .primaryButtonPressed:
-            handlePrayerComplete()
-            completionHandler(.close)
-        case .secondaryButtonPressed:
-            handleRemindLater()
+    private func attemptUnblock(completionHandler: @escaping (ShieldActionResponse) -> Void) {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
             completionHandler(.defer)
-        @unknown default:
-            completionHandler(.close)
+            return
         }
-    }
-    
-    private func handlePrayerComplete() {
-        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
         
+        // Check 5-minute timer
+        if let startTimestamp = groupDefaults.object(forKey: "blockingStartTime") as? TimeInterval {
+            let startTime = Date(timeIntervalSince1970: startTimestamp)
+            let now = Date()
+            let diff = now.timeIntervalSince(startTime)
+            
+            if diff < 300 { // Less than 5 minutes (300 seconds)
+                let remaining = Int(300 - diff)
+                let minutes = remaining / 60
+                let seconds = remaining % 60
+                let timeStr = minutes > 0 ? "\(minutes)m \(seconds)s" : "\(seconds)s"
+                
+                notifyUserWait(timeRemaining: timeStr)
+                completionHandler(.defer) // Keep shield
+                return
+            }
+        }
+        
+        // If we are here, either timer passed OR no start time recorded (fallback to allow)
+        
+        // Mark as completed and unblock
         let timestamp = Date().timeIntervalSince1970
         groupDefaults.set(timestamp, forKey: "lastPrayerCompleted")
+        groupDefaults.set(false, forKey: "appsActuallyBlocked")
         
-        let isStrictMode = groupDefaults.bool(forKey: "focusStrictMode")
-        if !isStrictMode {
-            groupDefaults.set(false, forKey: "appsActuallyBlocked")
-            let store = ManagedSettingsStore()
-            store.clearAllSettings()
-        }
+        // Clear restrictions
+        let store = ManagedSettingsStore()
+        store.clearAllSettings()
         
-        print("🤲 [ShieldAction] User indicated prayer completed")
+        // Clear blocking state
+        groupDefaults.removeObject(forKey: "blockingStartTime")
+        groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+        
+        print("🤲 [ShieldAction] Unblocked successfully after timer")
+        completionHandler(.close)
     }
     
-    private func handleRemindLater() {
-        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+    private func notifyUserWait(timeRemaining: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "⏳ Please Wait"
+        content.body = "Apps will be available in \(timeRemaining). Take this time to pray."
+        content.sound = .default
         
-        let timestamp = Date().timeIntervalSince1970
-        groupDefaults.set(timestamp, forKey: "lastPrayerReminder")
-        
-        print("⏰ [ShieldAction] User requested reminder for later")
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
     
     private func notifyUserToOpenApp() {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
         
-        // Set a flag that the main app can check
         groupDefaults.set(true, forKey: "userRequestedVoiceUnlock")
         groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastVoiceUnlockRequest")
         
-        // Send a helpful notification
         let content = UNMutableNotificationContent()
-        content.title = "🔒 Prayer Blocking Active"
-        content.body = "Please manually open the Dhikr app from your home screen and say \"Wallahi I prayed\" to unlock"
+        content.title = "🔒 Voice Unlock Required"
+        content.body = "Open Dhikr app and say \"Wallahi I prayed\" to unlock."
         content.sound = .default
-        content.categoryIdentifier = "VOICE_UNLOCK"
-        
-        // Add custom data so main app knows why it was opened
         content.userInfo = ["action": "voice_unlock_required"]
         
-        // Trigger immediately
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
-        let request = UNNotificationRequest(identifier: "voice_unlock_\(Date().timeIntervalSince1970)", 
-                                           content: content, 
-                                           trigger: trigger)
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ [ShieldAction] Failed to send notification: \(error)")
-            } else {
-                print("🎤 [ShieldAction] Notification sent to guide user to main app")
-            }
-        }
-        
-        print("🎤 [ShieldAction] User needs to open main app for voice unlock")
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
 }
