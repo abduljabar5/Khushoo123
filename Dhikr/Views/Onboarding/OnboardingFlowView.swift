@@ -10,10 +10,12 @@ import SwiftUI
 struct OnboardingFlowView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("userDisplayName") private var userDisplayName: String = ""
     @StateObject private var subscriptionService = SubscriptionService.shared
 
     @State private var currentPage = 0
     @State private var isCompact: Bool = false // For Settings re-entry
+    @State private var userName: String = ""
 
     init(compact: Bool = false) {
         _isCompact = State(initialValue: compact)
@@ -29,28 +31,36 @@ struct OnboardingFlowView: View {
                 OnboardingWelcomeView(onContinue: { currentPage = 1 }, onSkip: completeOnboarding)
                     .tag(0)
 
-                // Screen 2: Focus Setup
-                OnboardingFocusSetupView(onContinue: { currentPage = 2 }, onSkip: { currentPage = 2 })
-                    .tag(1)
+                // Screen 2: Name Input (NEW)
+                OnboardingNameView(onContinue: { name in
+                    userName = name
+                    userDisplayName = name // Save to AppStorage
+                    currentPage = 2
+                })
+                .tag(1)
 
-                // Screen 3: Permissions
+                // Screen 3: Focus Setup
+                OnboardingFocusSetupView(onContinue: { currentPage = 3 }, onSkip: { currentPage = 3 })
+                    .tag(2)
+
+                // Screen 4: Permissions
                 OnboardingPermissionsView(onContinue: {
                     if subscriptionService.isPremium {
                         // Skip premium screen if already subscribed
                         completeOnboarding()
                     } else {
-                        currentPage = 3
+                        currentPage = 4
                     }
                 })
-                .tag(2)
+                .tag(3)
 
-                // Screen 4: Premium (skip if already premium)
+                // Screen 5: Premium (skip if already premium)
                 if !subscriptionService.isPremium {
                     OnboardingPremiumView(
                         onStartTrial: completeOnboarding,
                         onContinueWithoutPremium: completeOnboarding
                     )
-                    .tag(3)
+                    .tag(4)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .always))

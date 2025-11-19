@@ -21,6 +21,7 @@ struct ModernAuthView: View {
     @StateObject private var googleSignInHelper = GoogleSignInHelper()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
+    @AppStorage("userDisplayName") private var userDisplayName: String = ""
 
     @State private var selectedMethod: AuthMethod = .none
     @State private var email = ""
@@ -225,6 +226,12 @@ struct ModernAuthView: View {
                         dismiss()
                     }
                     .foregroundColor(themeManager.theme.primaryAccent)
+                }
+            }
+            .onAppear {
+                // Pre-fill display name from AppStorage if available
+                if !userDisplayName.isEmpty && displayName.isEmpty {
+                    displayName = userDisplayName
                 }
             }
         }

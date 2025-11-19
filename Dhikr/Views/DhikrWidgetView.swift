@@ -28,22 +28,45 @@ struct MonthlyStats {
 struct DhikrWidgetView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var bluetoothService: BluetoothService
+    @EnvironmentObject var audioPlayerService: AudioPlayerService
     @StateObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Title
-                HStack {
-                    Text("Today's Dhikr")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Title
+                    HStack {
+                        Text("Today's Dhikr")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(theme.primaryText)
+                        Spacer()
+
+                        // Goals button
+                        NavigationLink(destination: DhikrGoalsView()
+                            .environmentObject(dhikrService)
+                            .environmentObject(audioPlayerService)
+                            .environmentObject(bluetoothService)
+                        ) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "target")
+                                    .font(.system(size: 16))
+                                Text("Goals")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(theme.primaryAccent)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(theme.primaryAccent.opacity(0.15))
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
 
                 // Main count display
                 mainCountDisplay()
@@ -65,8 +88,10 @@ struct DhikrWidgetView: View {
             }
             .padding(.bottom, 100)
         }
-        .background(Color.black.ignoresSafeArea())
-        .preferredColorScheme(.dark)
+        .background((themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground).ignoresSafeArea())
+        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
+        .navigationBarHidden(true)
+        }
     }
 
     // MARK: - Main Count Display
@@ -75,7 +100,7 @@ struct DhikrWidgetView: View {
 
         return Text("\(stats.total)")
             .font(.system(size: 72, weight: .bold))
-            .foregroundColor(Color.cyan)
+            .foregroundColor(theme.primaryAccent)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
     }
@@ -104,12 +129,12 @@ struct DhikrWidgetView: View {
         return HStack(spacing: 12) {
             // Status indicator circle
             Circle()
-                .fill(isConnected ? Color.green : Color.gray)
+                .fill(isConnected ? theme.accentGreen : theme.tertiaryText)
                 .frame(width: 10, height: 10)
 
             Text(isConnected ? "Zikr Ring Active" : "Zikr Ring Disconnected")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(isConnected ? .green : .gray)
+                .foregroundColor(isConnected ? theme.accentGreen : theme.tertiaryText)
 
             Spacer()
 
@@ -118,10 +143,10 @@ struct DhikrWidgetView: View {
                 HStack(spacing: 6) {
                     Image(systemName: batteryIcon(for: batteryLevel))
                         .font(.system(size: 16))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                     Text("\(batteryLevel)%")
                         .font(.system(size: 14))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
             }
         }
@@ -129,7 +154,7 @@ struct DhikrWidgetView: View {
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(white: 0.08))
+                .fill(theme.cardBackground)
         )
         .padding(.horizontal, 20)
     }
@@ -157,7 +182,7 @@ struct DhikrWidgetView: View {
         return VStack(alignment: .leading, spacing: 20) {
             Text("TODAY'S PRACTICE")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.gray)
+                .foregroundColor(theme.secondaryText)
                 .padding(.horizontal, 20)
 
             VStack(spacing: 16) {
@@ -243,11 +268,11 @@ struct DhikrWidgetView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("All-Time Stats")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
 
                     Text("Lifetime achievements")
                         .font(.system(size: 13))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
 
                 Spacer()
@@ -260,54 +285,54 @@ struct DhikrWidgetView: View {
                 HStack(spacing: 6) {
                     Text("TOTAL")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(red: 0.0, green: 0.8, blue: 0.6))
+                        .foregroundColor(theme.accentGreen)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(red: 0.0, green: 0.8, blue: 0.6).opacity(0.3), lineWidth: 1.5)
+                        .stroke(theme.accentGreen.opacity(0.3), lineWidth: 1.5)
                 )
 
                 // Total count
                 Text("\(allTimeTotal.formatted())")
                     .font(.system(size: 56, weight: .bold))
-                    .foregroundColor(Color(red: 0.0, green: 0.9, blue: 0.7))
+                    .foregroundColor(theme.accentGreen)
 
                 Text("Total Dhikr Count")
                     .font(.system(size: 14))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 // Bottom stats row
                 HStack(spacing: 40) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(activeDays)")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
 
                         Text("DAYS")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.secondaryText)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(dailyAverage)")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
 
                         Text("DAILY AVG")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.secondaryText)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(bestDay)")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
 
                         Text("BEST DAY")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.secondaryText)
                     }
                 }
                 .padding(.top, 8)
@@ -316,7 +341,7 @@ struct DhikrWidgetView: View {
             .padding(24)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(white: 0.08))
+                    .fill(theme.cardBackground)
             )
             .padding(.horizontal, 20)
 
@@ -324,7 +349,7 @@ struct DhikrWidgetView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Breakdown by Type")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 VStack(spacing: 12) {
                     // SubhanAllah
@@ -371,7 +396,7 @@ struct DhikrWidgetView: View {
                 .frame(width: 56, height: 56)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(white: 0.12))
+                        .fill(theme.cardBackground)
                 )
 
             // Name and subtitle
@@ -379,16 +404,16 @@ struct DhikrWidgetView: View {
                 HStack(spacing: 8) {
                     Text(name)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
 
                     Text("• \(percentage)%")
                         .font(.system(size: 14))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
 
                 Text(subtitle)
                     .font(.system(size: 13))
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.secondaryText)
             }
 
             Spacer()
@@ -401,13 +426,13 @@ struct DhikrWidgetView: View {
 
                 Text("times")
                     .font(.system(size: 11))
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.secondaryText)
             }
         }
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(white: 0.08))
+                .fill(theme.cardBackground)
         )
     }
 }
@@ -416,22 +441,25 @@ struct DhikrWidgetView: View {
 struct DhikrStatCard: View {
     let value: String
     let label: String
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         VStack(spacing: 8) {
             Text(value)
                 .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.cyan)
+                .foregroundColor(theme.primaryAccent)
 
             Text(label)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.gray)
+                .foregroundColor(theme.secondaryText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(white: 0.1))
+                .fill(theme.cardBackground)
         )
     }
 }
@@ -444,6 +472,9 @@ struct DhikrCard: View {
     let color: Color
     let onIncrement: (Int) -> Void
     let onReset: () -> Void
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     private var progress: Double {
         guard goal > 0 else { return 0 }
@@ -460,7 +491,7 @@ struct DhikrCard: View {
             HStack(alignment: .top) {
                 Text(type.arabicText)
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 Spacer()
 
@@ -471,20 +502,20 @@ struct DhikrCard: View {
 
                     Text("of \(goal)")
                         .font(.system(size: 14))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
             }
 
             // English name
             Text(type.rawValue)
                 .font(.system(size: 14))
-                .foregroundColor(.gray)
+                .foregroundColor(theme.secondaryText)
 
             // Progress bar
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(white: 0.15))
+                        .fill(theme.tertiaryBackground)
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 4)
@@ -504,7 +535,7 @@ struct DhikrCard: View {
 
                 Text(extraCount > 0 ? "+\(extraCount) extra" : "")
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.secondaryText)
                     .frame(minWidth: 60, alignment: .trailing)
             }
 
@@ -528,7 +559,7 @@ struct DhikrCard: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color(white: 0.08))
+                .fill(theme.cardBackground)
         )
     }
 }
@@ -557,17 +588,20 @@ struct IncrementButton: View {
 // MARK: - Reset Button
 struct ResetButton: View {
     let onReset: () -> Void
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         Button(action: onReset) {
             Text("Reset")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.gray)
+                .foregroundColor(theme.secondaryText)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.gray.opacity(0.3), lineWidth: 1.5)
+                        .stroke(theme.secondaryText.opacity(0.3), lineWidth: 1.5)
                 )
         }
     }
@@ -579,12 +613,15 @@ struct MonthlyActivityContainer: View {
     @State private var selectedMonth = Date()
     @State private var selectedDayStats: DailyDhikrStats?
     @State private var showingDayDetail = false
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Monthly Activity")
                 .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
                 .padding(.horizontal, 20)
 
             VStack(spacing: 20) {
@@ -592,20 +629,20 @@ struct MonthlyActivityContainer: View {
                 HStack {
                     Button(action: { changeMonth(by: -1) }) {
                         Image(systemName: "chevron.left")
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
                     }
 
                     Spacer()
 
                     Text(monthYearString)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
 
                     Spacer()
 
                     Button(action: { changeMonth(by: 1) }) {
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -624,7 +661,7 @@ struct MonthlyActivityContainer: View {
                 HStack(spacing: 8) {
                     Text("Less")
                         .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
 
                     ForEach(0..<5) { index in
                         RoundedRectangle(cornerRadius: 4)
@@ -634,14 +671,14 @@ struct MonthlyActivityContainer: View {
 
                     Text("More")
                         .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
                 .padding(.horizontal, 20)
             }
             .padding(.vertical, 20)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(white: 0.08))
+                    .fill(theme.cardBackground)
             )
             .padding(.horizontal, 20)
 
@@ -665,15 +702,15 @@ struct MonthlyActivityContainer: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(monthYearString)
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.secondaryText)
 
                 Text("Total Dhikr")
                     .font(.system(size: 13))
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.secondaryText)
 
                 Text(formatNumber(monthStats.total))
                     .font(.system(size: 56, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 Rectangle()
                     .fill(Color.green)
@@ -686,11 +723,11 @@ struct MonthlyActivityContainer: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(monthStats.dailyAverage)")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.primaryText)
 
                         Text("Daily Avg")
                             .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.secondaryText)
                     }
 
                     Spacer()
@@ -708,14 +745,14 @@ struct MonthlyActivityContainer: View {
 
                         Text("vs Last Mo")
                             .font(.system(size: 12))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.secondaryText)
                     }
                 }
             }
             .padding(24)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(white: 0.08))
+                    .fill(theme.cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
                             .stroke(Color.green.opacity(0.3), lineWidth: 1)
@@ -735,17 +772,17 @@ struct MonthlyActivityContainer: View {
 
                     Text("Best Day")
                         .font(.system(size: 13))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
 
                     Text(monthStats.bestDay.dateString)
                         .font(.system(size: 11))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(white: 0.08))
+                        .fill(theme.cardBackground)
                 )
 
                 // Goals Met Card
@@ -760,13 +797,13 @@ struct MonthlyActivityContainer: View {
 
                     Text("Goals Met")
                         .font(.system(size: 13))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(white: 0.08))
+                        .fill(theme.cardBackground)
                 )
             }
 
@@ -774,7 +811,7 @@ struct MonthlyActivityContainer: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Distribution")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 HStack(spacing: 16) {
                     // SubhanAllah
@@ -809,7 +846,7 @@ struct MonthlyActivityContainer: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Most Active Times")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 VStack(alignment: .leading, spacing: 16) {
                     timeSlotRow(label: "Morning", percentage: monthStats.timeBreakdown.morning)
@@ -820,7 +857,7 @@ struct MonthlyActivityContainer: View {
                 .padding(20)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(white: 0.08))
+                        .fill(theme.cardBackground)
                 )
             }
         }
@@ -834,7 +871,7 @@ struct MonthlyActivityContainer: View {
             ZStack {
                 // Background circle
                 Circle()
-                    .stroke(Color(white: 0.15), lineWidth: 8)
+                    .stroke(theme.tertiaryBackground, lineWidth: 8)
                     .frame(width: 80, height: 80)
 
                 // Progress circle
@@ -853,18 +890,18 @@ struct MonthlyActivityContainer: View {
             VStack(spacing: 4) {
                 Text(name)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 Text("\(formatNumber(count)) total")
                     .font(.system(size: 12))
-                    .foregroundColor(.gray)
+                    .foregroundColor(theme.secondaryText)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(white: 0.08))
+                .fill(theme.cardBackground)
         )
     }
 
@@ -872,19 +909,19 @@ struct MonthlyActivityContainer: View {
         HStack(spacing: 12) {
             Text(label)
                 .font(.system(size: 14))
-                .foregroundColor(.gray)
+                .foregroundColor(theme.secondaryText)
                 .frame(width: 140, alignment: .leading)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(white: 0.15))
+                        .fill(theme.tertiaryBackground)
                         .frame(height: 24)
 
                     RoundedRectangle(cornerRadius: 4)
                         .fill(
                             LinearGradient(
-                                gradient: Gradient(colors: [Color(red: 0.0, green: 0.8, blue: 0.6), Color(red: 0.0, green: 0.6, blue: 0.5)]),
+                                gradient: Gradient(colors: [theme.accentGreen, theme.primaryAccent]),
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
@@ -893,7 +930,7 @@ struct MonthlyActivityContainer: View {
 
                     Text("\(percentage)%")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
                         .padding(.leading, 8)
                 }
             }
@@ -1050,6 +1087,9 @@ struct MonthlyCalendarView: View {
     let month: Date
     @ObservedObject var dhikrService: DhikrService
     let onDayTapped: (DailyDhikrStats) -> Void
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
     let days = ["S", "M", "T", "W", "T", "F", "S"]
@@ -1087,7 +1127,7 @@ struct MonthlyCalendarView: View {
                     ForEach(days, id: \.self) { day in
                         Text(day)
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.gray)
+                            .foregroundColor(theme.secondaryText)
                             .frame(width: cellWidth)
                     }
                 }
@@ -1147,6 +1187,9 @@ struct CalendarDayCell: View {
     let stats: DailyDhikrStats?
     let maxTotal: Int
     let onTap: () -> Void
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     private var intensity: Double {
         guard let stats = stats, stats.total > 0, maxTotal > 0 else { return 0 }
@@ -1157,12 +1200,12 @@ struct CalendarDayCell: View {
         Button(action: onTap) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(intensity > 0 ? Color.green.opacity(0.3 + intensity * 0.7) : Color(white: 0.12))
+                    .fill(intensity > 0 ? Color.green.opacity(0.3 + intensity * 0.7) : theme.cardBackground)
                     .frame(height: 40)
 
                 Text("\(day)")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(intensity > 0 ? .white : .gray)
+                    .foregroundColor(intensity > 0 ? .white : theme.secondaryText)
             }
         }
         .buttonStyle(PlainButtonStyle())
@@ -1173,6 +1216,9 @@ struct CalendarDayCell: View {
 struct DayDetailSheet: View {
     let stats: DailyDhikrStats
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -1180,14 +1226,14 @@ struct DayDetailSheet: View {
             HStack {
                 Text(formattedDate)
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(theme.primaryText)
 
                 Spacer()
 
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
             }
             .padding(.top, 20)
@@ -1197,11 +1243,11 @@ struct DayDetailSheet: View {
                 VStack(spacing: 8) {
                     Text("\(stats.total)")
                         .font(.system(size: 64, weight: .bold))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(theme.primaryAccent)
 
                     Text("Total Dhikr")
                         .font(.system(size: 16))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                 }
                 .padding(.vertical, 20)
 
@@ -1216,16 +1262,16 @@ struct DayDetailSheet: View {
                 VStack(spacing: 16) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.system(size: 60))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                         .padding(.top, 40)
 
                     Text("No Dhikr Recorded")
                         .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.primaryText)
 
                     Text("You didn't record any dhikr on this day")
                         .font(.system(size: 16))
-                        .foregroundColor(.gray)
+                        .foregroundColor(theme.secondaryText)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.vertical, 40)
@@ -1235,8 +1281,8 @@ struct DayDetailSheet: View {
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .background(themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground)
+        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
     }
 
     private var formattedDate: String {
@@ -1251,6 +1297,9 @@ struct DhikrStatRow: View {
     let name: String
     let count: Int
     let color: Color
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         HStack {
@@ -1260,7 +1309,7 @@ struct DhikrStatRow: View {
 
             Text(name)
                 .font(.system(size: 16))
-                .foregroundColor(.white)
+                .foregroundColor(theme.primaryText)
 
             Spacer()
 
@@ -1271,7 +1320,7 @@ struct DhikrStatRow: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(white: 0.1))
+                .fill(theme.cardBackground)
         )
     }
 }

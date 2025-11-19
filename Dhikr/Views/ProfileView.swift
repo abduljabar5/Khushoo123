@@ -26,6 +26,18 @@ struct ProfileView: View {
     @AppStorage("showSleepTimer") private var showSleepTimer = true
     @AppStorage("prayerRemindersEnabled") private var prayerRemindersEnabled = true
     @AppStorage("dhikrRemindersEnabled") private var dhikrRemindersEnabled = true
+    @AppStorage("userDisplayName") private var userDisplayName: String = ""
+
+    // Computed property for display name
+    private var displayName: String {
+        if authService.isAuthenticated {
+            return authService.currentUser?.displayName ?? "User"
+        } else if !userDisplayName.isEmpty {
+            return userDisplayName
+        } else {
+            return "Welcome!"
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -160,7 +172,7 @@ struct ProfileView: View {
 
             // User Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(authService.isAuthenticated ? (authService.currentUser?.displayName ?? "User") : "Welcome!")
+                Text(displayName)
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(themeManager.theme.primaryText)
@@ -1046,11 +1058,14 @@ struct ProfileView: View {
         // Clear existing dhikr reminders first
         clearDhikrReminders()
 
+        // Get user's first name for personalization
+        let firstName = getFirstName()
+
         // Schedule 3 daily reminders
         let reminderTimes = [
-            (hour: 9, minute: 0, message: "Start your day with dhikr"),
-            (hour: 15, minute: 0, message: "Take a moment for dhikr"),
-            (hour: 21, minute: 0, message: "End your day with dhikr")
+            (hour: 9, minute: 0, message: firstName.isEmpty ? "Start your day with dhikr" : "\(firstName), start your day with dhikr"),
+            (hour: 15, minute: 0, message: firstName.isEmpty ? "Take a moment for dhikr" : "\(firstName), take a moment for dhikr"),
+            (hour: 21, minute: 0, message: firstName.isEmpty ? "End your day with dhikr" : "\(firstName), end your day with dhikr")
         ]
 
         for (index, time) in reminderTimes.enumerated() {
@@ -1085,6 +1100,20 @@ struct ProfileView: View {
         let identifiers = ["dhikr_reminder_0", "dhikr_reminder_1", "dhikr_reminder_2"]
         notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
         print("🗑️ Cleared dhikr reminders")
+    }
+
+    // Helper to get first name for personalization
+    private func getFirstName() -> String {
+        let fullName: String
+        if authService.isAuthenticated {
+            fullName = authService.currentUser?.displayName ?? ""
+        } else {
+            fullName = userDisplayName
+        }
+
+        // Extract first name
+        let components = fullName.components(separatedBy: " ")
+        return components.first ?? ""
     }
 }
 

@@ -2224,7 +2224,16 @@ struct HomeView: View {
 
     private func getGreeting() -> String {
         let hour = Calendar.current.component(.hour, from: Date())
-        let name = authService.isAuthenticated ? (authService.currentUser?.displayName ?? "there") : "there"
+
+        // Get name from authenticated user, AppStorage, or default to "there"
+        let name: String
+        if authService.isAuthenticated {
+            name = authService.currentUser?.displayName ?? "there"
+        } else if let storedName = UserDefaults.standard.string(forKey: "userDisplayName"), !storedName.isEmpty {
+            name = storedName
+        } else {
+            name = "there"
+        }
 
         switch hour {
         case 0..<12:
