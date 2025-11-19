@@ -21,7 +21,6 @@ struct ProfileView: View {
     @State private var showingHighestStreak = false
     @State private var showingAuth = false
     @State private var showingPaywall = false
-    @State private var showingSetup = false
     @State private var refreshID = UUID()
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
     @AppStorage("showSleepTimer") private var showSleepTimer = true
@@ -36,6 +35,13 @@ struct ProfileView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
                     .padding(.bottom, 24)
+
+                // Sign In Prompt (only shown when not authenticated)
+                if !authService.isAuthenticated {
+                    signInPromptCard
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
+                }
 
                 // Quick Stats
                 quickStatsSection
@@ -54,11 +60,6 @@ struct ProfileView: View {
 
                 // Subscription Section
                 subscriptionSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
-
-                // Setup & Permissions Section
-                setupSection
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
 
@@ -91,6 +92,13 @@ struct ProfileView: View {
                 aboutSection
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
+
+                // Sign Out Section (only shown when authenticated)
+                if authService.isAuthenticated {
+                    signOutSection
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 32)
+                }
             }
             .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
         }
@@ -104,10 +112,6 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
-        }
-        .sheet(isPresented: $showingSetup) {
-            SetupFlowView()
-                .environmentObject(locationService)
         }
         .onChange(of: authService.isAuthenticated) { _ in
             refreshID = UUID()
@@ -156,7 +160,7 @@ struct ProfileView: View {
 
             // User Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(authService.isAuthenticated ? (authService.currentUser?.displayName ?? "User") : "Guest")
+                Text(authService.isAuthenticated ? (authService.currentUser?.displayName ?? "User") : "Welcome!")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(themeManager.theme.primaryText)
@@ -166,27 +170,120 @@ struct ProfileView: View {
                         .font(.caption)
                         .foregroundColor(themeManager.theme.secondaryText)
                 } else {
-                    Text("Sign in to sync your data")
+                    Text("Your spiritual journey companion")
                         .font(.caption)
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
             }
 
             Spacer()
-
-            // Sign In/Out Button
-            Button(action: {
-                if authService.isAuthenticated {
-                    try? authService.signOut()
-                } else {
-                    showingAuth = true
-                }
-            }) {
-                Image(systemName: authService.isAuthenticated ? "rectangle.portrait.and.arrow.right" : "person.crop.circle.badge.checkmark")
-                    .font(.title3)
-                    .foregroundColor(authService.isAuthenticated ? .red : themeManager.theme.primaryAccent)
-            }
         }
+    }
+
+    // MARK: - Sign In Prompt Card
+    private var signInPromptCard: some View {
+        Button(action: {
+            showingAuth = true
+        }) {
+            VStack(spacing: 16) {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        themeManager.theme.primaryAccent,
+                                        themeManager.theme.primaryAccent.opacity(0.7)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 56, height: 56)
+
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .font(.system(size: 26))
+                            .foregroundColor(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Sign In to Your Account")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        Text("Sync your progress across all devices")
+                            .font(.subheadline)
+                            .foregroundColor(themeManager.theme.secondaryText)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(themeManager.theme.primaryAccent)
+                }
+                .padding(20)
+
+                // Benefits
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Sync your data across devices")
+                            .font(.subheadline)
+                            .foregroundColor(themeManager.theme.primaryText)
+                        Spacer()
+                    }
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Save your progress and streaks")
+                            .font(.subheadline)
+                            .foregroundColor(themeManager.theme.primaryText)
+                        Spacer()
+                    }
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Access premium features")
+                            .font(.subheadline)
+                            .foregroundColor(themeManager.theme.primaryText)
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(themeManager.theme.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        themeManager.theme.primaryAccent.opacity(0.5),
+                                        themeManager.theme.primaryAccent.opacity(0.2)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+                    .shadow(
+                        color: themeManager.theme.primaryAccent.opacity(0.2),
+                        radius: 12,
+                        x: 0,
+                        y: 4
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - Quick Stats Section
@@ -385,48 +482,6 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - Setup & Permissions Section
-    private var setupSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "Setup & Permissions", icon: "gearshape.fill")
-
-            Button(action: {
-                showingSetup = true
-            }) {
-                HStack(spacing: 16) {
-                    Circle()
-                        .fill(themeManager.theme.primaryAccent.opacity(0.2))
-                        .frame(width: 50, height: 50)
-                        .overlay(
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.title3)
-                                .foregroundColor(themeManager.theme.primaryAccent)
-                        )
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Focus & Permissions")
-                            .font(.headline)
-                            .foregroundColor(themeManager.theme.primaryText)
-
-                        Text("Configure app blocking and permissions")
-                            .font(.caption)
-                            .foregroundColor(themeManager.theme.secondaryText)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(themeManager.theme.tertiaryText)
-                }
-                .padding(16)
-                .background(themeManager.theme.cardBackground)
-                .cornerRadius(16)
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-    }
-
     // MARK: - Appearance Section
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -446,31 +501,6 @@ struct ProfileView: View {
                             }
                         )
                     }
-                }
-
-                // Wallpaper selection for Liquid Glass theme
-                if themeManager.currentTheme == .liquidGlass {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Wallpaper")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(themeManager.theme.primaryText)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(ThemeManager.availableWallpapers, id: \.self) { wallpaperName in
-                                    WallpaperThumbnail(
-                                        wallpaperName: wallpaperName,
-                                        isSelected: themeManager.selectedWallpaper == wallpaperName,
-                                        onSelect: {
-                                            themeManager.selectedWallpaper = wallpaperName
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .transition(.opacity.combined(with: .scale))
                 }
             }
             .padding(16)
@@ -780,6 +810,50 @@ struct ProfileView: View {
         }
     }
 
+    // MARK: - Sign Out Section
+    private var signOutSection: some View {
+        Button(action: {
+            try? authService.signOut()
+        }) {
+            HStack(spacing: 16) {
+                Circle()
+                    .fill(Color.red.opacity(0.2))
+                    .frame(width: 50, height: 50)
+                    .overlay(
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.title3)
+                            .foregroundColor(.red)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Sign Out")
+                        .font(.headline)
+                        .foregroundColor(.red)
+
+                    Text("Sign out of your account")
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(themeManager.theme.tertiaryText)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(themeManager.theme.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     // MARK: - Helper Functions
 
     private func sectionHeader(title: String, icon: String) -> some View {
@@ -1050,6 +1124,12 @@ struct ThemeOptionButton: View {
 
     private var themePreviewGradient: LinearGradient {
         switch theme {
+        case .auto:
+            return LinearGradient(
+                colors: [Color.white, Color.black],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
         case .light:
             return LinearGradient(
                 colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.1)],
@@ -1059,12 +1139,6 @@ struct ThemeOptionButton: View {
         case .dark:
             return LinearGradient(
                 colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .liquidGlass:
-            return LinearGradient(
-                colors: [Color.cyan.opacity(0.6), Color.purple.opacity(0.6), Color.pink.opacity(0.6)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -1669,40 +1743,6 @@ struct SettingsView: View {
                     }
                 }
 
-                // Wallpaper selection for Liquid Glass theme only
-                if themeManager.currentTheme == .liquidGlass {
-                    Section {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Choose Wallpaper")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(ThemeManager.availableWallpapers, id: \.self) { wallpaperName in
-                                        WallpaperThumbnail(
-                                            wallpaperName: wallpaperName,
-                                            isSelected: themeManager.selectedWallpaper == wallpaperName,
-                                            onSelect: {
-                                                themeManager.selectedWallpaper = wallpaperName
-                                            }
-                                        )
-                                    }
-                                }
-                                .padding(.horizontal, 4)
-                            }
-                        }
-                        .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
-                        .listRowBackground(Color.clear)
-                    } header: {
-                        HStack {
-                            Image(systemName: "photo.fill")
-                                .foregroundColor(.purple)
-                            Text("Wallpaper")
-                        }
-                    }
-                }
-
                 Section("Audio") {
                     HStack {
                         Image(systemName: "speaker.wave.2.fill")
@@ -1791,97 +1831,6 @@ struct SettingsView: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Wallpaper Thumbnail View
-struct WallpaperThumbnail: View {
-    let wallpaperName: String
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            ZStack {
-                if let image = loadWallpaperImage() {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 80, height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 3)
-                        )
-                } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 80, height: 120)
-                        .overlay(
-                            VStack(spacing: 4) {
-                                Image(systemName: "photo")
-                                    .foregroundColor(.gray)
-                                Text(getDisplayName())
-                                    .font(.caption2)
-                                    .foregroundColor(.gray)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 4)
-                            }
-                        )
-                }
-
-                if isSelected {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.blue)
-                                .background(Color.white.clipShape(Circle()))
-                        }
-                        Spacer()
-                    }
-                    .padding(4)
-                }
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    private func loadWallpaperImage() -> UIImage? {
-        // Try to load from bundle with wallpapers/ prefix
-        if let path = Bundle.main.path(forResource: "wallpapers/\(wallpaperName)", ofType: nil),
-           let image = UIImage(contentsOfFile: path) {
-            return image
-        }
-
-        // Try without wallpapers/ prefix
-        if let image = UIImage(named: wallpaperName) {
-            return image
-        }
-
-        // Fallback: try source directory for development
-        let currentDirectory = FileManager.default.currentDirectoryPath
-        let sourcePath = "\(currentDirectory)/Dhikr/wallpapers/\(wallpaperName)"
-        if let image = UIImage(contentsOfFile: sourcePath) {
-            return image
-        }
-
-        return nil
-    }
-
-    private func getDisplayName() -> String {
-        // Extract a simple name from the filename
-        let name = wallpaperName
-            .replacingOccurrences(of: ".jpg", with: "")
-            .replacingOccurrences(of: ".jpeg", with: "")
-            .replacingOccurrences(of: ".png", with: "")
-            .replacingOccurrences(of: ".webp", with: "")
-
-        // Return a shortened version if it's too long
-        if name.count > 15 {
-            return String(name.prefix(12)) + "..."
-        }
-        return name
     }
 }
 

@@ -48,7 +48,7 @@ struct DhikrApp: App {
                 .environmentObject(authService)
                 .environmentObject(themeManager)
                 .environmentObject(speechService)
-                .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
+                .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.currentTheme == .dark ? .dark : .light))
                 .onAppear {
                     setupPerformanceOptimizations()
                     setupNotificationDelegate()
@@ -114,12 +114,13 @@ struct DhikrApp: App {
 
             // Set window background to match theme
             switch themeManager.currentTheme {
+            case .auto:
+                // Use system background for auto mode
+                window.backgroundColor = UIColor.systemBackground
             case .dark:
                 window.backgroundColor = UIColor(Color(hex: "1E3A5F"))
             case .light:
                 window.backgroundColor = UIColor.systemBackground
-            case .liquidGlass:
-                window.backgroundColor = UIColor.clear
             }
         }
     }

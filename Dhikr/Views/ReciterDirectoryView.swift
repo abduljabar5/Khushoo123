@@ -111,15 +111,13 @@ struct ReciterDirectoryView: View {
             performDebouncedSearch(query: newValue)
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
-        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
+        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
     }
 
     // MARK: - Background View
     private var backgroundView: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView()
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 // Dark background matching Focus page
                 Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
             } else {

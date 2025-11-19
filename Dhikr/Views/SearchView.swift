@@ -154,7 +154,7 @@ struct SearchView: View {
             }
         }
         .foregroundColor(theme.primaryText)
-        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
+        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
 
         .sheet(isPresented: $showingAppPicker) {
             if #available(iOS 15.0, *) {
@@ -348,9 +348,7 @@ struct SearchView: View {
 
     private var backgroundView: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView()
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 // Dark background matching mockup
                 Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
             } else {
@@ -361,11 +359,7 @@ struct SearchView: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {
@@ -752,11 +746,7 @@ private struct EarlyUnlockInlineSection: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {
@@ -1102,11 +1092,7 @@ private struct BlockingDurationView: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {
@@ -1274,11 +1260,7 @@ private struct SelectAppsToBlockView: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {
@@ -1396,11 +1378,7 @@ private struct AdditionalSettingsView: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {
@@ -1501,11 +1479,7 @@ private struct SpeechConfirmationView: View {
 
     var body: some View {
         ZStack {
-            if ThemeManager.shared.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView()
-            } else {
-                theme.primaryBackground.ignoresSafeArea()
-            }
+            theme.primaryBackground.ignoresSafeArea()
 
             VStack(spacing: 24) {
                 Text("Confirm You've Prayed")
@@ -1558,7 +1532,7 @@ private struct SpeechConfirmationView: View {
             }
             .padding()
         }
-        .preferredColorScheme(ThemeManager.shared.currentTheme == .dark ? .dark : .light)
+        .preferredColorScheme(ThemeManager.shared.currentTheme == .auto ? nil : (ThemeManager.shared.effectiveTheme == .dark ? .dark : .light))
     }
 }
 
@@ -1576,11 +1550,7 @@ private struct MockupTodayScheduleSection: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {
@@ -1748,11 +1718,7 @@ private struct MockupSelectPrayersSection: View {
 
     private var containerBackground: some View {
         Group {
-            if themeManager.currentTheme == .liquidGlass {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.6)
-            } else if themeManager.currentTheme == .dark {
+            if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
             } else {

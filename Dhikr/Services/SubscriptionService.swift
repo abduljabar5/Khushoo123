@@ -25,6 +25,7 @@ class SubscriptionService: ObservableObject {
     @Published private(set) var subscriptionStatus: Product.SubscriptionInfo.Status?
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var purchaseState: PurchaseState = .idle
+    @Published var showPostPurchaseSignInPrompt: Bool = false
 
     private var updateListenerTask: Task<Void, Error>?
     private let db = Firestore.firestore()
@@ -320,6 +321,8 @@ class SubscriptionService: ObservableObject {
                     await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
                 } else {
                     print("ℹ️ [SubscriptionService] Purchase successful - will sync to Firebase when user logs in")
+                    // Show post-purchase sign-in prompt to encourage account creation
+                    showPostPurchaseSignInPrompt = true
                 }
 
                 // Update subscription status (works locally via StoreKit)
@@ -413,8 +416,8 @@ enum StoreError: Error {
 // MARK: - Convenience Extensions
 extension SubscriptionService {
     var hasPremium: Bool {
-        // Premium requires being logged in
-        guard currentUserId != nil else { return false }
+        // Premium is based on StoreKit verification (tied to Apple ID)
+        // Works regardless of Firebase auth status
         return isPremium
     }
 

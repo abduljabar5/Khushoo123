@@ -222,6 +222,10 @@ struct OnboardingPremiumView: View {
                 }
             )
         }
+        .fullScreenCover(isPresented: $subscriptionService.showPostPurchaseSignInPrompt) {
+            PostPurchaseSignInPromptView()
+                .environmentObject(authService)
+        }
         .onAppear {
             print("[Onboarding] Premium screen shown")
             print("[Premium] Current products count: \(subscriptionService.availableProducts.count)")
@@ -235,7 +239,7 @@ struct OnboardingPremiumView: View {
                     // Check result after loading
                     if subscriptionService.availableProducts.isEmpty {
                         print("❌ [Premium] Failed to load products - check StoreKit configuration")
-                        print("❌ [Premium] Make sure Xcode scheme has StoreKit Configuration set to Dhikr.storekit")
+                        print("❌ [Premium] Make sure Xcode scheme has StoreKit Configuration set to Khushoo.storekit")
                     } else {
                         print("✅ [Premium] Successfully loaded \(subscriptionService.availableProducts.count) products")
                     }

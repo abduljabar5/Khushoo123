@@ -16,12 +16,8 @@ struct AuthenticationView: View {
         NavigationView {
             ZStack {
                 // Background
-                if themeManager.currentTheme == .liquidGlass {
-                    LiquidGlassBackgroundView()
-                } else {
-                    themeManager.theme.primaryBackground
-                        .ignoresSafeArea()
-                }
+                themeManager.theme.primaryBackground
+                    .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Custom Tab Selector

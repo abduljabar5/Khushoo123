@@ -99,20 +99,9 @@ struct MainTabView: View {
                     let safeArea = geometry.safeAreaInsets
 
                     ZStack {
-                        // Background with heavy blur for liquid glass mode
-                        if themeManager.currentTheme == .liquidGlass {
-                            ZStack {
-                                LiquidGlassBackgroundView()
-
-                                // Heavy blur overlay
-                                Rectangle()
-                                    .fill(.ultraThickMaterial)
-                                    .ignoresSafeArea()
-                            }
-                        } else {
-                            themeManager.theme.primaryBackground
-                                .ignoresSafeArea()
-                        }
+                        // Background
+                        themeManager.theme.primaryBackground
+                            .ignoresSafeArea()
 
                         VStack(spacing: 10) {
                             /// Drag Indicator
@@ -134,11 +123,7 @@ struct MainTabView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .presentationBackground {
-                    if themeManager.currentTheme == .liquidGlass {
-                        Color.clear.background(.ultraThickMaterial)
-                    } else {
-                        themeManager.theme.primaryBackground
-                    }
+                    themeManager.theme.primaryBackground
                 }
                 .onAppear {
                     // Set window background to match theme during presentation
@@ -155,7 +140,7 @@ struct MainTabView: View {
         }
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
-        .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : nil)
+        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
         .onAppear {
             configureTabBarAppearance()
         }
@@ -581,6 +566,10 @@ struct MainTabView: View {
         let appearance = UITabBarAppearance()
 
         switch themeManager.currentTheme {
+        case .auto:
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor.systemBackground
+
         case .light:
             appearance.configureWithOpaqueBackground()
             appearance.backgroundColor = UIColor.systemBackground
@@ -588,12 +577,6 @@ struct MainTabView: View {
         case .dark:
             appearance.configureWithOpaqueBackground()
             appearance.backgroundColor = UIColor(Color(hex: "0D1A2D"))
-
-        case .liquidGlass:
-            // Since UIDesignRequiresCompatibility is enabled globally,
-            // we use transparent background which will work with our manual glass effects
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundColor = UIColor.clear
         }
 
         // Apply the appearance

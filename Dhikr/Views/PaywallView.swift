@@ -16,7 +16,6 @@ struct PaywallView: View {
 
     @State private var selectedProduct: Product?
     @State private var showingRestoreAlert = false
-    @State private var showingLoginRequired = false
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -101,12 +100,6 @@ struct PaywallView: View {
                     // Purchase Button
                     if let product = selectedProduct {
                         Button(action: {
-                            // Check if user is logged in
-                            if !authService.isAuthenticated {
-                                showingLoginRequired = true
-                                return
-                            }
-
                             Task {
                                 await subscriptionService.purchase(product)
                                 if case .success = subscriptionService.purchaseState {
@@ -189,14 +182,9 @@ struct PaywallView: View {
                 Text("No active subscriptions found.")
             }
         }
-        .alert("Sign In Required", isPresented: $showingLoginRequired) {
-            Button("Cancel", role: .cancel) { }
-            Button("Sign In") {
-                dismiss()
-                // User will need to navigate to profile/login
-            }
-        } message: {
-            Text("Please sign in to purchase a subscription and sync it across all your devices.")
+        .fullScreenCover(isPresented: $subscriptionService.showPostPurchaseSignInPrompt) {
+            PostPurchaseSignInPromptView()
+                .environmentObject(authService)
         }
         .onAppear {
             // Load products if not already loaded

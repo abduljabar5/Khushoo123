@@ -10,6 +10,8 @@
 		8125501C2E079D0C0035AD52 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501B2E079D0B0035AD52 /* WidgetKit.framework */; };
 		8125501E2E079D0C0035AD52 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501D2E079D0C0035AD52 /* SwiftUI.framework */; };
 		8125502F2E079D0D0035AD52 /* DhikrtrackerExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		812D2A7D2ECD79A60082D07C /* Khushoo.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 812D2A7C2ECD79A60082D07C /* Khushoo.storekit */; };
+		812D2A7E2ECD79A60082D07C /* Khushoo.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 812D2A7C2ECD79A60082D07C /* Khushoo.storekit */; };
 		814326BE2E3888DF00BCCEF2 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 814326BD2E3888DF00BCCEF2 /* DeviceActivity.framework */; };
 		814326C62E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		815731F02E14EACE00DD29EF /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = 815731EF2E14EACE00DD29EF /* Kingfisher */; };
@@ -92,6 +94,7 @@
 		8125501B2E079D0B0035AD52 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		8125501D2E079D0C0035AD52 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		812550CB2E0D052D0035AD52 /* DhikrtrackerExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DhikrtrackerExtension.entitlements; sourceTree = "<group>"; };
+		812D2A7C2ECD79A60082D07C /* Khushoo.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Khushoo.storekit; sourceTree = "<group>"; };
 		814326BC2E3888DF00BCCEF2 /* PrayerBlockerMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PrayerBlockerMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		814326BD2E3888DF00BCCEF2 /* DeviceActivity.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DeviceActivity.framework; path = System/Library/Frameworks/DeviceActivity.framework; sourceTree = SDKROOT; };
 		81432C092E3EFBCC00BCCEF2 /* ManagedSettings.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ManagedSettings.framework; path = System/Library/Frameworks/ManagedSettings.framework; sourceTree = SDKROOT; };
@@ -285,6 +288,7 @@
 				8125501D2E079D0C0035AD52 /* SwiftUI.framework */,
 				814326BD2E3888DF00BCCEF2 /* DeviceActivity.framework */,
 				81432C092E3EFBCC00BCCEF2 /* ManagedSettings.framework */,
+				812D2A7C2ECD79A60082D07C /* Khushoo.storekit */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -509,6 +513,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				812D2A7E2ECD79A60082D07C /* Khushoo.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -530,6 +535,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				812D2A7D2ECD79A60082D07C /* Khushoo.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

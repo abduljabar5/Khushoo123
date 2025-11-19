@@ -84,14 +84,8 @@ struct PrayerTimeView: View {
 
     // MARK: - Background View
     private var mosqueBackgroundView: some View {
-        Group {
-            if themeManager.currentTheme == .liquidGlass {
-                LiquidGlassBackgroundView()
-            } else {
-                theme.primaryBackground
-                    .ignoresSafeArea()
-            }
-        }
+        theme.primaryBackground
+            .ignoresSafeArea()
     }
 
     // MARK: - Mosque Background Image with Fade

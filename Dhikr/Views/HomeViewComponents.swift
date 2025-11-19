@@ -305,25 +305,28 @@ struct ThemePreviewCard: View {
     @ViewBuilder
     private func getPreviewBackground(for theme: AppThemeStyle) -> some View {
         switch theme {
+        case .auto:
+            LinearGradient(
+                colors: [Color(hex: "F8F9FA"), Color(hex: "0A1628")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
         case .light:
             Color(hex: "F8F9FA")
         case .dark:
             Color(hex: "0A1628")
-        case .liquidGlass:
-            LinearGradient(
-                colors: [
-                    Color(hex: "E0F2FE").opacity(0.8),
-                    Color(hex: "E0E7FF").opacity(0.8)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
         }
     }
-    
+
     @ViewBuilder
     private func getAccentGradient(for theme: AppThemeStyle) -> some View {
         switch theme {
+        case .auto:
+            LinearGradient(
+                colors: [Color(hex: "1A9B8A"), Color(hex: "00D9FF")],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
         case .light:
             LinearGradient(
                 colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
@@ -336,23 +339,17 @@ struct ThemePreviewCard: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
-        case .liquidGlass:
-            LinearGradient(
-                colors: [Color(hex: "7C3AED"), Color(hex: "06B6D4")],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
         }
     }
-    
+
     private func getCardBackground(for theme: AppThemeStyle) -> Color {
         switch theme {
+        case .auto:
+            return Color(hex: "E5E5EA")
         case .light:
             return Color.white
         case .dark:
             return Color(hex: "1E3A5F")
-        case .liquidGlass:
-            return Color.white.opacity(0.3)
         }
     }
 }

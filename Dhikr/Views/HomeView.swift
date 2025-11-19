@@ -70,16 +70,14 @@ struct HomeView: View {
     var body: some View {
             ZStack {
                 // Background for themes
-                if themeManager.currentTheme == .liquidGlass {
-                    LiquidGlassBackgroundView()
-                } else if themeManager.currentTheme == .dark {
-                Color.black
+                if themeManager.effectiveTheme == .dark {
+                    Color.black
                         .ignoresSafeArea()
                 } else {
-                Color.white
+                    Color.white
                         .ignoresSafeArea()
                 }
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
                         // Greeting Section
@@ -107,13 +105,13 @@ struct HomeView: View {
                         earlyUnlockSection
                     }
                     .padding(.horizontal, 20)
-                .padding(.top, themeManager.currentTheme == .liquidGlass ? 50 : 8)
+                    .padding(.top, 8)
                     .padding(.bottom, audioPlayerService.currentSurah != nil ? 130 : 80)
                 }
-            .ignoresSafeArea(edges: themeManager.currentTheme == .liquidGlass ? [] : .bottom)
+                .ignoresSafeArea(edges: .bottom)
             }
         .toolbar(.hidden, for: .navigationBar)
-            .preferredColorScheme(themeManager.currentTheme == .dark ? .dark : .light)
+            .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
             .onAppear {
                 loadData()
                 // Prayer time fetching starts automatically in the view model
@@ -167,9 +165,7 @@ struct HomeView: View {
         NavigationView {
             ZStack {
                 // Background for themes
-                if themeManager.currentTheme == .liquidGlass {
-                    LiquidGlassBackgroundView()
-                } else if themeManager.currentTheme == .dark {
+                if themeManager.effectiveTheme == .dark {
                     Color.black
                         .ignoresSafeArea()
                 } else {
@@ -440,17 +436,13 @@ struct HomeView: View {
                 }
                 .padding(20)
                 .background(
-                    themeManager.currentTheme == .liquidGlass ?
-                    AnyView(Color.clear) :
-                    AnyView(
-                        LinearGradient(
-                            colors: [
-                                themeManager.theme.prayerGradientStart.opacity(0.7),
-                                themeManager.theme.prayerGradientEnd.opacity(0.7)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                    LinearGradient(
+                        colors: [
+                            themeManager.theme.prayerGradientStart.opacity(0.7),
+                            themeManager.theme.prayerGradientEnd.opacity(0.7)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
                 )
                 .glassCard(theme: themeManager.theme)
@@ -2065,7 +2057,7 @@ struct HomeView: View {
                                 .fill(.ultraThinMaterial)
                                 .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
                         }
-                    } else if themeManager.currentTheme == .dark {
+                    } else if themeManager.effectiveTheme == .dark {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
                             .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 4)
@@ -2683,9 +2675,7 @@ struct QuickActionCard: View {
         .padding(16)
         .background(
             Group {
-                if themeManager.currentTheme == .liquidGlass {
-                    Color.clear
-                } else if themeManager.currentTheme == .dark {
+                if themeManager.effectiveTheme == .dark {
                     Color(red: 0.15, green: 0.17, blue: 0.20)
                 } else {
                     Color(.secondarySystemBackground)

@@ -75,7 +75,7 @@
          </BuildableReference>
       </BuildableProductRunnable>
       <StoreKitConfigurationFileReference
-         identifier = "../../Dhikr.storekit">
+         identifier = "../../Khushoo.storekit">
       </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
