@@ -128,15 +128,6 @@ struct HomeView: View {
                     processReciters(reciters)
                 }
             }
-            // Compact banner overlay at the very top (Home only)
-            .overlay(alignment: .top) {
-                if !blockingState.isStrictModeEnabled && blockingState.appsActuallyBlocked && !blockingState.isEarlyUnlockedActive {
-                    EarlyUnlockCompactBannerHome()
-                        .padding(.top, 8)
-                        .padding(.horizontal)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
             // Smoothly tick the countdown once per second while Home is visible
             .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
                 earlyUnlockTick &+= 1

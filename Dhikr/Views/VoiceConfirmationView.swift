@@ -18,149 +18,159 @@ struct VoiceConfirmationView: View {
         // Silenced: visibility debug logging
         
         if shouldShow {
-            VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: blockingState.isWaitingForVoiceConfirmation ? "Voice Confirmation Required" : "Prayer Time Active - Strict Mode", icon: "lock.fill", theme: theme)
-                
-                VStack(spacing: 16) {
-                    // Prayer info with countdown
-                    HStack {
-                        Image(systemName: prayerIcon(for: blockingState.currentPrayerName))
-                            .foregroundColor(.orange)
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Text("\(blockingState.currentPrayerName) Prayer Time")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                if timeRemaining > 0 {
-                                    Text(timeRemaining.formattedForCountdown)
-                                        .font(.headline)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.orange)
-                                        .monospacedDigit()
-                                }
+            VStack(alignment: .leading, spacing: 16) {
+                // Header with lock icon
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.orange)
+                    Text("Prayer Time Active - Strict Mode")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(theme.primaryText)
+                }
+
+                // Prayer info with countdown
+                HStack(spacing: 12) {
+                    Image(systemName: prayerIcon(for: blockingState.currentPrayerName))
+                        .font(.system(size: 24))
+                        .foregroundColor(.orange)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text("\(blockingState.currentPrayerName) Prayer Time")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(theme.primaryText)
+
+                            if timeRemaining > 0 {
+                                Text(timeRemaining.formattedForCountdown)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.orange)
+                                    .monospacedDigit()
                             }
-                            Text(blockingState.isWaitingForVoiceConfirmation ? "Apps blocked - Voice confirmation required" : "Apps are currently blocked")
-                                .font(.subheadline)
-                                .foregroundColor(theme.secondaryText)
                         }
-                        Spacer()
+
+                        Text("Apps are currently blocked")
+                            .font(.system(size: 14))
+                            .foregroundColor(theme.secondaryText)
                     }
+
+                    Spacer()
+                }
                     
-                    // Voice confirmation section
-                    VStack(spacing: 12) {
-                        // Say Wallahi button
-                        Button(action: {
-                            if timeRemaining <= 0 {
+                // Voice confirmation section
+                VStack(spacing: 12) {
+                    // Say Wallahi button
+                    Button(action: {
+                        if timeRemaining <= 0 {
+                            // Check if permission is granted
+                            if !speechService.hasPermissions {
+                                // Request microphone permission
+                                speechService.requestPermissions()
+                            } else {
+                                // Permission already granted, start/stop recording
                                 if speechService.isRecording {
                                     speechService.stopRecording()
                                 } else {
                                     speechService.startRecording()
                                 }
                             }
-                        }) {
-                            HStack {
-                                Image(systemName: speechService.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                                    .font(.title2)
-                                Text(speechService.isRecording ? "Stop Recording" : "Say Wallahi")
-                                    .fontWeight(.semibold)
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: speechService.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                                .font(.system(size: 18))
+                            Text(speechService.isRecording ? "Stop Recording" : "Say Wallahi")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            Group {
+                                if timeRemaining > 0 {
+                                    Color.gray.opacity(0.3)
+                                } else if speechService.isRecording {
+                                    Color.red
+                                } else {
+                                    // Green accent when countdown is finished and ready to record
+                                    theme.accentGreen
+                                }
                             }
-                            .foregroundColor(timeRemaining > 0 ? theme.tertiaryText : theme.primaryText)
+                        )
+                        .cornerRadius(10)
+                    }
+                    .disabled(timeRemaining > 0)
+                        
+                    if timeRemaining > 0 {
+                        Text("When the timer ends, press the button above to unlock your apps.")
+                            .font(.system(size: 14))
+                            .foregroundColor(theme.secondaryText)
+                            .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(timeRemaining > 0 ? Color.gray.opacity(0.3) : (speechService.isRecording ? Color.red : Color.blue))
-                            .cornerRadius(12)
-                        }
-                        .disabled(timeRemaining > 0 || !speechService.hasPermissions)
+                    }
                         
-                        if timeRemaining > 0 {
-                            Text("When the timer ends, press the button above to unlock your apps.")
-                                .font(.subheadline)
-                                .foregroundColor(theme.secondaryText)
-                                .multilineTextAlignment(.center)
-                        } else {
-                            VStack(spacing: 8) {
-                                Text("Prayer time has ended. Press the button above and say one of these phrases: 'Wallahi I prayed'")
-                                    .font(.subheadline)
-                                    .foregroundColor(theme.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                
-                                // VStack(spacing: 4) {
-                                //     Text("\"Wallahi I prayed\"")
-                                //         .font(.caption)
-                                //         .fontWeight(.medium)
-                                //         .foregroundColor(.orange)
-                                //     Text("\"Wallah I prayed\"")
-                                //         .font(.caption)
-                                //         .fontWeight(.medium)
-                                //         .foregroundColor(.orange)
-                                //     Text("\"Walhi I prayed\"")
-                                //         .font(.caption)
-                                //         .fontWeight(.medium)
-                                //         .foregroundColor(.orange)
-                                //     Text("\"Walha I prayed\"")
-                                //         .font(.caption)
-                                //         .fontWeight(.medium)
-                                //         .foregroundColor(.orange)
-                                // }
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(.orange.opacity(0.1))
-                                .cornerRadius(6)
+                    // Show transcript when recording
+                    if !speechService.transcript.isEmpty && timeRemaining <= 0 {
+                        Text("You said: \"\(speechService.transcript)\"")
+                            .font(.system(size: 14))
+                            .italic()
+                            .foregroundColor(speechService.isConfirmationCorrect ? theme.accentGreen : theme.primaryText)
+                            .padding(12)
+                            .frame(maxWidth: .infinity)
+                            .background(theme.tertiaryBackground)
+                            .cornerRadius(8)
+                    }
+
+                    // Unlock button (appears when phrase is correct)
+                    if speechService.isConfirmationCorrect && timeRemaining <= 0 {
+                        Button(action: {
+                            blockingState.clearBlocking()
+                            speechService.stopRecording()
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18))
+                                Text("Unlock Apps")
+                                    .font(.system(size: 16, weight: .semibold))
                             }
-                        }
-                        
-                        // Show transcript when recording
-                        if !speechService.transcript.isEmpty && timeRemaining <= 0 {
-                            Text("You said: \"\(speechService.transcript)\"")
-                                .font(.body)
-                                .italic()
-                                .foregroundColor(speechService.isConfirmationCorrect ? theme.accentGreen : theme.primaryText)
-                                .padding()
-                                .background(theme.tertiaryBackground)
-                                .cornerRadius(8)
-                        }
-                        
-                        // Unlock button (appears when phrase is correct)
-                        if speechService.isConfirmationCorrect && timeRemaining <= 0 {
-                            Button(action: {
-                                blockingState.clearBlocking()
-                                speechService.stopRecording()
-                            }) {
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                    Text("Unlock Apps")
-                                }
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(theme.primaryText)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(theme.accentGreen)
-                                .cornerRadius(12)
-                            }
-                        }
-                        
-                        // Permission error
-                        if !speechService.hasPermissions {
-                            VStack(spacing: 8) {
-                                Text("Microphone permission required")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                Button("Open Settings") {
-                                    if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                                        UIApplication.shared.open(settingsUrl)
-                                    }
-                                }
-                                .font(.caption)
-                                .foregroundColor(theme.primaryAccent)
-                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(theme.accentGreen)
+                            .cornerRadius(10)
                         }
                     }
+
+                    // Permission message (informational, not error)
+                    if !speechService.hasPermissions && timeRemaining <= 0 {
+                        HStack(spacing: 8) {
+                            Text("Microphone permission required")
+                                .font(.system(size: 13))
+                                .foregroundColor(.red)
+
+                            Spacer()
+
+                            Button("Open Settings") {
+                                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(settingsUrl)
+                                }
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(theme.primaryAccent)
+                        }
+                        .padding(12)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                    }
                 }
-                .padding()
-                .background(theme.cardBackground)
-                .cornerRadius(12)
             }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(red: 0.17, green: 0.18, blue: 0.20)) // Match the gray UI background
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+            )
+            .padding(.horizontal, 16)
             .onAppear {
                 startCountdown()
             }

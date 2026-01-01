@@ -16,12 +16,16 @@ struct ReciterDirectoryView: View {
 
     @State private var allReciters: [Reciter] = []
     @State private var filteredReciters: [Reciter] = []
+    @State private var displayedReciters: [Reciter] = []
     @State private var recentReciters: [Reciter] = []
     @State private var searchText = ""
     @State private var isLoading = true
     @State private var selectedReciter: Reciter?
     @State private var searchTask: Task<Void, Never>?
     @State private var favoritesCache: Set<String> = []
+    @State private var currentBatchIndex = 0
+
+    private let batchSize = 20 // Load 20 reciters at a time
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -76,10 +80,12 @@ struct ReciterDirectoryView: View {
                             }
 
                             AllRecitersView(
-                                reciters: filteredReciters,
+                                reciters: displayedReciters,
                                 onReciterTapped: handleReciterTap,
+                                onLoadMore: loadMoreReciters,
                                 theme: theme,
-                                favoritesCache: favoritesCache
+                                favoritesCache: favoritesCache,
+                                hasMore: displayedReciters.count < filteredReciters.count
                             )
                         }
                     }
@@ -104,11 +110,16 @@ struct ReciterDirectoryView: View {
                 print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
                 self.allReciters = reciters
                 self.filteredReciters = reciters
+                self.loadInitialBatch()
                 self.isLoading = false
             }
         }
         .onChange(of: searchText) { newValue in
             performDebouncedSearch(query: newValue)
+        }
+        .onChange(of: filteredReciters) { _ in
+            // Reset and load initial batch when filtered list changes
+            loadInitialBatch()
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
@@ -158,6 +169,7 @@ struct ReciterDirectoryView: View {
             print("✅ [ReciterDirectoryView] Using already loaded reciters (\(quranAPIService.reciters.count))")
             self.allReciters = quranAPIService.reciters
             self.filteredReciters = quranAPIService.reciters
+            self.loadInitialBatch()
             self.isLoading = false
             return
         }
@@ -177,6 +189,7 @@ struct ReciterDirectoryView: View {
                 await MainActor.run {
                     self.allReciters = fetchedReciters
                     self.filteredReciters = fetchedReciters
+                    self.loadInitialBatch()
                     self.isLoading = false
                 }
             } catch QuranAPIError.loadingInProgress {
@@ -214,8 +227,13 @@ struct ReciterDirectoryView: View {
             // Perform filtering on background queue
             let currentReciters = allReciters
             let filtered = await Task.detached {
-                return currentReciters.filter {
-                    $0.englishName.localizedCaseInsensitiveContains(query)
+                return currentReciters.filter { reciter in
+                    // Search for reciters whose name contains the query
+                    let lowercasedQuery = query.lowercased()
+                    let lowercasedName = reciter.englishName.lowercased()
+
+                    // Simple contains search - shows all reciters whose name contains the search query
+                    return lowercasedName.contains(lowercasedQuery)
                 }
             }.value
 
@@ -225,6 +243,27 @@ struct ReciterDirectoryView: View {
 
     private func loadFavoritesCache() {
         favoritesCache = Set(FavoritesManager.shared.favoriteReciters.map { $0.identifier })
+    }
+
+    private func loadInitialBatch() {
+        currentBatchIndex = 0
+        let endIndex = min(batchSize, filteredReciters.count)
+        displayedReciters = Array(filteredReciters[0..<endIndex])
+        print("📦 [ReciterDirectoryView] Loaded initial batch: \(displayedReciters.count) of \(filteredReciters.count)")
+    }
+
+    private func loadMoreReciters() {
+        guard displayedReciters.count < filteredReciters.count else {
+            print("✅ [ReciterDirectoryView] All reciters loaded")
+            return
+        }
+
+        let startIndex = displayedReciters.count
+        let endIndex = min(startIndex + batchSize, filteredReciters.count)
+        let newReciters = Array(filteredReciters[startIndex..<endIndex])
+
+        displayedReciters.append(contentsOf: newReciters)
+        print("📦 [ReciterDirectoryView] Loaded more reciters: \(displayedReciters.count) of \(filteredReciters.count)")
     }
 }
 
@@ -321,8 +360,10 @@ struct RecentlySearchedView: View {
 struct AllRecitersView: View {
     let reciters: [Reciter]
     let onReciterTapped: (Reciter) -> Void
+    let onLoadMore: () -> Void
     let theme: AppTheme
     let favoritesCache: Set<String>
+    let hasMore: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -337,6 +378,22 @@ struct AllRecitersView: View {
                         ReciterRow(reciter: reciter, theme: theme, favoritesCache: favoritesCache)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .onAppear {
+                        // Load more when we reach the last few items
+                        if reciter.id == reciters.suffix(3).first?.id && hasMore {
+                            onLoadMore()
+                        }
+                    }
+                }
+
+                // Loading indicator at the bottom when more items are available
+                if hasMore {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .padding()
+                        Spacer()
+                    }
                 }
             }
             .padding(.horizontal, 16)

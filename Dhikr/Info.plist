@@ -8,23 +8,11 @@
 	<string>We need access to your microphone for voice confirmation when unlocking apps in strict mode after prayer time blocking.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>We need speech recognition to verify your voice confirmation when unlocking apps in strict mode after prayer time blocking.</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>api.aladhan.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>We use Bluetooth to connect to your iQibla Zikr ring for counting dhikr automatically.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Khodijah Free.ttf</string>
-		<string></string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

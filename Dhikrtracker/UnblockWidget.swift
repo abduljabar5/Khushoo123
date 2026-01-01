@@ -71,7 +71,10 @@ struct UnblockProvider: TimelineProvider {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
             return UnblockEntry(date: now, state: .idle, nextPrayerName: nil, nextPrayerTime: nil, unlockAvailableAt: nil)
         }
-        
+
+        // Check if strict mode is enabled - widgets cannot unblock in strict mode
+        let isStrictMode = groupDefaults.bool(forKey: "focusStrictMode")
+
         // Check Blocking Status
         let isBlocking = groupDefaults.object(forKey: "blockingStartTime") != nil
         let appsBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")

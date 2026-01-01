@@ -22,6 +22,9 @@ struct ProfileView: View {
     @State private var showingAuth = false
     @State private var showingPaywall = false
     @State private var refreshID = UUID()
+    @State private var showingDeleteConfirmation = false
+    @State private var showingDeleteError = false
+    @State private var deleteErrorMessage = ""
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
     @AppStorage("showSleepTimer") private var showSleepTimer = true
     @AppStorage("prayerRemindersEnabled") private var prayerRemindersEnabled = true
@@ -109,6 +112,11 @@ struct ProfileView: View {
                 if authService.isAuthenticated {
                     signOutSection
                         .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
+
+                    // Delete Account Section
+                    deleteAccountSection
+                        .padding(.horizontal, 20)
                         .padding(.bottom, 32)
                 }
             }
@@ -124,6 +132,21 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
+        }
+        .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await deleteAccount()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete your account? Your authentication account will be permanently deleted, but your local progress (dhikr counts, streaks, prayer history) will be preserved.")
+        }
+        .alert("Error", isPresented: $showingDeleteError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteErrorMessage)
         }
         .onChange(of: authService.isAuthenticated) { _ in
             refreshID = UUID()
@@ -866,6 +889,50 @@ struct ProfileView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    // MARK: - Delete Account Section
+    private var deleteAccountSection: some View {
+        Button(action: {
+            showingDeleteConfirmation = true
+        }) {
+            HStack(spacing: 16) {
+                Circle()
+                    .fill(Color.red.opacity(0.15))
+                    .frame(width: 50, height: 50)
+                    .overlay(
+                        Image(systemName: "trash.fill")
+                            .font(.title3)
+                            .foregroundColor(.red)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Delete Account")
+                        .font(.headline)
+                        .foregroundColor(.red)
+
+                    Text("Permanently delete your account and data")
+                        .font(.caption)
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(themeManager.theme.tertiaryText)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(themeManager.theme.cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     // MARK: - Helper Functions
 
     private func sectionHeader(title: String, icon: String) -> some View {
@@ -1114,6 +1181,43 @@ struct ProfileView: View {
         // Extract first name
         let components = fullName.components(separatedBy: " ")
         return components.first ?? ""
+    }
+
+    // MARK: - Account Deletion
+    private func deleteAccount() async {
+        do {
+            print("🗑️ [ProfileView] Starting account deletion...")
+
+            // Delete account from Firebase (Auth and Firestore only)
+            // Local data (dhikr counts, streaks, etc.) is preserved
+            try await authService.deleteAccount()
+
+            print("✅ [ProfileView] Account deleted successfully")
+            print("ℹ️ [ProfileView] Local data (dhikr progress, streaks) preserved")
+
+        } catch {
+            print("❌ [ProfileView] Failed to delete account: \(error)")
+
+            // Handle re-authentication error
+            if let authError = error as NSError?, authError.domain == "FIRAuthErrorDomain" {
+                if authError.code == 17014 { // Requires recent login
+                    await MainActor.run {
+                        deleteErrorMessage = "For security, please sign out and sign back in, then try deleting your account again."
+                        showingDeleteError = true
+                    }
+                } else {
+                    await MainActor.run {
+                        deleteErrorMessage = "Failed to delete account: \(error.localizedDescription)"
+                        showingDeleteError = true
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    deleteErrorMessage = "Failed to delete account: \(error.localizedDescription)"
+                    showingDeleteError = true
+                }
+            }
+        }
     }
 }
 

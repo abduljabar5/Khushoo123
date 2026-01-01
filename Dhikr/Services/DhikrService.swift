@@ -21,6 +21,10 @@ struct DhikrGoals: Codable {
     var subhanAllah: Int = 33
     var alhamdulillah: Int = 33
     var astaghfirullah: Int = 33
+
+    var totalDailyGoal: Int {
+        subhanAllah + alhamdulillah + astaghfirullah
+    }
 }
 
 // MARK: - Dhikr Service
@@ -105,6 +109,7 @@ class DhikrService: ObservableObject {
         self.highestStreak = userDefaults.integer(forKey: highestStreakKey)
         self.goal = DhikrService.loadGoals(from: userDefaults)
         checkStreakOnLaunch()
+        startMidnightResetTimer()
     }
     
     // MARK: - Public Methods
@@ -348,22 +353,52 @@ class DhikrService: ObservableObject {
         return streak
     }
     
-    // --- Timer for 11:59pm streak check ---
-    private var streakTimer: Timer? = nil
-    func startStreakTimer() {
-        streakTimer?.invalidate()
+    // --- Timer for midnight reset ---
+    private var midnightTimer: Timer? = nil
+
+    func startMidnightResetTimer() {
+        midnightTimer?.invalidate()
         let calendar = Calendar.current
         let now = Date()
+
+        // Calculate next midnight (00:01 AM)
         var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = 23
-        components.minute = 59
+        components.hour = 0
+        components.minute = 1
         components.second = 0
-        let nextTrigger = calendar.date(from: components) ?? now
-        let interval = max(nextTrigger.timeIntervalSince(now), 60)
-        streakTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
-            self?.checkStreak()
-            self?.startStreakTimer()
+
+        var nextMidnight = calendar.date(from: components) ?? now
+
+        // If it's already past 00:01 today, schedule for tomorrow
+        if nextMidnight <= now {
+            nextMidnight = calendar.date(byAdding: .day, value: 1, to: nextMidnight) ?? now
         }
+
+        let interval = nextMidnight.timeIntervalSince(now)
+        print("⏰ [DhikrService] Scheduling midnight reset in \(Int(interval/60)) minutes")
+
+        midnightTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            print("🌙 [DhikrService] Midnight reset triggered")
+            self?.performMidnightReset()
+            self?.startMidnightResetTimer() // Reschedule for next midnight
+        }
+    }
+
+    private func performMidnightReset() {
+        // Reset dhikr count
+        dhikrCount = DhikrCount()
+        saveDhikrCount()
+
+        // Check and update streak
+        checkStreak()
+
+        // Reload widgets to reflect reset
+        WidgetCenter.shared.reloadAllTimelines()
+
+        // Post notification for UI updates
+        NotificationCenter.default.post(name: .dhikrCountUpdated, object: nil)
+
+        print("✅ [DhikrService] Midnight reset complete - new day started")
     }
     
     // MARK: - Goals Management
@@ -520,13 +555,14 @@ struct DhikrStats {
     }
 }
 
-struct DailyDhikrStats: Codable {
+struct DailyDhikrStats: Codable, Identifiable {
+    var id: String { date.ISO8601Format() }
     let date: Date
     let subhanAllah: Int
     let alhamdulillah: Int
     let astaghfirullah: Int
     let total: Int
-    
+
     var dayName: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE"

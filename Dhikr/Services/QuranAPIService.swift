@@ -28,10 +28,7 @@ class QuranAPIService: ObservableObject {
     private var hasLoadedReciters = false
     
     private init() {
-        // Preload reciters on service initialization
-        Task {
-            await preloadReciters()
-        }
+        // Don't preload reciters - only load when user navigates to reciters page
     }
     
     // MARK: - Preload Reciters (Called once on app launch)
@@ -236,8 +233,16 @@ class QuranAPIService: ObservableObject {
 
         // Convert MP3Quran reciters to our Reciter model
         let reciters = mp3QuranResponse.reciters.compactMap { mp3Reciter -> Reciter? in
-            guard let completeMoshaf = mp3Reciter.moshaf.first(where: { $0.surahTotal == 114 && $0.moshafType == 11 }) else {
+            // Get the mushaf with the most surahs available
+            // Priority: Complete mushaf (114 surahs), then the one with most surahs
+            guard let bestMoshaf = mp3Reciter.moshaf.max(by: { $0.surahTotal < $1.surahTotal }) else {
+                print("⚠️ [QuranAPIService] Skipping reciter \(mp3Reciter.name) - no mushaf found")
                 return nil
+            }
+
+            // Log if reciter doesn't have complete Quran
+            if bestMoshaf.surahTotal < 114 {
+                print("ℹ️ [QuranAPIService] Including reciter \(mp3Reciter.name) with \(bestMoshaf.surahTotal) surahs")
             }
 
             return Reciter(
@@ -245,7 +250,7 @@ class QuranAPIService: ObservableObject {
                 language: "ar",
                 name: mp3Reciter.name,
                 englishName: mp3Reciter.name,
-                server: completeMoshaf.server,
+                server: bestMoshaf.server,
                 reciterId: mp3Reciter.id,
                 country: nil,
                 dialect: nil,
@@ -253,7 +258,11 @@ class QuranAPIService: ObservableObject {
             )
         }
 
-        return reciters
+        // Sort reciters alphabetically by English name
+        let sortedReciters = reciters.sorted { $0.englishName.localizedCaseInsensitiveCompare($1.englishName) == .orderedAscending }
+
+        print("✅ [QuranAPIService] Returning \(sortedReciters.count) reciters (sorted alphabetically)")
+        return sortedReciters
     }
     
     // MARK: - Fetch Surahs

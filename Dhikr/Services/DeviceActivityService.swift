@@ -21,8 +21,8 @@ class DeviceActivityService: ObservableObject {
     private var lastScheduleInvocationAt: Date? = nil
     private var sessionScheduledActivityNames: Set<String> = []
     private let maxSchedules = 20 // Apple's DeviceActivity limit
-    private let rollingWindowDays = 4 // Maintain 4 days of schedules
-    private let updateIntervalDays = 3 // Update every 3 days
+    private let rollingWindowDays = 3 // Maintain 3 days of schedules (Today + 2 days)
+    private let updateIntervalDays = 0.25 // Update every 6 hours
 
     private init() {
         print("📅 [PrayerBlocking] DeviceActivityService initialized")
@@ -39,15 +39,15 @@ class DeviceActivityService: ObservableObject {
 
     // MARK: - Rolling Window Management
 
-    /// Schedule rolling 4-day window of prayer times from storage
+    /// Schedule rolling 24-hour window of prayer times from storage
     func scheduleRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) {
-        print("🔄 [PrayerBlocking] Starting rolling window schedule")
+        print("🔄 [PrayerBlocking] Starting rolling window schedule (24h)")
 
         let calendar = Calendar.current
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
 
-        // Calculate end of rolling window (4 days from today)
+        // Calculate end of rolling window (1 day from today)
         guard let endOfWindow = calendar.date(byAdding: .day, value: rollingWindowDays, to: startOfToday) else {
             print("❌ [PrayerBlocking] Failed to calculate window end date")
             return
@@ -116,7 +116,7 @@ class DeviceActivityService: ObservableObject {
         }
     }
 
-    /// Check if rolling window needs update (every 3 days)
+    /// Check if rolling window needs update (every 6 hours)
     func needsRollingWindowUpdate() -> Bool {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let lastUpdateTs = groupDefaults.object(forKey: "lastRollingWindowUpdate") as? TimeInterval else {
@@ -125,14 +125,14 @@ class DeviceActivityService: ObservableObject {
         }
 
         let lastUpdate = Date(timeIntervalSince1970: lastUpdateTs)
-        let daysSinceUpdate = Calendar.current.dateComponents([.day], from: lastUpdate, to: Date()).day ?? 0
+        let hoursSinceUpdate = Date().timeIntervalSince(lastUpdate) / 3600.0
 
-        let needsUpdate = daysSinceUpdate >= updateIntervalDays
+        let needsUpdate = hoursSinceUpdate >= (updateIntervalDays * 24)
 
         if needsUpdate {
-            print("🔄 [PrayerBlocking] Rolling window update needed: \(daysSinceUpdate) days since last update")
+            print("🔄 [PrayerBlocking] Rolling window update needed: \(String(format: "%.1f", hoursSinceUpdate)) hours since last update")
         } else {
-            print("✅ [PrayerBlocking] Rolling window up to date: \(daysSinceUpdate) days since last update")
+            print("✅ [PrayerBlocking] Rolling window up to date: \(String(format: "%.1f", hoursSinceUpdate)) hours since last update")
         }
 
         return needsUpdate
@@ -218,6 +218,22 @@ class DeviceActivityService: ObservableObject {
         // Simplified: always compute next up-to-20 selected future prayers from now and try to schedule them.
         // Avoid relying on saved schedules to decide capacity, since UI may persist previews.
         let now = Date()
+
+        // CRITICAL: Check if apps are selected before scheduling
+        let selection = AppSelectionModel.getCurrentSelection()
+        let hasAppsSelected = !selection.applicationTokens.isEmpty ||
+                             !selection.categoryTokens.isEmpty ||
+                             !selection.webDomainTokens.isEmpty
+
+        if !hasAppsSelected {
+            print("⚠️ [Scheduler] No apps selected - stopping all monitoring and skipping scheduling")
+            stopAllMonitoring()
+            return
+        }
+
+        // Note: Premium check is handled by the caller (UI layer).
+        // If this method is called, we trust that premium status has already been verified.
+
         if let last = lastScheduleInvocationAt {
             let delta = now.timeIntervalSince(last)
             if delta < 3 {
@@ -244,16 +260,20 @@ class DeviceActivityService: ObservableObject {
         }
         // Check current capacity before scheduling
         let maxSchedules = 20
-        let currentActiveCount = activeActivityNames.count
-        let availableSlots = max(0, maxSchedules - currentActiveCount)
-        
+        var currentActiveCount = activeActivityNames.count
+        var availableSlots = max(0, maxSchedules - currentActiveCount)
+
         if availableSlots == 0 {
             print("⚠️ Schedule capacity reached (\(currentActiveCount)/\(maxSchedules)). Clearing old schedules...")
             // Clear some old activities to make room
             performAggressiveCleanup()
+            // Recalculate available slots after cleanup
+            currentActiveCount = activeActivityNames.count
+            availableSlots = max(0, maxSchedules - currentActiveCount)
+            print("✅ After cleanup: \(currentActiveCount) active, \(availableSlots) slots available")
         }
-        
-        let prayersToAdd = Array(uniquePerDay.prefix(min(availableSlots > 0 ? availableSlots : 10, 20)))
+
+        let prayersToAdd = Array(uniquePerDay.prefix(min(availableSlots > 0 ? availableSlots : maxSchedules, maxSchedules)))
         guard !prayersToAdd.isEmpty else {
             print("❌ No capacity to schedule new prayers")
             return
@@ -765,7 +785,8 @@ class DeviceActivityService: ObservableObject {
         }
         
         groupDefaults.set(schedules, forKey: prayerScheduleKey)
-        // Silenced
+        groupDefaults.synchronize() // Force immediate write to disk
+        print("💾 [DeviceActivity] Saved \(schedules.count) schedules to App Group")
     }
     
     /// Reset the initial scheduling flag (for debugging or complete reset)

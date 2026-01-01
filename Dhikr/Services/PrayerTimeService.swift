@@ -58,7 +58,7 @@ class PrayerTimeService {
         dateFormatter.dateFormat = "dd-MM-yyyy"
         let dateString = dateFormatter.string(from: date)
 
-        let urlString = "http://api.aladhan.com/v1/timings/\(dateString)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
+        let urlString = "https://api.aladhan.com/v1/timings/\(dateString)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
 
         print("🕌 [PrayerBlocking] Fetching single day prayer times: \(dateString)")
 
@@ -112,7 +112,7 @@ class PrayerTimeService {
             let month = calendar.component(.month, from: currentDate)
 
             // Use calendar API to fetch entire month at once
-            let urlString = "http://api.aladhan.com/v1/calendar/\(year)/\(month)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
+            let urlString = "https://api.aladhan.com/v1/calendar/\(year)/\(month)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
 
             guard let url = URL(string: urlString) else {
                 throw URLError(.badURL)

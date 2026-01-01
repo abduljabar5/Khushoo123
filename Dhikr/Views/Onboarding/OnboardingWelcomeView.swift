@@ -9,7 +9,6 @@ import SwiftUI
 
 struct OnboardingWelcomeView: View {
     let onContinue: () -> Void
-    let onSkip: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -105,16 +104,6 @@ struct OnboardingWelcomeView: View {
                                 )
                         )
                 }
-
-                // Secondary: Skip
-                Button(action: {
-                    print("[Onboarding] Welcome - Skip tapped")
-                    onSkip()
-                }) {
-                    Text("Skip")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color(hex: "7F8C8D"))
-                }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
@@ -163,5 +152,5 @@ struct ValuePointRow: View {
 }
 
 #Preview {
-    OnboardingWelcomeView(onContinue: {}, onSkip: {})
+    OnboardingWelcomeView(onContinue: {})
 }

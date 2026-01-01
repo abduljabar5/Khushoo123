@@ -10,7 +10,6 @@ import AuthenticationServices
 
 enum AuthMethod {
     case apple
-    case google
     case email
     case none
 }
@@ -18,7 +17,6 @@ enum AuthMethod {
 struct ModernAuthView: View {
     @EnvironmentObject var authService: AuthenticationService
     @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var googleSignInHelper = GoogleSignInHelper()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) var colorScheme
     @AppStorage("userDisplayName") private var userDisplayName: String = ""
@@ -79,30 +77,6 @@ struct ModernAuthView: View {
                                 .frame(height: 56)
                                 .cornerRadius(16)
                                 .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-
-                                // Google Sign In
-                                SocialAuthButton(
-                                    icon: "g.circle.fill",
-                                    title: "Continue with Google",
-                                    backgroundColor: .white,
-                                    foregroundColor: .black,
-                                    borderColor: Color.gray.opacity(0.3)
-                                ) {
-                                    googleSignInHelper.signIn { idToken, accessToken in
-                                        Task {
-                                            do {
-                                                try await authService.signInWithGoogle(idToken: idToken, accessToken: accessToken)
-                                                await MainActor.run { dismiss() }
-                                            } catch let error as AuthError {
-                                                await MainActor.run {
-                                                    errorMessage = error.errorDescription
-                                                }
-                                            }
-                                        }
-                                    } onError: { error in
-                                        errorMessage = error.localizedDescription
-                                    }
-                                }
 
                                 // Email Option
                                 SocialAuthButton(

@@ -473,6 +473,8 @@ struct DhikrCard: View {
     let onIncrement: (Int) -> Void
     let onReset: () -> Void
     @StateObject private var themeManager = ThemeManager.shared
+    @State private var showingInputSheet = false
+    @State private var inputText = ""
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -496,9 +498,14 @@ struct DhikrCard: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(count)")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(color)
+                    Button(action: {
+                        inputText = "\(count)"
+                        showingInputSheet = true
+                    }) {
+                        Text("\(count)")
+                            .font(.system(size: 48, weight: .bold))
+                            .foregroundColor(color)
+                    }
 
                     Text("of \(goal)")
                         .font(.system(size: 14))
@@ -561,6 +568,28 @@ struct DhikrCard: View {
             RoundedRectangle(cornerRadius: 20)
                 .fill(theme.cardBackground)
         )
+        .sheet(isPresented: $showingInputSheet) {
+            DhikrInputSheet(
+                currentCount: count,
+                color: color,
+                dhikrType: type,
+                onSave: { newValue in
+                    if newValue >= 0 {
+                        // Calculate difference and increment by that amount
+                        let difference = newValue - count
+                        if difference > 0 {
+                            onIncrement(difference)
+                        } else if difference < 0 {
+                            // If user wants to decrease, we can reset and add the new value
+                            onReset()
+                            if newValue > 0 {
+                                onIncrement(newValue)
+                            }
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -612,7 +641,6 @@ struct MonthlyActivityContainer: View {
     @ObservedObject var dhikrService: DhikrService
     @State private var selectedMonth = Date()
     @State private var selectedDayStats: DailyDhikrStats?
-    @State private var showingDayDetail = false
     @StateObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
@@ -653,7 +681,6 @@ struct MonthlyActivityContainer: View {
                     dhikrService: dhikrService,
                     onDayTapped: { stats in
                         selectedDayStats = stats
-                        showingDayDetail = true
                     }
                 )
 
@@ -685,10 +712,8 @@ struct MonthlyActivityContainer: View {
             // Monthly Statistics Section
             monthlyStatisticsView()
         }
-        .sheet(isPresented: $showingDayDetail) {
-            if let stats = selectedDayStats {
-                DayDetailSheet(stats: stats)
-            }
+        .sheet(item: $selectedDayStats) { stats in
+            DayDetailSheet(stats: stats)
         }
     }
 
@@ -1216,7 +1241,7 @@ struct CalendarDayCell: View {
 struct DayDetailSheet: View {
     let stats: DailyDhikrStats
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var themeManager = ThemeManager.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -1322,6 +1347,153 @@ struct DhikrStatRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(theme.cardBackground)
         )
+    }
+}
+
+// MARK: - Dhikr Input Sheet
+struct DhikrInputSheet: View {
+    let currentCount: Int
+    let color: Color
+    let dhikrType: DhikrType
+    let onSave: (Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var themeManager = ThemeManager.shared
+    @State private var inputText: String
+    @FocusState private var isFocused: Bool
+
+    private var theme: AppTheme { themeManager.theme }
+
+    init(currentCount: Int, color: Color, dhikrType: DhikrType, onSave: @escaping (Int) -> Void) {
+        self.currentCount = currentCount
+        self.color = color
+        self.dhikrType = dhikrType
+        self.onSave = onSave
+        _inputText = State(initialValue: "\(currentCount)")
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 8) {
+                    Text(dhikrType.arabicText)
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(theme.primaryText)
+
+                    Text(dhikrType.rawValue)
+                        .font(.system(size: 16))
+                        .foregroundColor(theme.secondaryText)
+                }
+                .padding(.top, 20)
+
+                // Input field
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Enter Count")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(theme.secondaryText)
+
+                    TextField("0", text: $inputText)
+                        .keyboardType(.numberPad)
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(color)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(theme.cardBackground)
+                        )
+                        .focused($isFocused)
+                }
+                .padding(.horizontal, 20)
+
+                // Quick add buttons
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Quick Add")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(theme.secondaryText)
+                        .padding(.horizontal, 20)
+
+                    HStack(spacing: 12) {
+                        QuickAddButton(label: "+1", color: color) {
+                            addToInput(1)
+                        }
+                        QuickAddButton(label: "+10", color: color) {
+                            addToInput(10)
+                        }
+                        QuickAddButton(label: "+33", color: color) {
+                            addToInput(33)
+                        }
+                        QuickAddButton(label: "+100", color: color) {
+                            addToInput(100)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+
+                Spacer()
+
+                // Save button
+                Button(action: {
+                    if let value = Int(inputText) {
+                        onSave(value)
+                        dismiss()
+                    }
+                }) {
+                    Text("Save")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(color)
+                        )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .background((themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground).ignoresSafeArea())
+            .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(theme.secondaryText)
+                    }
+                }
+            }
+            .onAppear {
+                isFocused = true
+            }
+        }
+    }
+
+    private func addToInput(_ amount: Int) {
+        let currentValue = Int(inputText) ?? 0
+        inputText = "\(currentValue + amount)"
+    }
+}
+
+// MARK: - Quick Add Button
+struct QuickAddButton: View {
+    let label: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(color)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(color.opacity(0.3), lineWidth: 1.5)
+                )
+        }
     }
 }
 

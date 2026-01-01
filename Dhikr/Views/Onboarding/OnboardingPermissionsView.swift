@@ -16,6 +16,16 @@ struct OnboardingPermissionsView: View {
     @StateObject private var locationService = LocationService()
     @StateObject private var notificationService = PrayerNotificationService.shared
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
+    @State private var showLocationAlert = false
+
+    private var hasLocationPermission: Bool {
+        switch locationService.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            return true
+        default:
+            return false
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -89,12 +99,30 @@ struct OnboardingPermissionsView: View {
 
             Spacer()
 
+            // Warning message if location not enabled
+            if !hasLocationPermission {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(Color(hex: "F39C12"))
+                    Text("Location is required for prayer times")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(hex: "7F8C8D"))
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 16)
+            }
+
             // Action
             Button(action: {
+                if !hasLocationPermission {
+                    showLocationAlert = true
+                    return
+                }
+
                 print("[Permissions] Current statuses - Location: \(locationPermissionStatus), Notifications: \(notificationService.hasNotificationPermission ? "Enabled" : "Not now"), Screen Time: \(screenTimeAuth.isAuthorized ? "Enabled" : "Not now")")
                 onContinue()
             }) {
-                Text("Continue to App")
+                Text(hasLocationPermission ? "Continue to App" : "Enable Location to Continue")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -102,19 +130,34 @@ struct OnboardingPermissionsView: View {
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                                hasLocationPermission
+                                    ? LinearGradient(
+                                        colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                    : LinearGradient(
+                                        colors: [Color(hex: "BDC3C7"), Color(hex: "95A5A6")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                             )
                     )
             }
+            .opacity(hasLocationPermission ? 1.0 : 0.6)
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
         }
         .onAppear {
             print("[Onboarding] Permissions screen shown")
+        }
+        .alert("Location Permission Required", isPresented: $showLocationAlert) {
+            Button("Enable Location", role: .none) {
+                locationService.requestLocationPermission()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Location access is required to calculate accurate prayer times for your area. Please enable location permission to continue.")
         }
     }
 

@@ -67,7 +67,7 @@ struct OnboardingNameView: View {
                     .foregroundColor(Color(hex: "2C3E50"))
                     .padding(.leading, 4)
 
-                TextField("Enter your name", text: $name)
+                TextField("", text: $name, prompt: Text("Enter your name").foregroundColor(Color(hex: "95A5A6")))
                     .font(.system(size: 18))
                     .foregroundColor(Color(hex: "2C3E50"))
                     .padding(16)

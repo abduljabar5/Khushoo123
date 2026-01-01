@@ -54,6 +54,9 @@ struct DhikrApp: App {
                     setupNotificationDelegate()
                     setupWindowBackground()
 
+                    // Migrate existing users to new app selection validation
+                    migrateAppSelectionValidation()
+
                     // Prioritize audio service for immediate UI responsiveness
                     audioPlayerService.activate()
 
@@ -166,6 +169,13 @@ struct DhikrApp: App {
             print("📲 App became active")
             // App became active - check blocking state immediately
             BlockingStateService.shared.forceCheck()
+
+            // If audio is playing, show full-screen player (for lock screen/control center taps)
+            if audioPlayerService.isPlaying && audioPlayerService.currentSurah != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    audioPlayerService.shouldShowFullScreenPlayer = true
+                }
+            }
             break
             
         @unknown default:
@@ -173,6 +183,54 @@ struct DhikrApp: App {
         }
     }
     
+    // MARK: - Migration
+
+    private func migrateAppSelectionValidation() {
+        let migrationKey = "didMigrateAppSelectionValidation_v1"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else {
+            print("✅ [Migration] App selection validation already migrated")
+            return
+        }
+
+        print("🔄 [Migration] Starting app selection validation migration...")
+
+        // Check if user has prayers selected but no apps
+        let selection = AppSelectionModel.shared.selection
+        let hasSelectedApps = !selection.applicationTokens.isEmpty ||
+                             !selection.categoryTokens.isEmpty ||
+                             !selection.webDomainTokens.isEmpty
+
+        if !hasSelectedApps {
+            // Check if any prayers were previously toggled on
+            let focusManager = FocusSettingsManager.shared
+            let hasPrayersEnabled = focusManager.selectedFajr ||
+                                   focusManager.selectedDhuhr ||
+                                   focusManager.selectedAsr ||
+                                   focusManager.selectedMaghrib ||
+                                   focusManager.selectedIsha
+
+            if hasPrayersEnabled {
+                print("⚠️ [Migration] Detected prayers enabled with no apps - clearing invalid state")
+
+                // Clear all prayer selections (they were ineffective anyway)
+                focusManager.selectedFajr = false
+                focusManager.selectedDhuhr = false
+                focusManager.selectedAsr = false
+                focusManager.selectedMaghrib = false
+                focusManager.selectedIsha = false
+
+                // Stop any existing schedules
+                DeviceActivityService.shared.stopAllMonitoring()
+
+                print("✅ [Migration] Cleared invalid prayer selections and schedules")
+            }
+        }
+
+        // Mark migration as complete
+        UserDefaults.standard.set(true, forKey: migrationKey)
+        print("✅ [Migration] App selection validation migration complete")
+    }
+
     private func handleMemoryPressure() {
         print("⚠️ [DhikrApp] Memory pressure detected - cleaning up resources")
 

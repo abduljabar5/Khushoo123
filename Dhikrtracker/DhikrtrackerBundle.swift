@@ -13,8 +13,5 @@ struct DhikrtrackerBundle: WidgetBundle {
     var body: some Widget {
         Dhikrtracker()
         PrayerWidget()
-        UnblockWidget()
-        DhikrtrackerControl()
-        DhikrtrackerLiveActivity()
     }
 }

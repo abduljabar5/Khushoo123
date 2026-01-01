@@ -23,6 +23,8 @@ struct AppPickerView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
+                        // Force immediate save before dismissing to ensure monitor extension has latest selection
+                        model.forceSave()
                         dismiss()
                     }
                 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import Combine
+import WidgetKit
 
 class PrayerTimeViewModel: NSObject, ObservableObject {
     // MARK: - Published Properties
@@ -87,6 +88,11 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         }
     }
 
+    // Shared UserDefaults for prayer completions (must match widget)
+    private var groupDefaults: UserDefaults {
+        UserDefaults(suiteName: "group.fm.mrc.Dhikr") ?? .standard
+    }
+
     private func loadSavedData() {
         // Load saved streak data
         currentStreak = UserDefaults.standard.integer(forKey: "currentPrayerStreak")
@@ -133,9 +139,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         // Save initial prayers as today's prayers
         todaysPrayers = prayers
 
-        // Load today's completed prayers and apply to both arrays
+        // Load today's completed prayers from shared group defaults and apply to both arrays
         let today = dateKey(for: Date())
-        if let completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] {
+        if let completed = groupDefaults.array(forKey: "completed_\(today)") as? [String] {
             for i in 0..<prayers.count {
                 let isCompleted = completed.contains(prayers[i].name)
                 prayers[i].isCompleted = isCompleted
@@ -170,7 +176,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
 
     func reloadCompletions() {
         let today = dateKey(for: Date())
-        if let completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] {
+        if let completed = groupDefaults.array(forKey: "completed_\(today)") as? [String] {
             print("📥 Reloading prayer completions: \(completed)")
             // Update both today's prayers and current prayers if viewing today
             for i in 0..<todaysPrayers.count {
@@ -293,9 +299,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             // For today, restore today's prayers and update states
             prayers = todaysPrayers
 
-            // Restore completion states for today
+            // Restore completion states for today from shared group defaults
             let today = dateKey(for: Date())
-            if let completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] {
+            if let completed = groupDefaults.array(forKey: "completed_\(today)") as? [String] {
                 for i in 0..<prayers.count {
                     prayers[i].isCompleted = completed.contains(prayers[i].name)
                 }
@@ -360,9 +366,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
 
             prayers = updatedPrayers
 
-            // Load completion data for the selected date
+            // Load completion data for the selected date from shared group defaults
             let dateKeyString = dateKey(for: date)
-            if let completed = UserDefaults.standard.array(forKey: "completed_\(dateKeyString)") as? [String] {
+            if let completed = groupDefaults.array(forKey: "completed_\(dateKeyString)") as? [String] {
                 print("📖 Loaded prayer completions for \(dateKeyString): \(completed)")
                 for i in 0..<prayers.count {
                     prayers[i].isCompleted = completed.contains(prayers[i].name)
@@ -409,9 +415,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 todaysPrayers[todayIndex].isCompleted = prayers[index].isCompleted
             }
 
-            // Save completion status
+            // Save completion status to shared group defaults
             let today = dateKey(for: Date())
-            var completed = UserDefaults.standard.array(forKey: "completed_\(today)") as? [String] ?? []
+            var completed = groupDefaults.array(forKey: "completed_\(today)") as? [String] ?? []
 
             if prayers[index].isCompleted {
                 if !completed.contains(prayerName) {
@@ -421,8 +427,12 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 completed.removeAll { $0 == prayerName }
             }
 
-            UserDefaults.standard.set(completed, forKey: "completed_\(today)")
-            print("💾 Saved prayer completions for \(today): \(completed)")
+            groupDefaults.set(completed, forKey: "completed_\(today)")
+            print("💾 Saved prayer completions to shared group defaults for \(today): \(completed)")
+
+            // Reload widgets to reflect the change
+            WidgetCenter.shared.reloadAllTimelines()
+
             updateProgressPercentage()
             updateStreaks()
         }
@@ -459,7 +469,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         // Get yesterday's date
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
         let yesterdayKey = dateKey(for: yesterday)
-        let yesterdayCompleted = UserDefaults.standard.array(forKey: "completed_\(yesterdayKey)") as? [String] ?? []
+        let yesterdayCompleted = groupDefaults.array(forKey: "completed_\(yesterdayKey)") as? [String] ?? []
 
         // Get the last streak update date
         let lastStreakUpdateKey = UserDefaults.standard.string(forKey: "lastStreakUpdateDate") ?? ""
@@ -488,7 +498,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 // We haven't counted today yet
                 let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
                 let yesterdayKey = dateKey(for: yesterday)
-                let yesterdayCompleted = UserDefaults.standard.array(forKey: "completed_\(yesterdayKey)") as? [String] ?? []
+                let yesterdayCompleted = groupDefaults.array(forKey: "completed_\(yesterdayKey)") as? [String] ?? []
 
                 if yesterdayCompleted.count == totalPrayers {
                     // Continue streak

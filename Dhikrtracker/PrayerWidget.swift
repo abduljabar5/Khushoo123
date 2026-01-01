@@ -204,75 +204,131 @@ struct PrayerProvider: TimelineProvider {
 
 struct PrayerWidgetView: View {
     var entry: PrayerProvider.Entry
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
+        VStack(spacing: 8) {
+            // Header with depth
             HStack {
                 Text("Daily Prayers")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
                 Spacer()
                 Text(Date(), style: .date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.7))
             }
-            .padding(.bottom, 8)
-            
-            // List
-            VStack(spacing: 0) {
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(white: 0.22), Color(white: 0.18)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
+                    .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
+            )
+
+            // Prayer List with depth
+            VStack(spacing: 6) {
                 ForEach(entry.prayers) { prayer in
                     PrayerRow(prayer: prayer)
-                    if prayer.id != entry.prayers.last?.id {
-                        Divider()
-                    }
                 }
             }
         }
-        .padding()
-        .containerBackground(.fill.tertiary, for: .widget)
+        .padding(10)
+        .containerBackground(for: .widget) {
+            Color.clear
+                .background(.ultraThinMaterial)
+        }
     }
 }
 
 struct PrayerRow: View {
     let prayer: PrayerItem
-    
+
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(prayer.name)
-                    .font(.subheadline)
-                    .fontWeight(prayer.isNext ? .bold : .regular)
-                    .foregroundColor(prayer.isNext ? .primary : .secondary)
-                
-                Text(prayer.time)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+        HStack(spacing: 10) {
+            // Prayer icon with depth
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(white: 0.22), Color(white: 0.18)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 34, height: 34)
+                    .shadow(color: Color.black.opacity(0.3), radius: 3, x: 0, y: 2)
+
+                Image(systemName: prayerIcon(for: prayer.name))
+                    .font(.system(size: 15))
+                    .foregroundColor(prayer.isNext ? .orange : .white.opacity(0.7))
             }
-            
+
+            // Prayer info
+            VStack(alignment: .leading, spacing: 1) {
+                Text(prayer.name)
+                    .font(.system(size: 13, weight: prayer.isNext ? .semibold : .regular))
+                    .foregroundColor(.white)
+
+                Text(prayer.time)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+
             Spacer()
-            
+
+            // Status indicator
             if prayer.isCompleted {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
-                    .font(.title3)
+                    .font(.system(size: 20))
             } else {
                 Button(intent: MarkPrayerIntent(prayerName: prayer.name)) {
                     if prayer.isInCooldown {
                         Image(systemName: "hourglass")
                             .foregroundColor(.orange)
-                            .font(.title3)
+                            .font(.system(size: 20))
                     } else {
                         Image(systemName: "circle")
-                            .foregroundColor(.secondary)
-                            .font(.title3)
+                            .foregroundColor(.white.opacity(0.4))
+                            .font(.system(size: 20))
                     }
                 }
                 .buttonStyle(.plain)
                 .disabled(prayer.isInCooldown)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(white: 0.22), Color(white: 0.18)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
+        )
+    }
+
+    private func prayerIcon(for prayerName: String) -> String {
+        switch prayerName {
+        case "Fajr": return "sun.haze.fill"
+        case "Dhuhr": return "sun.max.fill"
+        case "Asr": return "cloud.sun.fill"
+        case "Maghrib": return "moon.fill"
+        case "Isha": return "moon.stars.fill"
+        default: return "sparkles"
+        }
     }
 }
 

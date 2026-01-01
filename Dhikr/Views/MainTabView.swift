@@ -17,6 +17,7 @@ struct MainTabView: View {
     @State private var showSleepTimerSheet = false
     @State private var showSurahList = false
     @State private var allSurahs: [Surah] = []
+    @State private var selectedTab: Int = 0
     @AppStorage("showSleepTimer") private var showSleepTimer = true
     @Namespace private var animation
 
@@ -35,7 +36,7 @@ struct MainTabView: View {
                 // iOS 26: Always apply modifier to prevent TabView recreation and scroll jumping
                 NativeTabView()
                     .tabViewBottomAccessory(isEnabled: shouldShowMiniPlayer) {
-                        
+
                         MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
                             .environmentObject(audioPlayerService)
                             .contentShape(Rectangle())
@@ -138,6 +139,18 @@ struct MainTabView: View {
                 }
             }
         }
+        .overlay(alignment: .top) {
+            VStack(spacing: 8) {
+                VoiceConfirmationBanner(selectedTab: $selectedTab)
+                    .padding(.horizontal, 16)
+                    .zIndex(101)
+
+                EarlyUnlockBanner()
+                    .padding(.horizontal, 16)
+                    .zIndex(100)
+            }
+            .padding(.top, 8)
+        }
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
@@ -147,41 +160,50 @@ struct MainTabView: View {
         .onChange(of: themeManager.currentTheme) { _ in
             configureTabBarAppearance()
         }
+        .onChange(of: audioPlayerService.shouldShowFullScreenPlayer) { shouldShow in
+            if shouldShow && audioPlayerService.currentSurah != nil {
+                expandMiniPlayer = true
+                // Reset the flag after showing the player
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    audioPlayerService.shouldShowFullScreenPlayer = false
+                }
+            }
+        }
     }
 
     // MARK: - Native TabView
     @ViewBuilder
     func NativeTabView(_ safeAreaBottomPadding: CGFloat = 0) -> some View {
-        TabView {
-            Tab("Home", systemImage: "house.fill") {
+        TabView(selection: $selectedTab) {
+            Tab("Home", systemImage: "house.fill", value: 0) {
                 NavigationStack {
                     HomeView()
                         .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
             }
 
-            Tab("Prayer", systemImage: "timer") {
+            Tab("Prayer", systemImage: "timer", value: 1) {
                 NavigationStack {
                     PrayerTimeView()
                         .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
             }
 
-            Tab("Dhikr", systemImage: "hand.point.up.left.fill") {
+            Tab("Dhikr", systemImage: "hand.point.up.left.fill", value: 2) {
                 NavigationStack {
                     DhikrWidgetView()
                         .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
             }
 
-            Tab("Focus", systemImage: "shield.fill") {
+            Tab("Focus", systemImage: "shield.fill", value: 3) {
                 NavigationStack {
                     SearchView()
                         .safeAreaPadding(.bottom, safeAreaBottomPadding)
                 }
             }
 
-            Tab("Reciters", systemImage: "person.wave.2.fill", role: .search) {
+            Tab("Reciters", systemImage: "person.wave.2.fill", value: 4, role: .search) {
                 NavigationStack {
                     ReciterDirectoryView()
                         .safeAreaPadding(.bottom, safeAreaBottomPadding)
@@ -389,102 +411,116 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func surahListView(size: CGSize) -> some View {
-        ScrollView {
-            if allSurahs.isEmpty {
-                VStack {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("Loading Surahs...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 40)
-            } else {
-                LazyVStack(spacing: 8) {
-                    if let reciter = audioPlayerService.currentReciter {
-                        ForEach(allSurahs) { surah in
-                            Button(action: {
-                                Task { @MainActor in
-                                    audioPlayerService.load(surah: surah, reciter: reciter)
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                        showSurahList = false
-                                    }
-                                }
-                            }) {
-                                HStack(spacing: 12) {
-                                    // Surah Number with completion indicator
-                                    ZStack(alignment: .bottomTrailing) {
-                                        Text("\(surah.number)")
-                                            .font(.caption)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                            .frame(width: 35, height: 35)
-                                            .background(
-                                                Circle()
-                                                    .fill(audioPlayerService.currentSurah?.number == surah.number ? themeManager.theme.primaryAccent : Color.secondary.opacity(0.3))
-                                            )
-
-                                        // Completion checkmark badge
-                                        if audioPlayerService.completedSurahNumbers.contains(surah.number) {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.green)
-                                                .background(
-                                                    Circle()
-                                                        .fill(themeManager.theme.cardBackground)
-                                                        .frame(width: 12, height: 12)
-                                                )
-                                                .offset(x: 2, y: 2)
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                if allSurahs.isEmpty {
+                    VStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Loading Surahs...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 8)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 40)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        if let reciter = audioPlayerService.currentReciter {
+                            ForEach(allSurahs) { surah in
+                                Button(action: {
+                                    Task { @MainActor in
+                                        audioPlayerService.load(surah: surah, reciter: reciter)
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                            showSurahList = false
                                         }
                                     }
+                                }) {
+                                    HStack(spacing: 12) {
+                                        // Surah Number with completion indicator
+                                        ZStack(alignment: .bottomTrailing) {
+                                            Text("\(surah.number)")
+                                                .font(.caption)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.white)
+                                                .frame(width: 35, height: 35)
+                                                .background(
+                                                    Circle()
+                                                        .fill(audioPlayerService.currentSurah?.number == surah.number ? themeManager.theme.primaryAccent : Color.secondary.opacity(0.3))
+                                                )
 
-                                    // Surah Info
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(surah.englishName)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.primary)
+                                            // Completion checkmark badge
+                                            if audioPlayerService.completedSurahNumbers.contains(surah.number) {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(.green)
+                                                    .background(
+                                                        Circle()
+                                                            .fill(themeManager.theme.cardBackground)
+                                                            .frame(width: 12, height: 12)
+                                                    )
+                                                    .offset(x: 2, y: 2)
+                                            }
+                                        }
 
-                                        Text("\(surah.revelationType) - \(surah.numberOfAyahs) Ayahs")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
+                                        // Surah Info
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(surah.englishName)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.primary)
+
+                                            Text("\(surah.revelationType) - \(surah.numberOfAyahs) Ayahs")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        if audioPlayerService.currentSurah?.number == surah.number && audioPlayerService.isPlaying {
+                                            Image(systemName: "waveform")
+                                                .foregroundColor(themeManager.theme.primaryAccent)
+                                                .font(.caption)
+                                        } else {
+                                            Image(systemName: "play.circle")
+                                                .foregroundColor(.secondary)
+                                                .font(.caption)
+                                        }
                                     }
-
-                                    Spacer()
-
-                                    if audioPlayerService.currentSurah?.number == surah.number && audioPlayerService.isPlaying {
-                                        Image(systemName: "waveform")
-                                            .foregroundColor(themeManager.theme.primaryAccent)
-                                            .font(.caption)
-                                    } else {
-                                        Image(systemName: "play.circle")
-                                            .foregroundColor(.secondary)
-                                            .font(.caption)
-                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(themeManager.theme.cardBackground.opacity(0.5))
+                                    )
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(themeManager.theme.cardBackground.opacity(0.5))
-                                )
+                                .buttonStyle(PlainButtonStyle())
+                                .id(surah.number) // Add id for scrolling
                             }
-                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                }
+            }
+            .frame(width: size.width - 50, height: size.width - 50)
+            .background(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(themeManager.theme.tertiaryBackground.opacity(0.3))
+            )
+            .onAppear {
+                loadSurahsIfNeeded()
+            }
+            .onChange(of: showSurahList) { isShowing in
+                // Scroll to current surah when list becomes visible
+                if isShowing, let currentSurah = audioPlayerService.currentSurah {
+                    // Small delay to ensure list is rendered
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            scrollProxy.scrollTo(currentSurah.number, anchor: .center)
                         }
                     }
                 }
-                .padding(.horizontal, 8)
             }
-        }
-        .frame(width: size.width - 50, height: size.width - 50)
-        .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(themeManager.theme.tertiaryBackground.opacity(0.3))
-        )
-        .onAppear {
-            loadSurahsIfNeeded()
         }
     }
 

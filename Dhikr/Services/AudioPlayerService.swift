@@ -36,6 +36,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var sleepTimeRemaining: TimeInterval?
     @Published var likedItems: Set<LikedItem> = []
     @Published var hasPlayedOnce: Bool = false
+    @Published var shouldShowFullScreenPlayer: Bool = false
 
     // MARK: - Private Properties
     private var player: AVPlayer?
@@ -64,7 +65,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         case off = "Off"
         case one = "One"
         case all = "All"
-        
+
         var icon: String {
             switch self {
             case .off: return "repeat"

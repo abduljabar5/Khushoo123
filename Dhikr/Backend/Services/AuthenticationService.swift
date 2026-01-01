@@ -157,6 +157,25 @@ class AuthenticationService: ObservableObject {
         }
     }
 
+    // MARK: - Update Display Name
+    func updateDisplayName(newName: String) async throws {
+        guard let userId = currentUser?.id else {
+            throw AuthError.unknown("No user is currently signed in")
+        }
+
+        let capitalizedName = capitalizeName(newName)
+
+        // Update Firestore
+        try await db.collection("users").document(userId).updateData([
+            "displayName": capitalizedName
+        ])
+
+        // Refresh user data to update local state
+        await fetchUserData(uid: userId)
+
+        print("✅ [AuthService] Display name updated to: \(capitalizedName)")
+    }
+
     // MARK: - Clear User Cache
     private func clearUserCache() {
         let defaults = UserDefaults.standard
@@ -190,17 +209,50 @@ class AuthenticationService: ObservableObject {
 
     // MARK: - Delete Account
     func deleteAccount() async throws {
-        guard let user = auth.currentUser else { return }
+        guard let user = auth.currentUser else {
+            throw AuthError.unknown("No user is currently signed in")
+        }
 
-        // Delete Firestore document
-        try await db.collection("users").document(user.uid).delete()
+        print("🗑️ [AuthService] Starting account deletion for user: \(user.uid)")
 
-        // Delete auth account
-        try await user.delete()
+        do {
+            // 1. Delete user document from Firestore
+            print("📄 [AuthService] Deleting user document from Firestore...")
+            try await db.collection("users").document(user.uid).delete()
+            print("✅ [AuthService] User document deleted from Firestore")
 
-        await MainActor.run {
-            isAuthenticated = false
-            currentUser = nil
+            // 2. Delete any user-related subcollections (if any exist)
+            // For example: favorites, history, etc.
+            // Add here if you have subcollections
+
+            // 3. Delete Firebase Auth account
+            print("🔐 [AuthService] Deleting Firebase Auth account...")
+            try await user.delete()
+            print("✅ [AuthService] Firebase Auth account deleted")
+
+            // 4. Clear local state
+            await MainActor.run {
+                self.isAuthenticated = false
+                self.currentUser = nil
+            }
+
+            // 5. Clear user cache
+            clearUserCache()
+
+            print("✅ [AuthService] Account deletion completed successfully")
+
+        } catch let error as NSError {
+            print("❌ [AuthService] Account deletion failed: \(error.localizedDescription)")
+            print("   Error domain: \(error.domain)")
+            print("   Error code: \(error.code)")
+
+            // Re-throw with more context
+            if error.domain == "FIRAuthErrorDomain" && error.code == 17014 {
+                // Requires recent authentication
+                throw AuthError.unknown("This operation requires recent authentication. Please sign out and sign back in, then try again.")
+            } else {
+                throw AuthError.unknown("Failed to delete account: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -229,16 +281,33 @@ class AuthenticationService: ObservableObject {
         do {
             let result = try await auth.signIn(with: credential)
 
+            // Get name from Apple (only available on first sign-in)
+            let appleDisplayName = [appleIDCredential.fullName?.givenName, appleIDCredential.fullName?.familyName]
+                .compactMap { $0 }
+                .joined(separator: " ")
+
+            // Get name from onboarding
+            let onboardingName = UserDefaults.standard.string(forKey: "userDisplayName") ?? ""
+
             // Check if user document exists
             let userDoc = try await db.collection("users").document(result.user.uid).getDocument()
 
             if !userDoc.exists {
-                // Create new user profile
-                let displayName = [appleIDCredential.fullName?.givenName, appleIDCredential.fullName?.familyName]
-                    .compactMap { $0 }
-                    .joined(separator: " ")
+                // NEW USER: Create user profile with best available name
+                print("📝 [Auth] Creating new Apple user account")
 
-                let finalName = displayName.isEmpty ? "Apple User" : capitalizeName(displayName)
+                // Priority: Apple name > Onboarding name > Default
+                let finalName: String
+                if !appleDisplayName.isEmpty {
+                    finalName = capitalizeName(appleDisplayName)
+                    print("✅ [Auth] Using Apple-provided name: \(finalName)")
+                } else if !onboardingName.isEmpty {
+                    finalName = capitalizeName(onboardingName)
+                    print("✅ [Auth] Using onboarding name: \(finalName)")
+                } else {
+                    finalName = "Apple User"
+                    print("⚠️ [Auth] No name available, using default: Apple User")
+                }
 
                 let newUser = User(
                     id: result.user.uid,
@@ -249,6 +318,34 @@ class AuthenticationService: ObservableObject {
                 )
 
                 try await saveUserToFirestore(user: newUser)
+            } else {
+                // EXISTING USER: Check if we should update their name
+                if let existingUser = try? userDoc.data(as: User.self) {
+                    let currentName = existingUser.displayName
+
+                    // Update name if it's currently a default name AND we have a better name available
+                    let isDefaultName = currentName == "Apple User" || currentName.isEmpty
+                    let hasBetterName = !appleDisplayName.isEmpty || !onboardingName.isEmpty
+
+                    if isDefaultName && hasBetterName {
+                        let updatedName: String
+                        if !appleDisplayName.isEmpty {
+                            updatedName = capitalizeName(appleDisplayName)
+                            print("✅ [Auth] Updating existing user with Apple-provided name: \(updatedName)")
+                        } else {
+                            updatedName = capitalizeName(onboardingName)
+                            print("✅ [Auth] Updating existing user with onboarding name: \(updatedName)")
+                        }
+
+                        // Update Firestore with new name
+                        try await db.collection("users").document(result.user.uid).updateData([
+                            "displayName": updatedName
+                        ])
+                        print("✅ [Auth] User name updated successfully")
+                    } else {
+                        print("ℹ️ [Auth] Existing user signed in with name: \(currentName)")
+                    }
+                }
             }
 
             await fetchUserData(uid: result.user.uid)
@@ -260,43 +357,6 @@ class AuthenticationService: ObservableObject {
         }
     }
 
-    // MARK: - Google Sign In
-    func signInWithGoogle(idToken: String, accessToken: String) async throws {
-        let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
-
-        await MainActor.run { isLoading = true }
-
-        do {
-            let result = try await auth.signIn(with: credential)
-
-            // Check if user document exists
-            let userDoc = try await db.collection("users").document(result.user.uid).getDocument()
-
-            if !userDoc.exists {
-                // Create new user profile
-                let googleName = result.user.displayName ?? "Google User"
-                let capitalizedName = capitalizeName(googleName)
-
-                let newUser = User(
-                    id: result.user.uid,
-                    email: result.user.email ?? "No email provided",
-                    displayName: capitalizedName,
-                    photoURL: result.user.photoURL?.absoluteString,
-                    joinDate: Date(),
-                    isPremium: false
-                )
-
-                try await saveUserToFirestore(user: newUser)
-            }
-
-            await fetchUserData(uid: result.user.uid)
-            await MainActor.run { isLoading = false }
-
-        } catch let error as NSError {
-            await MainActor.run { isLoading = false }
-            throw mapFirebaseError(error)
-        }
-    }
 
     // MARK: - Email Continue (Unified Sign In/Sign Up)
     func continueWithEmail(email: String, password: String, displayName: String? = nil) async throws {

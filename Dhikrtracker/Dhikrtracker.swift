@@ -13,6 +13,8 @@ struct DhikrData {
     let todayCount: Int
     let streak: Int
     let lastThreeDays: [DayData]
+    let dailyGoal: Int
+    let highestStreak: Int
 }
 
 struct DayData {
@@ -71,14 +73,33 @@ struct DhikrProvider: TimelineProvider {
         // Get daily streak
         let streak = userDefaults.integer(forKey: "streak")
         print("Widget: Loaded streak: \(streak)")
-        
+
+        // Get daily goal from goals
+        var dailyGoal = 99 // Default
+        if let goalsData = userDefaults.data(forKey: "dhikrGoals") {
+            do {
+                let goals = try JSONDecoder().decode(DhikrGoals.self, from: goalsData)
+                dailyGoal = goals.totalDailyGoal
+                print("Widget: Loaded daily goal: \(dailyGoal)")
+            } catch {
+                print("Widget: Failed to decode goals: \(error)")
+            }
+        }
+
+        // Get highest streak (personal best)
+        var highestStreak = userDefaults.integer(forKey: "highestStreak")
+        if highestStreak == 0 { highestStreak = max(streak, 1) } // Use current if no best recorded, minimum 1
+        print("Widget: Loaded highest streak: \(highestStreak)")
+
         // Get last three days data
         let lastThreeDays = getLastThreeDaysData(userDefaults: userDefaults)
-        
+
         let result = DhikrData(
             todayCount: todayCount,
             streak: streak,
-            lastThreeDays: lastThreeDays
+            lastThreeDays: lastThreeDays,
+            dailyGoal: dailyGoal,
+            highestStreak: highestStreak
         )
         
         print("Widget: Final data - Today: \(result.todayCount), Streak: \(result.streak), Days: \(result.lastThreeDays.map { "\($0.day): \($0.count)" })")
@@ -90,11 +111,11 @@ struct DhikrProvider: TimelineProvider {
         let calendar = Calendar.current
         let today = Date()
         var days: [DayData] = []
-        
+
         // Get daily stats from shared UserDefaults
         let dailyStatsKey = "dailyStats"
         var statsDict: [String: DailyDhikrStats] = [:]
-        
+
         if let data = userDefaults.data(forKey: dailyStatsKey) {
             do {
                 statsDict = try JSONDecoder().decode([String: DailyDhikrStats].self, from: data)
@@ -103,24 +124,23 @@ struct DhikrProvider: TimelineProvider {
                 print("Widget: Failed to decode daily stats: \(error)")
             }
         }
-        
-        for i in 0..<3 {
+
+        // Get yesterday, 2 days ago, and 3 days ago (skip today)
+        for i in 1...3 {
             guard let date = calendar.date(byAdding: .day, value: -i, to: today) else { continue }
             let key = Self.dateKey(for: date)
             let count = statsDict[key]?.total ?? 0
-            
+
             let dayName: String
-            if calendar.isDateInToday(date) {
-                dayName = "Today"
-            } else if calendar.isDateInYesterday(date) {
+            if calendar.isDateInYesterday(date) {
                 dayName = "Yesterday"
             } else {
                 dayName = dayFormatter.string(from: date)
             }
-            
+
             days.append(DayData(day: dayName, count: count, date: date))
         }
-        
+
         return days
     }
     
@@ -134,15 +154,18 @@ struct DhikrProvider: TimelineProvider {
         let today = Date()
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
         let twoDaysAgo = Calendar.current.date(byAdding: .day, value: -2, to: today)!
-        
+        let threeDaysAgo = Calendar.current.date(byAdding: .day, value: -3, to: today)!
+
         return DhikrData(
-            todayCount: 47,
-            streak: 12,
+            todayCount: 1250,
+            streak: 47,
             lastThreeDays: [
-                DayData(day: "Today", count: 47, date: today),
-                DayData(day: "Yesterday", count: 63, date: yesterday),
-                DayData(day: dayFormatter.string(from: twoDaysAgo), count: 41, date: twoDaysAgo)
-            ]
+                DayData(day: "Yesterday", count: 1200, date: yesterday),
+                DayData(day: "2 Days Ago", count: 1150, date: twoDaysAgo),
+                DayData(day: "3 Days Ago", count: 1100, date: threeDaysAgo)
+            ],
+            dailyGoal: 2000,
+            highestStreak: 50
         )
     }
 }
@@ -156,16 +179,9 @@ struct DhikrEntry: TimelineEntry {
 // MARK: - Widget View
 struct DhikrWidgetView: View {
     var entry: DhikrProvider.Entry
-    @Environment(\.widgetFamily) var family
 
     var body: some View {
-        // The containerBackground modifier handles the overall background.
-        // The content views below will add their own padding.
-        if family == .systemMedium {
-            MediumWidgetContent(entry: entry)
-        } else {
-            LargeWidgetContent(entry: entry)
-        }
+        LargeWidgetContent(entry: entry)
     }
 }
 
@@ -243,83 +259,187 @@ struct MediumWidgetContent: View {
 // MARK: - Large Widget Content
 struct LargeWidgetContent: View {
     var entry: DhikrProvider.Entry
-    var body: some View {
-        // MODIFICATION: Added .padding() to the VStack.
-        // This adds space around all the content, fixing the clipped top and removing the large default side margins.
-        VStack(spacing: 12) {
-            // Header
-            HStack {
-                Image(systemName: "heart.fill")
-                    .foregroundColor(.green)
-                Text("Stay connected with Allah")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            
-            // Today's Count
-            VStack {
-                Text("\(entry.dhikrData.todayCount)")
-                    .font(.system(size: 58, weight: .bold, design: .rounded))
-                    .foregroundColor(.green)
-                Text("Dhikr Today")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
-            
-            // Streak Bar
-            HStack {
-                Image(systemName: "flame.fill")
-                    .foregroundColor(.white)
-                Text("Day Streak")
-                    .font(.headline.weight(.medium))
-                    .foregroundColor(.white)
-                Spacer()
-                Text("\(entry.dhikrData.streak)")
-                    .font(.title2.weight(.bold))
-                    .foregroundColor(.white)
-            }
-            .padding()
-            .background(LinearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing))
-            .cornerRadius(16)
-            
-            // Last Three Days List
-            VStack(spacing: 8) {
-                ForEach(entry.dhikrData.lastThreeDays, id: \.day) { day in
-                    HStack {
-                        Circle()
-                            .fill(day.day == "Today" ? Color.green : (day.day == "Yesterday" ? Color.blue : Color.gray.opacity(0.5)))
-                            .frame(width: 8, height: 8)
-                        Text(day.day)
-                            .font(.headline.weight(.regular))
-                        Spacer()
-                        Text("\(day.count)")
-                            .font(.headline.weight(.semibold))
-                            .monospacedDigit() // Ensures numbers align well
-                    }
-                    if day.day != entry.dhikrData.lastThreeDays.last?.day {
-                        Divider()
-    }
-}
-            }
-            .padding()
-            .background(.quaternary.opacity(0.4))
-            .cornerRadius(16)
 
-            Spacer(minLength: 0)
-            
-            // Footer
-            VStack {
-                 Text("Remember Allah often")
-                     .font(.caption.weight(.medium))
-                     .foregroundColor(.secondary)
-                     .italic()
-                 Text("Qur'an 33:41")
-                     .font(.caption2)
-                     .foregroundColor(.secondary.opacity(0.8))
-            }
+    var lastThreeDaysTotal: Int {
+        entry.dhikrData.lastThreeDays.reduce(0) { $0 + $1.count }
+    }
+
+    var streakProgress: Double {
+        // Progress based on beating personal best
+        guard entry.dhikrData.highestStreak > 0 else { return 0 }
+        return min(Double(entry.dhikrData.streak) / Double(entry.dhikrData.highestStreak), 1.0)
+    }
+
+    var todayProgress: Double {
+        // Progress based on daily goal
+        guard entry.dhikrData.dailyGoal > 0 else { return 0 }
+        return min(Double(entry.dhikrData.todayCount) / Double(entry.dhikrData.dailyGoal), 1.0)
+    }
+
+    var body: some View {
+        // Main card container (widget is just the card, title is handled by iOS)
+        VStack(spacing: 12) {
+                // Circular progress with today's count - WITH DEPTH
+                ZStack {
+                    // Outer shadow ring (dark) for depth
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Color.black.opacity(0.4), Color.black.opacity(0.2)],
+                                center: .center,
+                                startRadius: 50,
+                                endRadius: 65
+                            )
+                        )
+                        .frame(width: 130, height: 130)
+                        .blur(radius: 5)
+                        .offset(y: 2)
+
+                    // Middle ring with lighter gradient
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.08), Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 125, height: 125)
+
+                    // Main circle background with gradient
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(white: 0.22), Color(white: 0.18)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                        .shadow(color: Color.black.opacity(0.5), radius: 12, x: 0, y: 6)
+                        .shadow(color: Color.white.opacity(0.1), radius: 2, x: -2, y: -2)
+
+                    // Progress circle
+                    Circle()
+                        .trim(from: 0, to: todayProgress)
+                        .stroke(Color.white.opacity(0.3), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .frame(width: 120, height: 120)
+                        .rotationEffect(.degrees(-90))
+
+                    // Center content
+                    VStack(spacing: 1) {
+                        Text("Today's Total:")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.6))
+                        Text("\(entry.dhikrData.todayCount.formatted())")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(Color.white)
+                            .monospacedDigit()
+                    }
+                }
+                .padding(.vertical, 4)
+
+                // Streak section WITH DEPTH
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("🔥")
+                            .font(.system(size: 18))
+                        Text("Days Streak: \(entry.dhikrData.streak) Days")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+
+                    // Streak progress bar with depth
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background with inset shadow
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(Color(white: 0.18))
+                                .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
+
+                            // Progress - gradient from blue to red
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(red: 0.29, green: 0.56, blue: 0.89), Color(red: 0.91, green: 0.29, blue: 0.24)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * streakProgress)
+                                .shadow(color: Color.blue.opacity(0.3), radius: 3, x: 0, y: 1)
+                        }
+                    }
+                    .frame(height: 9)
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(white: 0.22), Color(white: 0.18)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
+                        .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
+                )
+                .padding(.horizontal, 12)
+
+                // Last 3 days summary WITH DEPTH
+                VStack(spacing: 8) {
+                    Text("Last 3 Days Total: \(lastThreeDaysTotal.formatted())")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    // Three columns for days with depth
+                    HStack(spacing: 6) {
+                        ForEach(Array(entry.dhikrData.lastThreeDays.enumerated()), id: \.element.day) { index, day in
+                            VStack(spacing: 4) {
+                                Text(getDayLabel(for: index))
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.7))
+                                Text("\(day.count.formatted())")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .monospacedDigit()
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(white: 0.18))
+                                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            )
+                        }
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(white: 0.22), Color(white: 0.18)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
+                        .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
+                )
+                .padding(.horizontal, 12)
         }
-        .padding() // This padding is key to the fix.
+        .padding(12)
+    }
+
+    private func getDayLabel(for index: Int) -> String {
+        switch index {
+        case 0: return "Yesterday:"
+        case 1: return "2 Days Ago:"
+        case 2: return "3 Days Ago:"
+        default: return ""
+        }
     }
 }
 
@@ -343,6 +463,16 @@ struct DailyDhikrStats: Codable, Equatable {
     let total: Int
 }
 
+struct DhikrGoals: Codable {
+    var subhanAllah: Int
+    var alhamdulillah: Int
+    var astaghfirullah: Int
+
+    var totalDailyGoal: Int {
+        subhanAllah + alhamdulillah + astaghfirullah
+    }
+}
+
 // MARK: - Widget Configuration
 struct Dhikrtracker: Widget {
     let kind: String = "Dhikrtracker"
@@ -350,11 +480,11 @@ struct Dhikrtracker: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: DhikrProvider()) { entry in
             DhikrWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(Color(white: 0.15), for: .widget)
         }
         .configurationDisplayName("Dhikr Tracker")
         .description("Track your daily dhikr and maintain your streak.")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .supportedFamilies([.systemLarge])
     }
 }
 
@@ -370,28 +500,15 @@ private let dayFormatter: DateFormatter = {
     Dhikrtracker()
 } timeline: {
     let sampleData = DhikrData(
-        todayCount: 1,
-        streak: 1,
+        todayCount: 1250,
+        streak: 47,
         lastThreeDays: [
-            DayData(day: "Today", count: 1, date: Date()),
-            DayData(day: "Yesterday", count: 0, date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!),
-            DayData(day: "Mon", count: 0, date: Calendar.current.date(byAdding: .day, value: -2, to: Date())!)
-        ]
-    )
-    DhikrEntry(date: .now, dhikrData: sampleData)
-}
-
-#Preview(as: .systemMedium) {
-    Dhikrtracker()
-} timeline: {
-    let sampleData = DhikrData(
-        todayCount: 1,
-        streak: 1,
-        lastThreeDays: [
-            DayData(day: "Today", count: 1, date: Date()),
-            DayData(day: "Yesterday", count: 0, date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!),
-            DayData(day: "Mon", count: 0, date: Calendar.current.date(byAdding: .day, value: -2, to: Date())!)
-        ]
+            DayData(day: "Yesterday", count: 1200, date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!),
+            DayData(day: "2 Days Ago", count: 1150, date: Calendar.current.date(byAdding: .day, value: -2, to: Date())!),
+            DayData(day: "3 Days Ago", count: 1100, date: Calendar.current.date(byAdding: .day, value: -3, to: Date())!)
+        ],
+        dailyGoal: 2000,
+        highestStreak: 50
     )
     DhikrEntry(date: .now, dhikrData: sampleData)
 }

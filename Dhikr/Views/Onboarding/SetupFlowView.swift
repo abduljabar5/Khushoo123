@@ -21,8 +21,7 @@ struct SetupFlowView: View {
                 TabView(selection: $currentPage) {
                     // Focus Setup
                     OnboardingFocusSetupView(
-                        onContinue: { currentPage = 1 },
-                        onSkip: { currentPage = 1 }
+                        onContinue: { currentPage = 1 }
                     )
                     .tag(0)
 

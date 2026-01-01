@@ -28,56 +28,16 @@ struct SearchView: View {
     @State private var isLoadingPrayerTimes = false
     @State private var prayerTimesError: String?
     @State private var lastPrayerTimeFetch: Date?
-    @State private var hasInitializedSettings = false
-    @State private var reschedulingTimer: Timer?
-    @State private var isUpdatingSchedule = false
     @State private var prayerStorage: PrayerTimeStorage? = nil
+    @State private var showingUnlockConfirmation = false
     
     // Persistent flag to track if we've ever scheduled blocking (survives app restarts)
     private var hasScheduledInitialBlocking: Bool {
         UserDefaults.standard.bool(forKey: "hasScheduledInitialBlocking")
     }
     
-    // Settings that trigger activity monitor updates (persisted)
-    // Default to true (all prayers preselected) - matches onboarding defaults
-    @AppStorage("focusSelectedFajr") private var selectedFajr = true
-    @AppStorage("focusSelectedDhuhr") private var selectedDhuhr = true
-    @AppStorage("focusSelectedAsr") private var selectedAsr = true
-    @AppStorage("focusSelectedMaghrib") private var selectedMaghrib = true
-    @AppStorage("focusSelectedIsha") private var selectedIsha = true
+    @StateObject private var focusManager = FocusSettingsManager.shared
     
-    private var selectedPrayers: Set<String> {
-        var prayers: Set<String> = []
-        if selectedFajr { prayers.insert("Fajr") }
-        if selectedDhuhr { prayers.insert("Dhuhr") }
-        if selectedAsr { prayers.insert("Asr") }
-        if selectedMaghrib { prayers.insert("Maghrib") }
-        if selectedIsha { prayers.insert("Isha") }
-        return prayers
-    }
-    
-    private func syncPrayerSelectionsToAppGroup() {
-        // Sync prayer selections to App Group for extension to read
-        Task.detached(priority: .background) {
-            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                groupDefaults.set(await self.selectedFajr, forKey: "focusSelectedFajr")
-                groupDefaults.set(await self.selectedDhuhr, forKey: "focusSelectedDhuhr")
-                groupDefaults.set(await self.selectedAsr, forKey: "focusSelectedAsr")
-                groupDefaults.set(await self.selectedMaghrib, forKey: "focusSelectedMaghrib")
-                groupDefaults.set(await self.selectedIsha, forKey: "focusSelectedIsha")
-                groupDefaults.synchronize()
-            }
-        }
-    }
-    
-    @AppStorage("focusBlockingDuration") private var blockingDuration: Double = 30
-    
-    @AppStorage("focusStrictMode") private var strictMode = false
-
-    // Other UI settings (don't trigger updates)
-    @AppStorage("prayerRemindersEnabled") private var prePrayerNotification = true
-    @State private var showingUnlockConfirmation = false
-
     // Services
     @EnvironmentObject var locationService: LocationService
     private let prayerTimeService = PrayerTimeService()
@@ -93,64 +53,16 @@ struct SearchView: View {
 
             // Main content (always show for blur effect)
             mainContent
-                .blur(radius: subscriptionService.isPremium ? 0 : 10)
+                .blur(radius: subscriptionService.isPremium && screenTimeAuth.isAuthorized ? 0 : 10)
 
             // Premium lock overlay
             if !subscriptionService.isPremium {
                 PremiumLockedView(feature: .focus)
             }
-        }
-        .onChange(of: blockingDuration) { newValue in
-            // Clamp to 10..90
-            let clamped = min(90, max(10, newValue))
-            if clamped != newValue {
-                blockingDuration = clamped
-            }
-            // Sync to App Group in background
-            Task.detached(priority: .background) {
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(await self.blockingDuration, forKey: "focusBlockingDuration")
-                    groupDefaults.synchronize()
-                }
-            }
-            scheduleUserTriggeredUpdate()
-        }
-        .onChange(of: selectedPrayers) { _ in
-            // Sync to App Group first
-            syncPrayerSelectionsToAppGroup()
-            scheduleUserTriggeredUpdate()
-            scheduleNotificationsIfNeeded()
-        }
-        .onChange(of: strictMode) { newValue in
-            // Request speech and microphone permissions when strict mode is first enabled
-            if newValue && !speechService.hasPermissions {
-                speechService.requestPermissions()
-            }
 
-            // Sync strict mode to App Group in background
-            Task.detached(priority: .background) {
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(newValue, forKey: "focusStrictMode")
-                    groupDefaults.synchronize()
-                }
-            }
-            // Do not interrupt current block; update future schedule only
-            performUserTriggeredScheduleUpdate()
-        }
-        .onChange(of: prePrayerNotification) { newValue in
-            // Sync to App Group
-            Task.detached(priority: .background) {
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(newValue, forKey: "prayerRemindersEnabled")
-                    groupDefaults.synchronize()
-                }
-            }
-
-            if newValue {
-                scheduleNotificationsIfNeeded()
-            } else {
-                // Clear notifications when disabled
-                notificationService.clearPrePrayerNotifications()
+            // Screen Time permission overlay (shown only if premium but not authorized)
+            if subscriptionService.isPremium && !screenTimeAuth.isAuthorized {
+                ScreenTimePermissionOverlay(screenTimeAuth: screenTimeAuth)
             }
         }
         .foregroundColor(theme.primaryText)
@@ -158,9 +70,13 @@ struct SearchView: View {
 
         .sheet(isPresented: $showingAppPicker) {
             if #available(iOS 15.0, *) {
-        NavigationView {
+                NavigationView {
                     AppPickerView()
                         .environmentObject(ThemeManager.shared)
+                        .onDisappear {
+                            // Trigger update when picker closes
+                            focusManager.appSelectionChanged()
+                        }
                 }
             }
         }
@@ -170,19 +86,12 @@ struct SearchView: View {
             } onCancel: {
                 // Mock cancel action
             }
-                }
+        }
         .onAppear {
             // Skip if not premium - app blocking is premium only
             guard subscriptionService.isPremium else {
                 print("🔒 [SearchView] Skipping initialization - user is not premium")
-                // Don't reset prayer selections - preserve user's previous settings
                 return
-            }
-
-            // Clamp any previously persisted value to new range (10-90)
-            let clamped = min(90, max(10, blockingDuration))
-            if clamped != blockingDuration {
-                blockingDuration = clamped
             }
 
             // Check Screen Time authorization status
@@ -190,49 +99,6 @@ struct SearchView: View {
 
             // Fetch prayer times
             fetchPrayerTimesIfNeeded()
-
-            // Sync settings to UserDefaults in background after initialization
-            Task.detached(priority: .background) {
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-
-                await MainActor.run {
-                    // Mark as initialized first to prevent triggering updates
-                    self.hasInitializedSettings = true
-                }
-
-                // Sync current settings to UserDefaults in background
-                let defaults = UserDefaults.standard
-                let fajr = await self.selectedFajr
-                let dhuhr = await self.selectedDhuhr
-                let asr = await self.selectedAsr
-                let maghrib = await self.selectedMaghrib
-                let isha = await self.selectedIsha
-                let duration = await self.blockingDuration
-                let strict = await self.strictMode
-
-                defaults.set(fajr, forKey: "focusSelectedFajr")
-                defaults.set(dhuhr, forKey: "focusSelectedDhuhr")
-                defaults.set(asr, forKey: "focusSelectedAsr")
-                defaults.set(maghrib, forKey: "focusSelectedMaghrib")
-                defaults.set(isha, forKey: "focusSelectedIsha")
-                defaults.set(duration, forKey: "focusBlockingDuration")
-
-                let prayerReminders = await self.prePrayerNotification
-                defaults.set(prayerReminders, forKey: "prayerRemindersEnabled")
-
-                // Sync ALL settings to App Group for extension access
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(strict, forKey: "focusStrictMode")
-                    groupDefaults.set(fajr, forKey: "focusSelectedFajr")
-                    groupDefaults.set(dhuhr, forKey: "focusSelectedDhuhr")
-                    groupDefaults.set(asr, forKey: "focusSelectedAsr")
-                    groupDefaults.set(maghrib, forKey: "focusSelectedMaghrib")
-                    groupDefaults.set(isha, forKey: "focusSelectedIsha")
-                    groupDefaults.set(duration, forKey: "focusBlockingDuration")
-                    groupDefaults.set(prayerReminders, forKey: "prayerRemindersEnabled")
-                    groupDefaults.synchronize()
-                }
-            }
         }
     }
 
@@ -259,6 +125,18 @@ struct SearchView: View {
                     // Main Content with separate containers
                     VStack(spacing: 20) {
                         // Show loading overlay when updating schedule
+                        if focusManager.isUpdating {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Updating schedule...")
+                                    .font(.caption)
+                                    .foregroundColor(theme.secondaryText)
+                            }
+                            .padding(.bottom, 8)
+                            .transition(.opacity)
+                        }
+                        
                         // Voice confirmation section (appears when blocking is active in strict mode)
                         VoiceConfirmationView(blockingState: blockingStateService)
 
@@ -268,25 +146,34 @@ struct SearchView: View {
                         // Today's Blocking Schedule - Separate Container
                         MockupTodayScheduleSection(
                             prayerTimes: prayerTimes,
-                            duration: blockingDuration,
-                            selectedPrayers: selectedPrayers,
+                            duration: focusManager.blockingDuration,
+                            selectedPrayers: focusManager.getSelectedPrayers(),
                             isLoading: isLoadingPrayerTimes,
                             error: prayerTimesError
                         )
                         .padding(.horizontal, 16)
 
                         // Select Prayers - Separate Container
-                        MockupSelectPrayersSection(
-                            selectedFajr: $selectedFajr,
-                            selectedDhuhr: $selectedDhuhr,
-                            selectedAsr: $selectedAsr,
-                            selectedMaghrib: $selectedMaghrib,
-                            selectedIsha: $selectedIsha
+                        PrayerToggleSection(
+                            focusManager: focusManager,
+                            showOverlayWhenEmpty: true,
+                            onSelectApps: {
+                                Task {
+                                    do {
+                                        try await screenTimeAuth.requestAuthorizationIfNeeded()
+                                        await MainActor.run {
+                                            showingAppPicker = true
+                                        }
+                                    } catch {
+                                        // Silenced repeated auth error log
+                                    }
+                                }
+                            }
                         )
                         .padding(.horizontal, 16)
 
                         BlockingDurationView(
-                            duration: $blockingDuration,
+                            duration: $focusManager.blockingDuration,
                             theme: theme
                         )
                         .padding(.horizontal, 16)
@@ -332,8 +219,8 @@ struct SearchView: View {
                         }
 
                         AdditionalSettingsView(
-                            strictMode: $strictMode,
-                            prePrayerNotification: $prePrayerNotification,
+                            strictMode: $focusManager.strictMode,
+                            prePrayerNotification: $focusManager.prayerRemindersEnabled,
                             showingConfirmationSheet: $showingUnlockConfirmation,
                             theme: theme
                         )
@@ -343,6 +230,7 @@ struct SearchView: View {
                 }
             }
         }
+
 
     // MARK: - Private Methods
 
@@ -374,8 +262,8 @@ struct SearchView: View {
 
         notificationService.schedulePrePrayerNotifications(
             prayerTimes: prayerTimes,
-            selectedPrayers: selectedPrayers,
-            isEnabled: prePrayerNotification,
+            selectedPrayers: focusManager.getSelectedPrayers(),
+            isEnabled: focusManager.prayerRemindersEnabled,
             minutesBefore: 5
         )
     }
@@ -385,7 +273,7 @@ struct SearchView: View {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
         
         let schedules = prayerTimes.map { prayer -> [String: Any] in
-            let durationSeconds = blockingDuration * 60
+            let durationSeconds = focusManager.blockingDuration * 60
             return [
                 "name": prayer.name,
                 "date": prayer.date.timeIntervalSince1970,
@@ -621,10 +509,12 @@ struct SearchView: View {
         print("📅 [PrayerBlocking] Scheduling rolling window from storage")
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
-            duration: blockingDuration,
-            selectedPrayers: selectedPrayers
+            duration: focusManager.blockingDuration,
+            selectedPrayers: focusManager.getSelectedPrayers()
         )
     }
+    
+    // MARK: - Helper Methods
     
     private func parsePrayerTimes(timings: Timings, for date: Date) -> [PrayerTime] {
         let prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
@@ -652,88 +542,6 @@ struct SearchView: View {
         }
         
         return prayerTimes
-    }
-    
-    private func scheduleUpdate() {
-        // Ignore updates until settings are initialized
-        guard hasInitializedSettings, !prayerTimes.isEmpty else { return }
-        
-        // Cancel any existing timer to debounce rapid changes
-        reschedulingTimer?.invalidate()
-        
-        // Schedule update with reduced delay to batch multiple changes
-        reschedulingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
-            self.performScheduleUpdate()
-        }
-    }
-    
-    private func scheduleUserTriggeredUpdate() {
-        // Ignore updates until settings are initialized
-        guard hasInitializedSettings, !prayerTimes.isEmpty else { return }
-        
-        // Cancel any existing timer to debounce rapid changes
-        reschedulingTimer?.invalidate()
-        
-        // Schedule update with reduced delay to batch multiple changes
-        reschedulingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { _ in
-            self.performUserTriggeredScheduleUpdate()
-        }
-    }
-    
-    private func performScheduleUpdate() {
-        // Set loading state
-        isUpdatingSchedule = true
-        
-        // Perform heavy operations in background
-        Task.detached(priority: .background) {
-            // Use regular scheduling for initial loads, only force reschedule for user changes
-            let times = await self.prayerTimes
-            let duration = await self.blockingDuration
-            let selected = await self.selectedPrayers
-            
-            DeviceActivityService.shared.schedulePrayerTimeBlocking(
-                prayerTimes: times,
-                duration: duration,
-                selectedPrayers: selected
-            )
-            
-            // Save filtered schedule for tracking
-            let filteredPrayerTimes = times.filter { selected.contains($0.name) }
-            await self.saveScheduleToUserDefaults(filteredPrayerTimes)
-            
-            // Clear loading state on main thread
-            await MainActor.run {
-                self.isUpdatingSchedule = false
-            }
-        }
-    }
-    
-    private func performUserTriggeredScheduleUpdate() {
-        // Set loading state
-        isUpdatingSchedule = true
-        
-        // Perform heavy operations in background
-        Task.detached(priority: .background) {
-            // Use forceCompleteReschedule for user-triggered changes
-            let times = await self.prayerTimes
-            let duration = await self.blockingDuration
-            let selected = await self.selectedPrayers
-            
-            DeviceActivityService.shared.forceCompleteReschedule(
-                prayerTimes: times,
-                duration: duration,
-                selectedPrayers: selected
-            )
-            
-            // Save filtered schedule for tracking
-            let filteredPrayerTimes = times.filter { selected.contains($0.name) }
-            await self.saveScheduleToUserDefaults(filteredPrayerTimes)
-            
-            // Clear loading state on main thread
-            await MainActor.run {
-                self.isUpdatingSchedule = false
-            }
-        }
     }
 }
 
@@ -1019,7 +827,6 @@ private struct SelectPrayersView: View {
     @Binding var selectedMaghrib: Bool
     @Binding var selectedIsha: Bool
     let theme: AppTheme
-    @State private var isUpdating = false
     
     private let allPrayers = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
     
@@ -1056,22 +863,9 @@ private struct SelectPrayersView: View {
                             Image(systemName: prayerIcon(forName: prayer))
                                 .frame(width: 25)
                             Text(prayer)
-                            if isUpdating {
-                                Spacer()
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                            }
                         }
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .green))
-                    .disabled(isUpdating)
-                    .onChange(of: bindingForPrayer(prayer).wrappedValue) { _ in
-                        // Show loading for a brief moment
-                        isUpdating = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            isUpdating = false
-                        }
-                    }
                     if prayer != allPrayers.last {
                         Divider().background(theme.tertiaryBackground)
                     }
@@ -1088,9 +882,8 @@ private struct BlockingDurationView: View {
     @Binding var duration: Double
     let theme: AppTheme
     @StateObject private var themeManager = ThemeManager.shared
-    @State private var isUpdating = false
-
-    private var containerBackground: some View {
+    
+    private var backgroundShape: some View {
         Group {
             if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
@@ -1113,10 +906,6 @@ private struct BlockingDurationView: View {
                     Text("Set duration for all prayers")
                         .foregroundColor(theme.primaryText)
                     Spacer()
-                    if isUpdating {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    }
                     Text("\(Int(duration)) min")
                         .bold()
                         .foregroundColor(theme.primaryText)
@@ -1124,49 +913,25 @@ private struct BlockingDurationView: View {
 
                 // Duration Buttons
                 HStack(spacing: 10) {
-                    DurationButton(value: 10, current: Int(duration), theme: theme, isUpdating: isUpdating) {
-                        duration = 10
-                        isUpdating = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            isUpdating = false
-                        }
-                    }
-
-                    DurationButton(value: 15, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                    DurationButton(value: 15, current: Int(duration), theme: theme) {
                         duration = 15
-                        isUpdating = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            isUpdating = false
-                        }
                     }
 
-                    DurationButton(value: 20, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                    DurationButton(value: 20, current: Int(duration), theme: theme) {
                         duration = 20
-                        isUpdating = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            isUpdating = false
-                        }
                     }
 
-                    DurationButton(value: 30, current: Int(duration), theme: theme, isUpdating: isUpdating) {
+                    DurationButton(value: 30, current: Int(duration), theme: theme) {
                         duration = 30
-                        isUpdating = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            isUpdating = false
-                        }
                     }
 
-                    CustomDurationButton(current: Int(duration), theme: theme, isUpdating: isUpdating) { customValue in
+                    CustomDurationButton(current: Int(duration), theme: theme) { customValue in
                         duration = Double(customValue)
-                        isUpdating = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            isUpdating = false
-                        }
                     }
                 }
             }
             .padding()
-            .background(containerBackground)
+            .background(backgroundShape)
         }
     }
 }
@@ -1177,7 +942,6 @@ private struct DurationButton: View {
     let value: Int
     let current: Int
     let theme: AppTheme
-    let isUpdating: Bool
     let action: () -> Void
 
     var isSelected: Bool {
@@ -1196,15 +960,12 @@ private struct DurationButton: View {
                         .fill(isSelected ? Color(hex: "1A9B8A") : Color.gray.opacity(0.2))
                 )
         }
-        .disabled(isUpdating)
-        .opacity(isUpdating ? 0.6 : 1.0)
     }
 }
 
 private struct CustomDurationButton: View {
     let current: Int
     let theme: AppTheme
-    let isUpdating: Bool
     let onSet: (Int) -> Void
 
     @State private var showingInput = false
@@ -1235,8 +996,6 @@ private struct CustomDurationButton: View {
                     .fill(isCustomValue ? Color(hex: "1A9B8A") : Color.gray.opacity(0.2))
             )
         }
-        .disabled(isUpdating)
-        .opacity(isUpdating ? 0.6 : 1.0)
         .alert("Custom Duration", isPresented: $showingInput) {
             TextField("Minutes (10-90)", text: $customValue)
                 .keyboardType(.numberPad)
@@ -1252,13 +1011,14 @@ private struct CustomDurationButton: View {
     }
 }
 
+
 private struct SelectAppsToBlockView: View {
     @StateObject private var appModel = AppSelectionModel.shared
     let theme: AppTheme
     @StateObject private var themeManager = ThemeManager.shared
     var onSelectTapped: () -> Void
 
-    private var containerBackground: some View {
+    private var backgroundShape: some View {
         Group {
             if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
@@ -1332,7 +1092,7 @@ private struct SelectAppsToBlockView: View {
                 }
             }
             .padding()
-            .background(containerBackground)
+            .background(backgroundShape)
         }
     }
 }
@@ -1375,8 +1135,9 @@ private struct AdditionalSettingsView: View {
     @StateObject private var blocking = BlockingStateService.shared
     @StateObject private var notificationService = PrayerNotificationService.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var focusManager = FocusSettingsManager.shared
 
-    private var containerBackground: some View {
+    private var backgroundShape: some View {
         Group {
             if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
@@ -1449,8 +1210,19 @@ private struct AdditionalSettingsView: View {
                                     Task {
                                         let granted = await notificationService.requestNotificationPermission()
                                         if granted {
-                                            prePrayerNotification = true
-                                            // Schedule notifications will be handled in onChange
+                                            await MainActor.run {
+                                                prePrayerNotification = true
+                                            }
+                                            // Explicitly trigger notification scheduling after permission granted
+                                            if let storage = PrayerTimeService().loadStorage() {
+                                                let prayerTimes = focusManager.parsePrayerTimesPublic(from: storage)
+                                                PrayerNotificationService.shared.schedulePrePrayerNotifications(
+                                                    prayerTimes: prayerTimes,
+                                                    selectedPrayers: focusManager.getSelectedPrayers(),
+                                                    isEnabled: true,
+                                                    minutesBefore: 5
+                                                )
+                                            }
                                         }
                                     }
                                 } else {
@@ -1465,7 +1237,7 @@ private struct AdditionalSettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
-            .background(containerBackground)
+            .background(backgroundShape)
         }
     }
 }
@@ -1548,7 +1320,7 @@ private struct MockupTodayScheduleSection: View {
     @StateObject private var themeManager = ThemeManager.shared
     private var theme: AppTheme { themeManager.theme }
 
-    private var containerBackground: some View {
+    private var backgroundShape: some View {
         Group {
             if themeManager.effectiveTheme == .dark {
                 RoundedRectangle(cornerRadius: 12)
@@ -1643,7 +1415,7 @@ private struct MockupTodayScheduleSection: View {
                     }
                 }
             }
-            .background(containerBackground)
+            .background(backgroundShape)
         }
     }
 
@@ -1782,8 +1554,6 @@ private struct MockupPrayerToggleRow: View {
     @StateObject private var themeManager = ThemeManager.shared
     private var theme: AppTheme { themeManager.theme }
 
-    @State private var isUpdating = false
-
     var body: some View {
         HStack {
             Image(systemName: icon)
@@ -1796,25 +1566,151 @@ private struct MockupPrayerToggleRow: View {
 
             Spacer()
 
-            if isUpdating {
-                ProgressView()
-                    .scaleEffect(0.6)
-                    .padding(.trailing, 8)
-            }
-
             Toggle("", isOn: $isSelected)
                 .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
                 .labelsHidden()
-                .disabled(isUpdating)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .onChange(of: isSelected) { _ in
-            // Show loading indicator for this prayer only
-            isUpdating = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                isUpdating = false
+    }
+}
+
+// MARK: - Screen Time Permission Overlay
+
+private struct ScreenTimePermissionOverlay: View {
+    @ObservedObject var screenTimeAuth: ScreenTimeAuthorizationService
+    @StateObject private var themeManager = ThemeManager.shared
+    @State private var isRequesting = false
+
+    private var theme: AppTheme { themeManager.theme }
+
+    var body: some View {
+        ZStack {
+            // Background
+            theme.primaryBackground.opacity(0.98)
+                .ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Spacer()
+
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(theme.primaryAccent.opacity(0.15))
+                        .frame(width: 120, height: 120)
+
+                    Image(systemName: "hourglass.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(theme.primaryAccent)
+                }
+
+                // Title
+                Text("Screen Time Permission Required")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(theme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+
+                // Description
+                VStack(spacing: 16) {
+                    Text("To use Focus Mode and block apps during prayer times, Khushoo needs Screen Time permission.")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+
+                    // Benefits
+                    VStack(alignment: .leading, spacing: 12) {
+                        ScreenTimeBenefitRow(
+                            icon: "iphone.slash",
+                            text: "Block distracting apps automatically",
+                            theme: theme
+                        )
+                        ScreenTimeBenefitRow(
+                            icon: "clock.fill",
+                            text: "Set custom blocking durations",
+                            theme: theme
+                        )
+                        ScreenTimeBenefitRow(
+                            icon: "checkmark.shield.fill",
+                            text: "Stay focused during prayer times",
+                            theme: theme
+                        )
+                    }
+                    .padding(.horizontal, 40)
+                }
+
+                Spacer()
+
+                // Action Button
+                VStack(spacing: 16) {
+                    Button(action: {
+                        isRequesting = true
+                        Task {
+                            do {
+                                try await screenTimeAuth.requestAuthorization()
+                            } catch {
+                                print("❌ [ScreenTimeOverlay] Authorization failed: \(error)")
+                            }
+                            isRequesting = false
+                        }
+                    }) {
+                        HStack(spacing: 12) {
+                            if isRequesting {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 20))
+                            }
+
+                            Text(isRequesting ? "Requesting..." : "Enable Screen Time")
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        )
+                    }
+                    .disabled(isRequesting)
+
+                    Text("You can also enable this later in Settings")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(theme.tertiaryText)
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 48)
             }
+        }
+    }
+}
+
+private struct ScreenTimeBenefitRow: View {
+    let icon: String
+    let text: String
+    let theme: AppTheme
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(theme.primaryAccent)
+                .frame(width: 24)
+
+            Text(text)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(theme.primaryText)
+
+            Spacer()
         }
     }
 }
