@@ -99,6 +99,10 @@ struct SearchView: View {
 
             // Fetch prayer times
             fetchPrayerTimesIfNeeded()
+
+            // Ensure initial scheduling happens if conditions are met
+            // This handles the post-onboarding scenario where scheduling may have failed
+            focusManager.ensureInitialSchedulingIfNeeded()
         }
     }
 

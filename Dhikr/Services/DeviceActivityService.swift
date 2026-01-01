@@ -40,8 +40,26 @@ class DeviceActivityService: ObservableObject {
     // MARK: - Rolling Window Management
 
     /// Schedule rolling 24-hour window of prayer times from storage
-    func scheduleRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) {
+    /// Returns true if scheduling was successful, false otherwise
+    @discardableResult
+    func scheduleRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) -> Bool {
         print("🔄 [PrayerBlocking] Starting rolling window schedule (24h)")
+
+        // Pre-check: Verify apps are selected before doing any work
+        let selection = AppSelectionModel.getCurrentSelection()
+        let hasAppsSelected = !selection.applicationTokens.isEmpty ||
+                             !selection.categoryTokens.isEmpty ||
+                             !selection.webDomainTokens.isEmpty
+
+        guard hasAppsSelected else {
+            print("⚠️ [PrayerBlocking] No apps selected - skipping rolling window schedule")
+            return false
+        }
+
+        guard !selectedPrayers.isEmpty else {
+            print("⚠️ [PrayerBlocking] No prayers selected - skipping rolling window schedule")
+            return false
+        }
 
         let calendar = Calendar.current
         let now = Date()
@@ -50,7 +68,7 @@ class DeviceActivityService: ObservableObject {
         // Calculate end of rolling window (1 day from today)
         guard let endOfWindow = calendar.date(byAdding: .day, value: rollingWindowDays, to: startOfToday) else {
             print("❌ [PrayerBlocking] Failed to calculate window end date")
-            return
+            return false
         }
 
         // Filter prayer times within rolling window
@@ -100,20 +118,31 @@ class DeviceActivityService: ObservableObject {
         let sortedPrayers = prayerTimes.sorted { $0.date < $1.date }
         let prayersToSchedule = Array(sortedPrayers.prefix(maxSchedules))
 
+        guard !prayersToSchedule.isEmpty else {
+            print("⚠️ [PrayerBlocking] No future prayers to schedule")
+            return false
+        }
+
         print("📅 [PrayerBlocking] Scheduling \(prayersToSchedule.count) prayers (max \(maxSchedules))")
 
         // Stop all existing schedules first
         stopAllMonitoring()
 
         // Schedule the prayers
-        schedulePrayerTimeBlocking(prayerTimes: prayersToSchedule, duration: duration, selectedPrayers: selectedPrayers)
+        let success = schedulePrayerTimeBlocking(prayerTimes: prayersToSchedule, duration: duration, selectedPrayers: selectedPrayers)
 
-        // Save last update time
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastRollingWindowUpdate")
-            groupDefaults.synchronize()
-            print("💾 [PrayerBlocking] Saved rolling window update time")
+        // Only save last update time if scheduling was successful
+        if success {
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastRollingWindowUpdate")
+                groupDefaults.synchronize()
+                print("💾 [PrayerBlocking] Saved rolling window update time")
+            }
+        } else {
+            print("⚠️ [PrayerBlocking] Scheduling failed - not saving update time")
         }
+
+        return success
     }
 
     /// Check if rolling window needs update (every 6 hours)
@@ -214,7 +243,9 @@ class DeviceActivityService: ObservableObject {
     }
     
     /// Schedule blocking for multiple prayer times (up to 20 schedules)
-    func schedulePrayerTimeBlocking(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>) {
+    /// Returns true if at least one prayer was successfully scheduled
+    @discardableResult
+    func schedulePrayerTimeBlocking(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>) -> Bool {
         // Simplified: always compute next up-to-20 selected future prayers from now and try to schedule them.
         // Avoid relying on saved schedules to decide capacity, since UI may persist previews.
         let now = Date()
@@ -228,7 +259,7 @@ class DeviceActivityService: ObservableObject {
         if !hasAppsSelected {
             print("⚠️ [Scheduler] No apps selected - stopping all monitoring and skipping scheduling")
             stopAllMonitoring()
-            return
+            return false
         }
 
         // Note: Premium check is handled by the caller (UI layer).
@@ -276,7 +307,7 @@ class DeviceActivityService: ObservableObject {
         let prayersToAdd = Array(uniquePerDay.prefix(min(availableSlots > 0 ? availableSlots : maxSchedules, maxSchedules)))
         guard !prayersToAdd.isEmpty else {
             print("❌ No capacity to schedule new prayers")
-            return
+            return false
         }
         
         var newActivityNames: [DeviceActivityName] = []
@@ -392,8 +423,11 @@ class DeviceActivityService: ObservableObject {
                 print("   • activity=\(raw) | prayer=\(nameStr) | start=\(startStr) | end=\(endStr)")
             }
         }
+
+        // Return true if at least one prayer was successfully scheduled
+        return scheduledCount > 0
     }
-    
+
     /// Stop current blocking session
     func stopBlocking() {
         stopAllMonitoring()

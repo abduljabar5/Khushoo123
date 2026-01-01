@@ -325,4 +325,50 @@ class FocusSettingsManager: ObservableObject {
         }
         return prayerTimes.sorted { $0.date < $1.date }
     }
+
+    // MARK: - Initial Scheduling
+
+    /// Ensure blocking is scheduled if all conditions are met
+    /// Call this when the Focus tab appears to handle post-onboarding scenarios
+    func ensureInitialSchedulingIfNeeded() {
+        // Check if we need to schedule (no recent successful schedule)
+        guard DeviceActivityService.shared.needsRollingWindowUpdate() else {
+            print("✅ [FocusSettings] Rolling window is up to date - no initial scheduling needed")
+            return
+        }
+
+        // Check if we have apps selected
+        guard hasAppsSelected else {
+            print("⚠️ [FocusSettings] No apps selected - skipping initial scheduling")
+            return
+        }
+
+        // Check if we have prayers selected
+        let selectedPrayers = getSelectedPrayers()
+        guard !selectedPrayers.isEmpty else {
+            print("⚠️ [FocusSettings] No prayers selected - skipping initial scheduling")
+            return
+        }
+
+        // Check if we have prayer times in storage
+        guard let storage = prayerTimeService.loadStorage() else {
+            print("⚠️ [FocusSettings] No prayer times in storage - skipping initial scheduling")
+            return
+        }
+
+        print("🚀 [FocusSettings] Triggering initial scheduling (conditions met, no recent schedule)")
+
+        // Schedule the blocking
+        let success = DeviceActivityService.shared.scheduleRollingWindow(
+            from: storage,
+            duration: blockingDuration,
+            selectedPrayers: selectedPrayers
+        )
+
+        if success {
+            print("✅ [FocusSettings] Initial scheduling completed successfully")
+        } else {
+            print("⚠️ [FocusSettings] Initial scheduling failed")
+        }
+    }
 }
