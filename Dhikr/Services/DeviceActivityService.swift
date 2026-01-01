@@ -21,7 +21,7 @@ class DeviceActivityService: ObservableObject {
     private var lastScheduleInvocationAt: Date? = nil
     private var sessionScheduledActivityNames: Set<String> = []
     private let maxSchedules = 20 // Apple's DeviceActivity limit
-    private let rollingWindowDays = 3 // Maintain 3 days of schedules (Today + 2 days)
+    private let rollingWindowDays = 4 // Maintain 4 days of schedules to maximize 20 schedule limit (5 prayers × 4 days)
     private let updateIntervalDays = 0.25 // Update every 6 hours
 
     private init() {
