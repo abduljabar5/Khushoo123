@@ -13,10 +13,10 @@ struct VoiceConfirmationView: View {
     @State private var timeRemaining: TimeInterval = 0
     
     var body: some View {
-        let shouldShow = strictMode && (blockingState.isCurrentlyBlocking || blockingState.isWaitingForVoiceConfirmation)
-        
-        // Silenced: visibility debug logging
-        
+        // Only show when apps are ACTUALLY blocked (not just in a prayer time window)
+        // This prevents showing "Apps are blocked" when they're not actually blocked
+        let shouldShow = strictMode && (blockingState.appsActuallyBlocked || blockingState.isWaitingForVoiceConfirmation)
+
         if shouldShow {
             VStack(alignment: .leading, spacing: 16) {
                 // Header with lock icon

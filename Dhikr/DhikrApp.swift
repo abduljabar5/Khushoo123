@@ -512,9 +512,95 @@ struct DhikrApp: App {
                 await scheduleRollingWindow(storage: storage)
             }
 
+            // Also try initial scheduling for post-onboarding scenario
+            // This handles the case where onboarding completed but prayer times weren't available yet
+            await scheduleBlockingIfConditionsMet(storage: storage)
+
         } catch {
             print("❌ [DhikrApp] Failed to fetch prayer times: \(error.localizedDescription)")
         }
+    }
+
+    /// Schedule blocking if all conditions are met (post-onboarding scenario)
+    /// This handles the case where user completed onboarding but prayer times weren't loaded yet
+    private func scheduleBlockingIfConditionsMet(storage: PrayerTimeStorage) async {
+        // Only proceed if onboarding is complete
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        guard hasCompletedOnboarding else {
+            print("ℹ️ [DhikrApp] Onboarding not complete - skipping initial schedule check")
+            return
+        }
+
+        // Check premium status
+        guard subscriptionService.isPremium else {
+            print("ℹ️ [DhikrApp] User not premium - skipping initial schedule")
+            return
+        }
+
+        // Check if apps are selected
+        let selection = AppSelectionModel.getCurrentSelection()
+        let hasAppsSelected = !selection.applicationTokens.isEmpty ||
+                             !selection.categoryTokens.isEmpty ||
+                             !selection.webDomainTokens.isEmpty
+        guard hasAppsSelected else {
+            print("ℹ️ [DhikrApp] No apps selected - skipping initial schedule")
+            return
+        }
+
+        // Check if Screen Time is authorized
+        guard await screenTimeAuth.isAuthorized else {
+            print("ℹ️ [DhikrApp] Screen Time not authorized - skipping initial schedule")
+            return
+        }
+
+        // Check if prayers are selected
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
+        let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? false
+        let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? false
+        let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? false
+        let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? false
+
+        let anyPrayerSelected = selectedFajr || selectedDhuhr || selectedAsr || selectedMaghrib || selectedIsha
+        guard anyPrayerSelected else {
+            print("ℹ️ [DhikrApp] No prayers selected - skipping initial schedule")
+            return
+        }
+
+        // Check if we already have active schedules
+        if let existingSchedules = groupDefaults?.object(forKey: "PrayerTimeSchedules") as? [[String: Any]],
+           !existingSchedules.isEmpty {
+            let now = Date()
+            let hasFutureSchedules = existingSchedules.contains { schedule in
+                guard let timestamp = schedule["date"] as? TimeInterval,
+                      let duration = schedule["duration"] as? Double else { return false }
+                let endTime = Date(timeIntervalSince1970: timestamp).addingTimeInterval(duration)
+                return endTime > now
+            }
+            if hasFutureSchedules {
+                print("✅ [DhikrApp] Active schedules already exist - skipping initial schedule")
+                return
+            }
+        }
+
+        // All conditions met - schedule blocking
+        print("🚀 [DhikrApp] All conditions met - scheduling blocking after prayer times loaded")
+
+        let duration = groupDefaults?.double(forKey: "focusBlockingDuration") ?? 15.0
+        var selectedPrayers: Set<String> = []
+        if selectedFajr { selectedPrayers.insert("Fajr") }
+        if selectedDhuhr { selectedPrayers.insert("Dhuhr") }
+        if selectedAsr { selectedPrayers.insert("Asr") }
+        if selectedMaghrib { selectedPrayers.insert("Maghrib") }
+        if selectedIsha { selectedPrayers.insert("Isha") }
+
+        DeviceActivityService.shared.scheduleRollingWindow(
+            from: storage,
+            duration: duration,
+            selectedPrayers: selectedPrayers
+        )
+
+        print("✅ [DhikrApp] Initial blocking schedule created successfully")
     }
 
     private func checkAndUpdateRollingWindow(storage: PrayerTimeStorage) async {
