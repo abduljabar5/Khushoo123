@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct OnboardingFlowView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var locationService: LocationService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("userDisplayName") private var userDisplayName: String = ""
     @StateObject private var subscriptionService = SubscriptionService.shared
@@ -206,24 +208,59 @@ struct OnboardingFlowView: View {
         if selectedMaghrib { selectedPrayers.insert("Maghrib") }
         if selectedIsha { selectedPrayers.insert("Isha") }
 
-        // 6. Wait for prayer times to be fetched (give location + fetch time)
-        // The app should have already started fetching prayer times in DhikrApp.swift
-        // Wait up to 5 seconds for prayer times to become available
+        // 6. Get or fetch prayer times
         let prayerTimeService = PrayerTimeService()
-        var storage: PrayerTimeStorage? = nil
+        var storage: PrayerTimeStorage? = prayerTimeService.loadStorage()
 
-        for attempt in 1...10 {
-            storage = prayerTimeService.loadStorage()
-            if storage != nil {
-                print("✅ [Onboarding] Prayer times loaded on attempt \(attempt)")
-                break
+        // If no prayer times in storage, fetch them now
+        if storage == nil {
+            print("🔄 [Onboarding] No prayer times in storage - fetching now...")
+
+            // Get location
+            var location: CLLocation? = locationService.location
+
+            if location == nil {
+                // Request location if not available
+                print("📍 [Onboarding] Requesting location for prayer times fetch...")
+                locationService.requestLocation()
+
+                // Wait for location (up to 5 seconds)
+                for attempt in 1...10 {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    if let loc = locationService.location {
+                        location = loc
+                        print("✅ [Onboarding] Got location on attempt \(attempt)")
+                        break
+                    }
+                    print("⏳ [Onboarding] Waiting for location... (attempt \(attempt)/10)")
+                }
             }
-            print("⏳ [Onboarding] Waiting for prayer times... (attempt \(attempt)/10)")
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+
+            guard let validLocation = location else {
+                print("⚠️ [Onboarding] Could not get location - scheduling will happen when prayer times are fetched later")
+                return
+            }
+
+            // Fetch 6 months of prayer times
+            do {
+                print("🕌 [Onboarding] Fetching 6 months of prayer times...")
+                storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: validLocation, daysToFetch: 180)
+
+                // Save to storage
+                if let fetchedStorage = storage {
+                    prayerTimeService.saveStorage(fetchedStorage)
+                    print("✅ [Onboarding] Fetched and saved \(fetchedStorage.prayerTimes.count) days of prayer times")
+                }
+            } catch {
+                print("❌ [Onboarding] Failed to fetch prayer times: \(error.localizedDescription)")
+                return
+            }
+        } else {
+            print("✅ [Onboarding] Prayer times already in storage")
         }
 
         guard let prayerStorage = storage else {
-            print("⚠️ [Onboarding] No prayer times in storage after waiting - scheduling will happen automatically when prayer times are fetched")
+            print("⚠️ [Onboarding] No prayer times available - scheduling will happen later")
             return
         }
 

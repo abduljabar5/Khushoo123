@@ -662,6 +662,7 @@ struct MainContentView: View {
             .environmentObject(prayerTimeViewModel)
             .fullScreenCover(isPresented: $showOnboarding) {
                 OnboardingFlowView()
+                    .environmentObject(locationService)
             }
             .onAppear {
                 // Show onboarding on first launch
