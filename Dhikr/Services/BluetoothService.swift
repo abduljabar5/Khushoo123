@@ -251,8 +251,7 @@ class BluetoothService: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     }
 
     private func showHapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        let impactFeedback = UIImpactFeedbackGenerator(style: style)
-        impactFeedback.impactOccurred()
+        HapticManager.shared.impact(style)
     }
 
     // MARK: - CBCentralManagerDelegate

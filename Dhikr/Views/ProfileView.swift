@@ -1820,8 +1820,7 @@ struct InteractiveStreakCard: View {
             }
             
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
+            HapticManager.shared.impact(.medium)
         }
     }
 }

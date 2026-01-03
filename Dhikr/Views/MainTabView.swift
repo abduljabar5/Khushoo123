@@ -40,17 +40,17 @@ struct MainTabView: View {
                         MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
                             .environmentObject(audioPlayerService)
                             .contentShape(Rectangle())
-                            .highPriorityGesture(
-                                DragGesture(minimumDistance: 10)
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 5)
                                     .onEnded { value in
-                                        let velocity = value.predictedEndLocation.y - value.location.y
-                                        if value.translation.height < -20 || velocity < -100 {
+                                        // Swipe up to expand
+                                        if value.translation.height < -15 || value.predictedEndTranslation.height < -50 {
                                             expandMiniPlayer = true
                                         }
                                     }
                             )
                             .onTapGesture {
-                                expandMiniPlayer.toggle()
+                                expandMiniPlayer = true
                             }
                     }
             } else {
@@ -72,17 +72,17 @@ struct MainTabView: View {
                                     .compositingGroup()
                                 })
                                 .contentShape(Rectangle())
-                                .highPriorityGesture(
-                                    DragGesture(minimumDistance: 10)
+                                .simultaneousGesture(
+                                    DragGesture(minimumDistance: 5)
                                         .onEnded { value in
-                                            let velocity = value.predictedEndLocation.y - value.location.y
-                                            if value.translation.height < -20 || velocity < -100 {
+                                            // Swipe up to expand
+                                            if value.translation.height < -15 || value.predictedEndTranslation.height < -50 {
                                                 expandMiniPlayer = true
                                             }
                                         }
                                 )
                                 .onTapGesture {
-                                    expandMiniPlayer.toggle()
+                                    expandMiniPlayer = true
                                 }
                                 .offset(y: -52)
                                 .padding(.horizontal, 15)
@@ -105,11 +105,16 @@ struct MainTabView: View {
                             .ignoresSafeArea()
 
                         VStack(spacing: 10) {
-                            /// Drag Indicator
+                            /// Drag Indicator - tap or drag to dismiss
                             Capsule()
                                 .fill(.primary.secondary)
-                                .frame(width: 35, height: 3)
+                                .frame(width: 35, height: 5)
                                 .padding(.top, 10)
+                                .padding(.bottom, 5)
+                                .contentShape(Rectangle().size(width: 100, height: 40))
+                                .onTapGesture {
+                                    expandMiniPlayer = false
+                                }
 
                             Spacer()
                                 .frame(height: 80)
@@ -120,6 +125,31 @@ struct MainTabView: View {
                             Spacer()
                         }
                     }
+                    .offset(y: dragOffset)
+                    .gesture(
+                        DragGesture(minimumDistance: 20, coordinateSpace: .global)
+                            .onChanged { value in
+                                // Only allow dragging down
+                                if value.translation.height > 0 {
+                                    dragOffset = value.translation.height
+                                }
+                            }
+                            .onEnded { value in
+                                let velocity = value.predictedEndLocation.y - value.location.y
+                                // Dismiss if dragged down enough or with enough velocity
+                                if value.translation.height > 100 || velocity > 300 {
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        dragOffset = 0
+                                    }
+                                    expandMiniPlayer = false
+                                } else {
+                                    // Spring back
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        dragOffset = 0
+                                    }
+                                }
+                            }
+                    )
                     .navigationTransition(.zoom(sourceID: "MINIPLAYER", in: animation))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -127,6 +157,7 @@ struct MainTabView: View {
                     themeManager.theme.primaryBackground
                 }
                 .onAppear {
+                    dragOffset = 0
                     // Set window background to match theme during presentation
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                        let window = windowScene.windows.first {
@@ -136,6 +167,7 @@ struct MainTabView: View {
                 .onDisappear {
                     // Reset surah list view when player is dismissed
                     showSurahList = false
+                    dragOffset = 0
                 }
             }
         }

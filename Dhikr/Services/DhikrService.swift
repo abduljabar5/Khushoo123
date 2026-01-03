@@ -287,8 +287,7 @@ class DhikrService: ObservableObject {
     }
     
     private func triggerHapticFeedback() {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        HapticManager.shared.impact(.light)
     }
     
     // --- Streak Logic ---
