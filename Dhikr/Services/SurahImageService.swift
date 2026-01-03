@@ -67,11 +67,24 @@ class SurahImageService {
     }
 
     /// Prefetch multiple surah covers in background (for recently played/favorites)
+    /// Limited to 5 concurrent downloads with throttling to avoid overwhelming Firebase
     func prefetchCovers(for surahNumbers: [Int]) {
         Task {
-            for surahNumber in surahNumbers {
+            // Limit prefetch to first 10 items to avoid excessive downloads
+            let limitedNumbers = Array(surahNumbers.prefix(10))
+
+            for surahNumber in limitedNumbers {
                 guard Auth.auth().currentUser != nil else { break }
+
+                // Skip if already cached
+                if loadFromCache(surahNumber: surahNumber) != nil {
+                    continue
+                }
+
                 _ = await fetchSurahCover(for: surahNumber)
+
+                // Throttle: 500ms between downloads to avoid hammering Firebase
+                try? await Task.sleep(nanoseconds: 500_000_000)
             }
         }
     }
@@ -97,8 +110,8 @@ class SurahImageService {
         let imageRef = storageRef.child("surah-covers/surah-\(surahNumber).jpg")
 
         do {
-            // Download image data (max 10MB to handle larger cover images)
-            let data = try await imageRef.data(maxSize: 10 * 1024 * 1024)
+            // Download image data (max 2MB - covers should be optimized)
+            let data = try await imageRef.data(maxSize: 2 * 1024 * 1024)
 
             guard let image = UIImage(data: data) else {
                 print("❌ [SurahImageService] Failed to create image from data for surah \(surahNumber)")

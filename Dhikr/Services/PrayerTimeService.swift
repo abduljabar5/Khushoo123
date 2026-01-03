@@ -29,10 +29,28 @@ struct PrayerTimeStorage: Codable {
     }
 
     var shouldRefresh: Bool {
-        // Refresh if data is older than 6 months or doesn't cover current needs
         let now = Date()
-        let sixMonthsAgo = Calendar.current.date(byAdding: .month, value: -6, to: now) ?? now
-        return fetchedAt < sixMonthsAgo || !isValid
+        let calendar = Calendar.current
+
+        // Don't refresh if data was fetched less than 24 hours ago
+        let oneDayAgo = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        if fetchedAt > oneDayAgo {
+            return false
+        }
+
+        // Check if we have sufficient future coverage
+        // For premium (long-term data), require at least 30 days remaining
+        // For free users (short-term data), require at least 1 day remaining
+        let daysCovered = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        let daysRemaining = calendar.dateComponents([.day], from: now, to: endDate).day ?? 0
+
+        if daysCovered >= 7 {
+            // Premium user data - only refresh if less than 30 days remaining
+            return daysRemaining < 30
+        } else {
+            // Free user data - only refresh if less than 1 day remaining
+            return daysRemaining < 1
+        }
     }
 }
 
@@ -154,8 +172,8 @@ class PrayerTimeService {
                 fetchedMonths += 1
                 print("🕌 [PrayerBlocking] Fetched month \(fetchedMonths)/\(totalMonths) (\(year)-\(String(format: "%02d", month)))")
 
-                // Small delay to be respectful to API (100ms per month request)
-                try await Task.sleep(nanoseconds: 100_000_000)
+                // Delay to be respectful to API (300ms per month request)
+                try await Task.sleep(nanoseconds: 300_000_000)
 
             } catch {
                 print("❌ [PrayerBlocking] Failed to fetch prayer times for \(year)-\(month): \(error.localizedDescription)")

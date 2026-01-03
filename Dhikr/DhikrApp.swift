@@ -71,14 +71,9 @@ struct DhikrApp: App {
                         audioPlayerService.preloadLastPlayed()
                     }
 
-                    // Ensure blocking state is evaluated immediately on launch and shortly after
+                    // Ensure blocking state is evaluated on launch
+                    // Note: BlockingStateService already does initial check and polls every 15s
                     BlockingStateService.shared.forceCheck()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        BlockingStateService.shared.forceCheck()
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        BlockingStateService.shared.forceCheck()
-                    }
                 }
                 .onChange(of: scenePhase) { newPhase in
                     handleScenePhaseChange(newPhase)

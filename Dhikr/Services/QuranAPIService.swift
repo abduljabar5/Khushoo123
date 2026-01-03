@@ -307,15 +307,22 @@ class QuranAPIService: ObservableObject {
         return false
     }
     
+    // MARK: - Validated Reciters Cache
+    private var validatedRecitersCache: [Reciter]?
+    private var validatedRecitersCacheDate: Date?
+    private let validatedRecitersCacheMaxAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
+
     // MARK: - Validate Reciter Audio Files
+    /// Validates a single reciter's audio by testing key surahs
+    /// Note: Uses throttling between requests to avoid hammering the server
     func validateReciterAudio(reciter: Reciter) async -> Bool {
         guard let server = reciter.server else {
             return false
         }
-        
-        // Test a few key surahs to ensure the reciter has working audio
-        let testSurahs = [1, 2, 36, 55, 67, 112, 113, 114] // Al-Fatiha, Al-Baqarah, Ya-Sin, Ar-Rahman, Al-Mulk, Al-Ikhlas, Al-Falaq, An-Nas
-        
+
+        // Test only 2 key surahs to minimize requests (Al-Fatiha and Al-Ikhlas)
+        let testSurahs = [1, 112]
+
         for surahNumber in testSurahs {
             let audioURL = "\(server)/\(String(format: "%03d", surahNumber)).mp3"
             let isValid = await isAudioURLValid(audioURL)
@@ -323,27 +330,63 @@ class QuranAPIService: ObservableObject {
                 print("❌ [QuranAPIService] Reciter \(reciter.englishName) failed validation for surah \(surahNumber)")
                 return false
             }
+            // Throttle: 200ms between requests
+            try? await Task.sleep(nanoseconds: 200_000_000)
         }
-        
+
         print("✅ [QuranAPIService] Reciter \(reciter.englishName) passed audio validation")
         return true
     }
-    
+
     // MARK: - Get Validated Reciters
+    /// Fetches and validates reciters with caching to avoid repeated validation
+    /// Warning: This is an expensive operation - use sparingly
     func fetchValidatedReciters() async throws -> [Reciter] {
+        // Return cached data if still valid
+        if let cached = validatedRecitersCache,
+           let cacheDate = validatedRecitersCacheDate,
+           Date().timeIntervalSince(cacheDate) < validatedRecitersCacheMaxAge {
+            print("✅ [QuranAPIService] Returning cached validated reciters (\(cached.count))")
+            return cached
+        }
+
         let allReciters = try await fetchReciters()
-        print("🔍 [QuranAPIService] Validating \(allReciters.count) reciters...")
-        
+        print("🔍 [QuranAPIService] Validating reciters (sampling \(min(allReciters.count, 50)) of \(allReciters.count))...")
+
+        // Only validate a sample to avoid excessive requests
+        // Most reciters from MP3Quran.net are valid, so we trust the API
+        let sampleSize = min(allReciters.count, 50)
+        let shuffled = allReciters.shuffled()
+        let sample = Array(shuffled.prefix(sampleSize))
+
         var validatedReciters: [Reciter] = []
-        
-        for reciter in allReciters {
+        var invalidCount = 0
+
+        for reciter in sample {
             let isValid = await validateReciterAudio(reciter: reciter)
             if isValid {
                 validatedReciters.append(reciter)
+            } else {
+                invalidCount += 1
+            }
+
+            // If more than 20% are invalid, something is wrong - stop early
+            if invalidCount > sampleSize / 5 {
+                print("⚠️ [QuranAPIService] Too many invalid reciters - API may be down")
+                break
             }
         }
-        
-        print("✅ [QuranAPIService] Found \(validatedReciters.count) validated reciters out of \(allReciters.count) total")
+
+        // If validation passed for most, include all reciters (trust the API)
+        if invalidCount <= sampleSize / 5 {
+            validatedReciters = allReciters
+        }
+
+        // Cache the results
+        validatedRecitersCache = validatedReciters
+        validatedRecitersCacheDate = Date()
+
+        print("✅ [QuranAPIService] Validated \(validatedReciters.count) reciters (cached for 7 days)")
         return validatedReciters
     }
 } 

@@ -112,9 +112,9 @@ class BlockingStateService: ObservableObject {
     private func startMonitoring() {
         // Initial check
         checkBlockingStatus()
-        
-        // Poll at a modest interval; avoid per-second polling long-term
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+
+        // Poll at 15-second interval to reduce CPU usage while maintaining responsiveness
+        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.checkBlockingStatus()
             }

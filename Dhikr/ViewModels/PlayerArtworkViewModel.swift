@@ -17,16 +17,12 @@ class PlayerArtworkViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private let unsplashService = UnsplashService.shared
     private let surahImageService = SurahImageService.shared
-    private let imageURLCache = NSCache<NSString, NSURL>()
     private var cancellables = Set<AnyCancellable>()
-    private let persistentCacheKey = "artworkURLPersistentCache_Unsplash"
     private let audioPlayerService: AudioPlayerService
 
     init(audioPlayerService: AudioPlayerService) {
         self.audioPlayerService = audioPlayerService
-        loadPersistentCache() // Load saved URLs into memory on initialization
 
         audioPlayerService.$currentSurah
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
@@ -35,25 +31,6 @@ class PlayerArtworkViewModel: ObservableObject {
                 self.fetchArtwork(for: surah)
             }
             .store(in: &cancellables)
-    }
-
-    /// Loads the persistently stored URL cache from UserDefaults into the in-memory NSCache.
-    private func loadPersistentCache() {
-        guard let savedCache = UserDefaults.standard.dictionary(forKey: persistentCacheKey) as? [String: String] else {
-            return
-        }
-        for (key, urlString) in savedCache {
-            if let url = URL(string: urlString) {
-                imageURLCache.setObject(url as NSURL, forKey: key as NSString)
-            }
-        }
-    }
-
-    /// Saves a new URL to the persistent UserDefaults cache.
-    private func saveToPersistentCache(key: String, url: URL) {
-        var savedCache = UserDefaults.standard.dictionary(forKey: persistentCacheKey) as? [String: String] ?? [:]
-        savedCache[key] = url.absoluteString
-        UserDefaults.standard.set(savedCache, forKey: persistentCacheKey)
     }
 
     private func fetchArtwork(for surah: Surah) {
@@ -95,14 +72,6 @@ class PlayerArtworkViewModel: ObservableObject {
         }
 
         print("🔄 [PlayerArtworkViewModel] Forcing refresh for surah: \(surah.englishName)")
-        
-        // Clear caches for the current surah
-        let cacheKey = surah.englishName as NSString
-        imageURLCache.removeObject(forKey: cacheKey)
-        
-        var savedCache = UserDefaults.standard.dictionary(forKey: persistentCacheKey) as? [String: String] ?? [:]
-        savedCache.removeValue(forKey: surah.englishName)
-        UserDefaults.standard.set(savedCache, forKey: persistentCacheKey)
 
         // Trigger a new fetch
         fetchArtwork(for: surah)
