@@ -217,10 +217,17 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 prayerComponents.day = calendar.component(.day, from: now)
 
                 if let prayerDate = calendar.date(from: prayerComponents) {
+                    // Add 30-minute grace period - continue showing current prayer for 30 min after its time
+                    let graceEndTime = calendar.date(byAdding: .minute, value: 30, to: prayerDate) ?? prayerDate
+
                     if prayerDate > now && !foundNext {
                         nextPrayer = prayer
                         todaysNextPrayer = prayer  // Always set today's next prayer
                         foundNext = true
+                    } else if prayerDate <= now && graceEndTime > now && !foundNext {
+                        // Within 30-minute grace period - this is still the "current" prayer
+                        currentPrayer = prayer
+                        foundCurrent = true
                     } else if prayerDate <= now && !foundNext {
                         currentPrayer = prayer
                         foundCurrent = true

@@ -39,8 +39,8 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         // Get duration setting (in minutes)
         let durationMinutes = groupDefaults?.double(forKey: "focusBlockingDuration") ?? 15
 
-        // Calculate early unlock time (50% of duration)
-        let earlyUnlockMinutes = Int(durationMinutes * 0.5)
+        // Early unlock is fixed at 5 minutes after prayer start
+        let earlyUnlockMinutes = 5
 
         // Calculate unlock times
         var subtitleText = "Take a moment to pray 🤲"
