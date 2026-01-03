@@ -37,7 +37,6 @@ struct ReciterArtworkImage: View {
             if let url = artworkURL {
                 KFImage(url)
                     .onFailure { error in
-                        print("⚠️ [ReciterArtwork] Artwork failed for \(reciterName), showing placeholder")
                     }
                     .resizable()
                     .loadDiskFileSynchronously()
@@ -84,7 +83,6 @@ struct ReciterArtworkImageCompact: View {
         if let url = artworkURL {
             KFImage(url)
                 .onFailure { _ in
-                    print("⚠️ [ReciterArtwork] Compact artwork failed for \(reciterName), showing placeholder")
                 }
                 .resizable()
                 .loadDiskFileSynchronously()

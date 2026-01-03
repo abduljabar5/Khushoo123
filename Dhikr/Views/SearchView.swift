@@ -90,7 +90,6 @@ struct SearchView: View {
         .onAppear {
             // Skip if not premium - app blocking is premium only
             guard subscriptionService.isPremium else {
-                print("🔒 [SearchView] Skipping initialization - user is not premium")
                 return
             }
 
@@ -286,7 +285,6 @@ struct SearchView: View {
     }
     
     private func fetchPrayerTimesIfNeeded() {
-        print("🔍 [PrayerBlocking] Checking if prayer times need to be fetched...")
 
         // Try to load existing storage first
         if prayerStorage == nil {
@@ -298,9 +296,7 @@ struct SearchView: View {
         if let storage = prayerStorage {
             shouldFetch = storage.shouldRefresh
             if shouldFetch {
-                print("🔄 [PrayerBlocking] Storage needs refresh (too old or invalid)")
             } else {
-                print("✅ [PrayerBlocking] Storage is valid, using cached data")
                 // Load prayer times from storage for display
                 loadPrayerTimesFromStorage(storage)
                 // Check if rolling window needs update
@@ -309,7 +305,6 @@ struct SearchView: View {
             }
         } else {
             shouldFetch = true
-            print("🔍 [PrayerBlocking] No storage found, will fetch 6 months")
         }
 
         if shouldFetch {
@@ -390,7 +385,6 @@ struct SearchView: View {
                         let needsLocationRefresh = await prayerTimeService.needsRefreshForLocation(location, storage: storage)
 
                         if !needsLocationRefresh {
-                            print("✅ [PrayerBlocking] Using cached prayer times")
                             prayerStorage = storage
                             await MainActor.run {
                                 self.loadPrayerTimesFromStorage(storage)
@@ -402,18 +396,15 @@ struct SearchView: View {
                             }
                             return
                         } else {
-                            print("🔄 [PrayerBlocking] Location changed, clearing old storage")
                             prayerTimeService.clearStorage()
                             prayerStorage = nil
                         }
                     } else {
-                        print("🔄 [PrayerBlocking] Storage expired, fetching new data")
                         prayerTimeService.clearStorage()
                         prayerStorage = nil
                     }
                 }
 
-                print("🕌 [PrayerBlocking] Fetching 6 months of prayer times...")
 
                 // Fetch 6 months of prayer times
                 let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location)
@@ -437,7 +428,6 @@ struct SearchView: View {
                 }
 
             } catch {
-                print("❌ [PrayerBlocking] Failed to fetch 6 months: \(error.localizedDescription)")
                 await MainActor.run {
                     self.prayerTimesError = "Failed to fetch prayer times: \(error.localizedDescription)"
                     self.isLoadingPrayerTimes = false
@@ -447,7 +437,6 @@ struct SearchView: View {
     }
 
     private func loadPrayerTimesFromStorage(_ storage: PrayerTimeStorage) {
-        print("📖 [PrayerBlocking] Loading prayer times from storage for display")
 
         let calendar = Calendar.current
         let now = Date()
@@ -486,27 +475,22 @@ struct SearchView: View {
         }
 
         self.prayerTimes = prayerTimes.sorted { $0.date < $1.date }
-        print("📖 [PrayerBlocking] Loaded \(self.prayerTimes.count) prayer times for display")
     }
 
     private func checkRollingWindowUpdate() {
         guard let storage = prayerStorage else { return }
 
         if DeviceActivityService.shared.needsRollingWindowUpdate() {
-            print("🔄 [PrayerBlocking] Rolling window needs update")
             scheduleRollingWindowFromStorage()
         } else {
-            print("✅ [PrayerBlocking] Rolling window is up to date")
         }
     }
 
     private func scheduleRollingWindowFromStorage() {
         guard let storage = prayerStorage else {
-            print("⚠️ [PrayerBlocking] No storage available for rolling window")
             return
         }
 
-        print("📅 [PrayerBlocking] Scheduling rolling window from storage")
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
             duration: focusManager.blockingDuration,
@@ -1650,7 +1634,6 @@ private struct ScreenTimePermissionOverlay: View {
                             do {
                                 try await screenTimeAuth.requestAuthorization()
                             } catch {
-                                print("❌ [ScreenTimeOverlay] Authorization failed: \(error)")
                             }
                             isRequesting = false
                         }

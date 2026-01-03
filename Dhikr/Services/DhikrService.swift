@@ -60,7 +60,6 @@ class DhikrService: ObservableObject {
         }
         
         pendingUpdates.removeAll()
-        print("📦 [DhikrService] Flushed \(pendingUpdates.count) batched UserDefaults updates")
     }
     
     // Override streak setter to use batched updates
@@ -91,19 +90,21 @@ class DhikrService: ObservableObject {
     private let dhikrEntriesKey = "dhikrEntries"
 
     // MARK: - UserDefaults
-    private let userDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")!
+    private let userDefaults: UserDefaults
 
     // MARK: - Performance Settings
     private let maxEntriesInMemory = 10000 // Keep last 10k entries (~3-4 months of heavy use)
     private let entriesBatchSize = 50 // Write to disk every 50 entries
     private var pendingEntries: [DhikrEntry] = []
     private var entriesWriteTimer: Timer?
-    
+
     // MARK: - Singleton
     static let shared = DhikrService()
-    
+
     // MARK: - Initialization
     private init() {
+        // Use app group UserDefaults, falling back to standard if not available
+        self.userDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") ?? UserDefaults.standard
         self.dhikrCount = DhikrService.loadDhikrCount(from: userDefaults)
         self.streak = userDefaults.integer(forKey: streakKey)
         self.highestStreak = userDefaults.integer(forKey: highestStreakKey)
@@ -375,10 +376,8 @@ class DhikrService: ObservableObject {
         }
 
         let interval = nextMidnight.timeIntervalSince(now)
-        print("⏰ [DhikrService] Scheduling midnight reset in \(Int(interval/60)) minutes")
 
         midnightTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
-            print("🌙 [DhikrService] Midnight reset triggered")
             self?.performMidnightReset()
             self?.startMidnightResetTimer() // Reschedule for next midnight
         }
@@ -398,7 +397,6 @@ class DhikrService: ObservableObject {
         // Post notification for UI updates
         NotificationCenter.default.post(name: .dhikrCountUpdated, object: nil)
 
-        print("✅ [DhikrService] Midnight reset complete - new day started")
     }
     
     // MARK: - Goals Management
@@ -407,7 +405,6 @@ class DhikrService: ObservableObject {
             let data = try JSONEncoder().encode(goal)
             userDefaults.set(data, forKey: goalsKey)
         } catch {
-            print("❌ [DhikrService] Error saving goals: \(error)")
         }
     }
     
@@ -419,7 +416,6 @@ class DhikrService: ObservableObject {
         do {
             return try JSONDecoder().decode(DhikrGoals.self, from: data)
         } catch {
-            print("❌ [DhikrService] Error loading goals: \(error)")
             return DhikrGoals() // Default goals
         }
     }
@@ -470,7 +466,6 @@ class DhikrService: ObservableObject {
         saveAllEntries(allEntries)
         pendingEntries.removeAll()
 
-        print("✅ [DhikrService] Flushed \(pendingEntries.count) entries to storage")
     }
 
     /// Load all entries from storage

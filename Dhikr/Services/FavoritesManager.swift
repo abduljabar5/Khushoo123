@@ -25,14 +25,11 @@ class FavoritesManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: newFavoritesKey) {
             do {
                 self.favoriteReciters = try JSONDecoder().decode([FavoriteReciterItem].self, from: data)
-                print("✅ [FavoritesManager] Loaded v2 favorites.")
             } catch {
-                print("❌ [FavoritesManager] Failed to decode v2 favorites: \(error). Starting fresh.")
                 self.favoriteReciters = []
             }
         } else {
             // If new format doesn't exist, migrate from old format
-            print("ℹ️ [FavoritesManager] v2 favorites not found. Attempting to migrate from v1.")
             migrateFromOldFormat()
         }
     }
@@ -45,14 +42,11 @@ class FavoritesManager: ObservableObject {
             self.favoriteReciters = oldIdentifiers.map {
                 FavoriteReciterItem(identifier: $0, dateAdded: Date.distantPast)
             }
-            print("✅ [FavoritesManager] Migrated \(oldIdentifiers.count) favorites from v1 to v2.")
             
             // Save in the new format and remove the old key
             saveFavorites()
             UserDefaults.standard.removeObject(forKey: oldFavoritesKey)
-            print("ℹ️ [FavoritesManager] Removed old v1 favorites key.")
         } else {
-            print("ℹ️ [FavoritesManager] No v1 favorites to migrate.")
             self.favoriteReciters = []
         }
     }
@@ -87,11 +81,8 @@ class FavoritesManager: ObservableObject {
 
             if let json = try? JSONSerialization.data(withJSONObject: ["favoriteReciters": favoritesData, "count": favoriteReciters.count], options: .prettyPrinted),
                let jsonString = String(data: json, encoding: .utf8) {
-                print("💾 [FavoritesManager] Favorite Reciters - Data Saved:")
-                print(jsonString)
             }
         } catch {
-            print("❌ [FavoritesManager] Failed to encode and save v2 favorites: \(error)")
         }
     }
 } 

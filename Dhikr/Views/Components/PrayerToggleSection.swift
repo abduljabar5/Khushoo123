@@ -170,7 +170,6 @@ private struct PrayerToggleRow: View {
             focusManager: FocusSettingsManager.shared,
             showOverlayWhenEmpty: true,
             onSelectApps: {
-                print("Select apps tapped")
             }
         )
     }

@@ -60,7 +60,6 @@ class SubscriptionService: ObservableObject {
 
         // Load products and check subscription status
         Task { @MainActor in
-            print("🛒 [SubscriptionService] Initializing...")
             await loadProducts()
             await syncSubscriptionStatus()
         }
@@ -82,10 +81,8 @@ class SubscriptionService: ObservableObject {
                 self.currentUserId = user?.uid
 
                 if user != nil {
-                    print("👤 [SubscriptionService] User signed in, syncing subscription...")
                     await self.syncSubscriptionStatus()
                 } else {
-                    print("👤 [SubscriptionService] User signed out, re-checking local subscription...")
                     // Don't clear premium status - check StoreKit for local purchases
                     await self.syncSubscriptionStatus()
                 }
@@ -95,24 +92,18 @@ class SubscriptionService: ObservableObject {
 
     // MARK: - Load Products
     func loadProducts() async {
-        print("🛒 [SubscriptionService] Loading products...")
         do {
             let productIDs = SubscriptionProductID.allCases.map { $0.rawValue }
-            print("🛒 [SubscriptionService] Product IDs: \(productIDs)")
 
             let products = try await Product.products(for: productIDs)
 
             // Sort by price (monthly first, then yearly)
             await MainActor.run {
                 self.availableProducts = products.sorted { $0.price < $1.price }
-                print("✅ [SubscriptionService] Loaded \(products.count) products")
                 for product in products {
-                    print("   - \(product.displayName): \(product.displayPrice)")
                 }
             }
         } catch {
-            print("❌ [SubscriptionService] Failed to load products: \(error)")
-            print("❌ Error details: \(error.localizedDescription)")
         }
     }
 
@@ -149,7 +140,6 @@ class SubscriptionService: ObservableObject {
                     await transaction.finish()
                 }
             } catch {
-                print("❌ [SubscriptionService] Failed to verify transaction: \(error)")
             }
         }
 
@@ -164,7 +154,6 @@ class SubscriptionService: ObservableObject {
                 let firebaseStatus = await loadSubscriptionFromFirebase(userId: userId)
                 if firebaseStatus {
                     isPremiumActive = true
-                    print("✅ [SubscriptionService] Premium status loaded from Firebase")
                 } else {
                     // No active subscription anywhere - mark as cancelled in Firebase
                     await markSubscriptionInactive(userId: userId)
@@ -173,36 +162,30 @@ class SubscriptionService: ObservableObject {
         } else {
             // User not logged in - premium still works via StoreKit
             if isPremiumActive {
-                print("ℹ️ [SubscriptionService] Premium active locally (not synced to Firebase yet)")
             }
         }
 
         let wasPremium = self.isPremium
         self.isPremium = isPremiumActive
-        print("✅ [SubscriptionService] Final premium status: \(isPremiumActive)")
 
         // Sync premium status to App Group UserDefaults for monitor extension
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.set(isPremiumActive, forKey: "isPremiumUser")
             groupDefaults.synchronize()
-            print("📝 [SubscriptionService] Synced premium status to App Group: \(isPremiumActive)")
         }
 
         // Only trigger state change notifications after the initial sync
         if !isInitialSync {
             // If user just became premium, trigger background data fetch
             if isPremiumActive && !wasPremium {
-                print("🎉 [SubscriptionService] User just became premium! Triggering background fetch...")
                 NotificationCenter.default.post(name: NSNotification.Name("UserBecamePremium"), object: nil)
             }
 
             // If user lost premium status, turn off app blocking
             if !isPremiumActive && wasPremium {
-                print("⚠️ [SubscriptionService] User lost premium status - disabling app blocking")
                 NotificationCenter.default.post(name: NSNotification.Name("UserLostPremium"), object: nil)
             }
         } else {
-            print("ℹ️ [SubscriptionService] Initial sync complete - skipping state change notifications")
             isInitialSync = false
         }
     }
@@ -210,11 +193,9 @@ class SubscriptionService: ObservableObject {
     // MARK: - Firebase Sync Methods
     private func syncSubscriptionToFirebase(transaction: StoreKit.Transaction, isActive: Bool) async {
         guard let userId = currentUserId else {
-            print("⚠️ [SubscriptionService] No user signed in, skipping Firebase sync")
             return
         }
 
-        print("📤 [SubscriptionService] Syncing subscription to Firebase...")
 
         let subscriptionData = SubscriptionData(
             productId: transaction.productID,
@@ -232,9 +213,7 @@ class SubscriptionService: ObservableObject {
                 "isPremium": isActive,
                 "subscription": try Firestore.Encoder().encode(subscriptionData)
             ])
-            print("✅ [SubscriptionService] Subscription synced to Firebase")
         } catch {
-            print("❌ [SubscriptionService] Failed to sync to Firebase: \(error)")
         }
     }
 
@@ -250,7 +229,6 @@ class SubscriptionService: ObservableObject {
                 if let expirationDateTimestamp = subscriptionDict["expirationDate"] as? Timestamp {
                     let expirationDate = expirationDateTimestamp.dateValue()
                     if expirationDate < Date() {
-                        print("⚠️ [SubscriptionService] Firebase subscription expired, marking as inactive")
                         await markSubscriptionInactive(userId: userId)
                         return false
                     }
@@ -258,7 +236,6 @@ class SubscriptionService: ObservableObject {
 
                 // Check isActive flag
                 if let isActive = subscriptionDict["isActive"] as? Bool, !isActive {
-                    print("⚠️ [SubscriptionService] Subscription marked as inactive in Firebase")
                     return false
                 }
 
@@ -267,7 +244,6 @@ class SubscriptionService: ObservableObject {
 
             return false
         } catch {
-            print("❌ [SubscriptionService] Failed to load from Firebase: \(error)")
             return false
         }
     }
@@ -287,16 +263,13 @@ class SubscriptionService: ObservableObject {
                     "isPremium": false,
                     "subscription": subscriptionDict
                 ])
-                print("✅ [SubscriptionService] Subscription marked as inactive in Firebase")
             } else {
                 // Just update isPremium if no subscription exists
                 try await db.collection("users").document(userId).updateData([
                     "isPremium": false
                 ])
-                print("✅ [SubscriptionService] Premium status set to false in Firebase")
             }
         } catch {
-            print("❌ [SubscriptionService] Failed to mark subscription inactive: \(error)")
         }
     }
 
@@ -304,7 +277,6 @@ class SubscriptionService: ObservableObject {
     func purchase(_ product: Product) async {
         // Allow purchases without login (will sync to Firebase when user logs in)
         if currentUserId == nil {
-            print("ℹ️ [SubscriptionService] Purchasing without login - will sync when user creates account")
         }
 
         purchaseState = .purchasing
@@ -320,7 +292,6 @@ class SubscriptionService: ObservableObject {
                 if currentUserId != nil {
                     await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
                 } else {
-                    print("ℹ️ [SubscriptionService] Purchase successful - will sync to Firebase when user logs in")
                     // Show post-purchase sign-in prompt to encourage account creation
                     showPostPurchaseSignInPrompt = true
                 }
@@ -332,23 +303,18 @@ class SubscriptionService: ObservableObject {
                 await transaction.finish()
 
                 purchaseState = .success
-                print("✅ [SubscriptionService] Purchase successful: \(product.id)")
 
             case .userCancelled:
                 purchaseState = .idle
-                print("ℹ️ [SubscriptionService] User cancelled purchase")
 
             case .pending:
                 purchaseState = .idle
-                print("⏳ [SubscriptionService] Purchase pending approval")
 
             @unknown default:
                 purchaseState = .idle
-                print("⚠️ [SubscriptionService] Unknown purchase result")
             }
         } catch {
             purchaseState = .failed(error)
-            print("❌ [SubscriptionService] Purchase failed: \(error)")
         }
     }
 
@@ -357,9 +323,7 @@ class SubscriptionService: ObservableObject {
         do {
             try await AppStore.sync()
             await syncSubscriptionStatus()
-            print("✅ [SubscriptionService] Purchases restored and synced")
         } catch {
-            print("❌ [SubscriptionService] Failed to restore purchases: \(error)")
         }
     }
 
@@ -378,7 +342,6 @@ class SubscriptionService: ObservableObject {
                             await transaction.finish()
                         }
                     } catch {
-                        print("❌ [SubscriptionService] Transaction verification failed: \(error)")
                     }
                 }
             }
@@ -403,7 +366,6 @@ class SubscriptionService: ObservableObject {
         purchaseState = .idle
         currentUserId = nil
 
-        print("🧹 [SubscriptionService] Subscription data cleared")
     }
 }
 

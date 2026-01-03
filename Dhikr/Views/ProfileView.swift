@@ -806,7 +806,6 @@ struct ProfileView: View {
                     .padding(.leading, 50)
 
                 Button(action: {
-                    print("Contact support tapped")
                 }) {
                     settingsRow(
                         icon: "envelope.fill",
@@ -825,7 +824,6 @@ struct ProfileView: View {
                     .padding(.leading, 50)
 
                 Button(action: {
-                    print("Rate us tapped")
                 }) {
                     settingsRow(
                         icon: "star.fill",
@@ -1154,9 +1152,7 @@ struct ProfileView: View {
 
             notificationCenter.add(request) { error in
                 if let error = error {
-                    print("❌ Failed to schedule dhikr reminder: \(error)")
                 } else {
-                    print("✅ Scheduled dhikr reminder at \(time.hour):\(time.minute)")
                 }
             }
         }
@@ -1166,7 +1162,6 @@ struct ProfileView: View {
         let notificationCenter = UNUserNotificationCenter.current()
         let identifiers = ["dhikr_reminder_0", "dhikr_reminder_1", "dhikr_reminder_2"]
         notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
-        print("🗑️ Cleared dhikr reminders")
     }
 
     // Helper to get first name for personalization
@@ -1186,17 +1181,13 @@ struct ProfileView: View {
     // MARK: - Account Deletion
     private func deleteAccount() async {
         do {
-            print("🗑️ [ProfileView] Starting account deletion...")
 
             // Delete account from Firebase (Auth and Firestore only)
             // Local data (dhikr counts, streaks, etc.) is preserved
             try await authService.deleteAccount()
 
-            print("✅ [ProfileView] Account deleted successfully")
-            print("ℹ️ [ProfileView] Local data (dhikr progress, streaks) preserved")
 
         } catch {
-            print("❌ [ProfileView] Failed to delete account: \(error)")
 
             // Handle re-authentication error
             if let authError = error as NSError?, authError.domain == "FIRAuthErrorDomain" {

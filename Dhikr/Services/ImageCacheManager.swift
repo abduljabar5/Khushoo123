@@ -32,7 +32,6 @@ class ImageCacheManager {
         let downloader = ImageDownloader.default
         downloader.downloadTimeout = 10.0 // 10 second timeout
 
-        print("🖼️ [ImageCacheManager] Configured with 50MB memory, 200MB disk cache")
     }
     
     // MARK: - Optimized Image Loading Options
@@ -71,12 +70,10 @@ class ImageCacheManager {
     // MARK: - Memory Management
     func clearMemoryCache() {
         ImageCache.default.clearMemoryCache()
-        print("🧹 [ImageCacheManager] Memory cache cleared")
     }
     
     func clearExpiredDiskCache() {
         ImageCache.default.cleanExpiredDiskCache { 
-            print("🧹 [ImageCacheManager] Expired disk cache cleaned")
         }
     }
     

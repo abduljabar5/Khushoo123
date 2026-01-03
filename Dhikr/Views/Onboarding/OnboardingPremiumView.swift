@@ -124,7 +124,6 @@ struct OnboardingPremiumView: View {
                 VStack(spacing: 16) {
                     // Primary: Start Trial
                     Button(action: {
-                        print("[Premium] Start trial tapped")
                         Task {
                             await purchaseSelectedProduct()
                         }
@@ -160,7 +159,6 @@ struct OnboardingPremiumView: View {
 
                     // Secondary: Continue without Premium
                     Button(action: {
-                        print("[Premium] Continued without premium")
                         onContinueWithoutPremium()
                     }) {
                         Text("Continue without Premium")
@@ -171,7 +169,6 @@ struct OnboardingPremiumView: View {
 
                     // Restore Purchases
                     Button(action: {
-                        print("[Premium] Restore purchases tapped")
                         Task {
                             await subscriptionService.restorePurchases()
                         }
@@ -188,7 +185,6 @@ struct OnboardingPremiumView: View {
                 // Legal Links
                 HStack(spacing: 16) {
                     Button("Terms") {
-                        print("[Premium] Terms tapped")
                         // TODO: Open terms URL
                     }
                     .font(.system(size: 12, weight: .regular))
@@ -198,7 +194,6 @@ struct OnboardingPremiumView: View {
                         .foregroundColor(Color(hex: "CECECE"))
 
                     Button("Privacy") {
-                        print("[Premium] Privacy tapped")
                         // TODO: Open privacy URL
                     }
                     .font(.system(size: 12, weight: .regular))
@@ -217,7 +212,6 @@ struct OnboardingPremiumView: View {
                 },
                 onSkip: {
                     showSignUpPrompt = false
-                    print("[Premium] User skipped account creation")
                     onStartTrial()
                 }
             )
@@ -227,32 +221,24 @@ struct OnboardingPremiumView: View {
                 .environmentObject(authService)
         }
         .onAppear {
-            print("[Onboarding] Premium screen shown")
-            print("[Premium] Current products count: \(subscriptionService.availableProducts.count)")
 
             // Only load if products aren't already loaded
             if subscriptionService.availableProducts.isEmpty {
                 Task {
-                    print("[Premium] Loading products...")
                     await subscriptionService.loadProducts()
 
                     // Check result after loading
                     if subscriptionService.availableProducts.isEmpty {
-                        print("❌ [Premium] Failed to load products - check StoreKit configuration")
-                        print("❌ [Premium] Make sure Xcode scheme has StoreKit Configuration set to Khushoo.storekit")
                     } else {
-                        print("✅ [Premium] Successfully loaded \(subscriptionService.availableProducts.count) products")
                     }
                 }
             } else {
-                print("[Premium] Products already loaded: \(subscriptionService.availableProducts.count)")
             }
         }
     }
 
     private func purchaseSelectedProduct() async {
         guard selectedPlanIndex < subscriptionService.availableProducts.count else {
-            print("[Premium] Invalid plan selection")
             return
         }
 
@@ -265,18 +251,14 @@ struct OnboardingPremiumView: View {
 
         // Check if purchase succeeded
         if subscriptionService.isPremium {
-            print("[Premium] Trial started successfully")
 
             // Prompt to create account if not already authenticated
             if !authService.isAuthenticated {
-                print("[Premium] User not authenticated - prompting to create account")
                 showSignUpPrompt = true
             } else {
-                print("[Premium] User already authenticated")
                 onStartTrial()
             }
         } else {
-            print("[Premium] Purchase did not complete (user cancelled or error)")
         }
     }
 }

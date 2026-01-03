@@ -58,7 +58,6 @@ struct OnboardingPermissionsView: View {
                     description: "For accurate prayer times",
                     status: locationPermissionStatus,
                     action: {
-                        print("[Permissions] Requesting location")
                         locationService.requestLocationPermission()
                     }
                 )
@@ -70,7 +69,6 @@ struct OnboardingPermissionsView: View {
                     description: "Prayer and dhikr reminders",
                     status: notificationService.hasNotificationPermission ? "Enabled" : "Not now",
                     action: {
-                        print("[Permissions] Requesting notifications")
                         Task {
                             await notificationService.requestNotificationPermission()
                         }
@@ -84,12 +82,10 @@ struct OnboardingPermissionsView: View {
                     description: "For prayer-time app blocking",
                     status: screenTimeAuth.isAuthorized ? "Enabled" : "Not now",
                     action: {
-                        print("[Permissions] Requesting Screen Time authorization")
                         Task {
                             do {
                                 try await screenTimeAuth.requestAuthorization()
                             } catch {
-                                print("❌ [Permissions] Screen Time authorization failed: \(error)")
                             }
                         }
                     }
@@ -119,7 +115,6 @@ struct OnboardingPermissionsView: View {
                     return
                 }
 
-                print("[Permissions] Current statuses - Location: \(locationPermissionStatus), Notifications: \(notificationService.hasNotificationPermission ? "Enabled" : "Not now"), Screen Time: \(screenTimeAuth.isAuthorized ? "Enabled" : "Not now")")
                 onContinue()
             }) {
                 Text(hasLocationPermission ? "Continue to App" : "Enable Location to Continue")
@@ -149,7 +144,6 @@ struct OnboardingPermissionsView: View {
             .padding(.bottom, 48)
         }
         .onAppear {
-            print("[Onboarding] Permissions screen shown")
         }
         .alert("Location Permission Required", isPresented: $showLocationAlert) {
             Button("Enable Location", role: .none) {

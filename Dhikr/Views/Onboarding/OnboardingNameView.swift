@@ -145,7 +145,6 @@ struct OnboardingNameView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 isNameFieldFocused = true
             }
-            print("[Onboarding] Name screen shown")
         }
     }
 
@@ -153,7 +152,6 @@ struct OnboardingNameView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isNameValid else { return }
 
-        print("[Onboarding] Name - Continue tapped with name: \(trimmedName)")
         isNameFieldFocused = false
         onContinue(trimmedName)
     }
@@ -161,6 +159,5 @@ struct OnboardingNameView: View {
 
 #Preview {
     OnboardingNameView(onContinue: { name in
-        print("Name: \(name)")
     })
 }

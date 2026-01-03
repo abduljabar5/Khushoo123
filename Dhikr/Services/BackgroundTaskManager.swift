@@ -74,7 +74,6 @@ actor BackgroundTaskManager {
             case .success:
                 completion()
             case .failure(let error):
-                print("❌ [BackgroundTaskManager] Background processing failed: \(error)")
                 completion()
             }
         }

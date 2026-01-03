@@ -49,7 +49,6 @@ struct DhikrProvider: TimelineProvider {
     private func loadDhikrData() -> DhikrData {
         // Use standard UserDefaults for now since App Groups aren't working
         let userDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") ?? .standard
-        print("Widget: Using UserDefaults suite: \(userDefaults)")
         
         // Get current dhikr count
         let dhikrCountKey = "dhikrCount"
@@ -60,19 +59,13 @@ struct DhikrProvider: TimelineProvider {
             do {
                 let dhikrCount = try JSONDecoder().decode(DhikrCount.self, from: data)
                 todayCount = dhikrCount.totalCount
-                print("Widget: Loaded dhikr count from UserDefaults: \(todayCount)")
-                print("Widget: Breakdown - SubhanAllah: \(dhikrCount.subhanAllah), Alhamdulillah: \(dhikrCount.alhamdulillah), Astaghfirullah: \(dhikrCount.astaghfirullah)")
             } catch {
-                print("Widget: Failed to decode dhikr count: \(error)")
-                print("Widget: Raw data: \(String(data: data, encoding: .utf8) ?? "nil")")
             }
         } else {
-            print("Widget: No dhikr count data found in UserDefaults")
         }
         
         // Get daily streak
         let streak = userDefaults.integer(forKey: "streak")
-        print("Widget: Loaded streak: \(streak)")
 
         // Get daily goal from goals
         var dailyGoal = 99 // Default
@@ -80,16 +73,13 @@ struct DhikrProvider: TimelineProvider {
             do {
                 let goals = try JSONDecoder().decode(DhikrGoals.self, from: goalsData)
                 dailyGoal = goals.totalDailyGoal
-                print("Widget: Loaded daily goal: \(dailyGoal)")
             } catch {
-                print("Widget: Failed to decode goals: \(error)")
             }
         }
 
         // Get highest streak (personal best)
         var highestStreak = userDefaults.integer(forKey: "highestStreak")
         if highestStreak == 0 { highestStreak = max(streak, 1) } // Use current if no best recorded, minimum 1
-        print("Widget: Loaded highest streak: \(highestStreak)")
 
         // Get last three days data
         let lastThreeDays = getLastThreeDaysData(userDefaults: userDefaults)
@@ -102,7 +92,6 @@ struct DhikrProvider: TimelineProvider {
             highestStreak: highestStreak
         )
         
-        print("Widget: Final data - Today: \(result.todayCount), Streak: \(result.streak), Days: \(result.lastThreeDays.map { "\($0.day): \($0.count)" })")
         
         return result
     }
@@ -119,9 +108,7 @@ struct DhikrProvider: TimelineProvider {
         if let data = userDefaults.data(forKey: dailyStatsKey) {
             do {
                 statsDict = try JSONDecoder().decode([String: DailyDhikrStats].self, from: data)
-                print("Widget: Loaded daily stats from shared UserDefaults")
             } catch {
-                print("Widget: Failed to decode daily stats: \(error)")
             }
         }
 

@@ -43,7 +43,6 @@ class PlayerArtworkViewModel: ObservableObject {
         // Priority 2: If not authenticated, show no artwork
         self.artworkURL = nil
         self.artworkImage = nil
-        print("ℹ️ [PlayerArtworkViewModel] User not authenticated - no artwork shown")
     }
 
     private func fetchFromFirebaseStorage(for surah: Surah) {
@@ -54,12 +53,10 @@ class PlayerArtworkViewModel: ObservableObject {
             if let image = await surahImageService.fetchSurahCover(for: surah.number) {
                 self.artworkImage = image
                 self.artworkURL = nil // Clear URL since we're using direct image
-                print("✅ [PlayerArtworkViewModel] Loaded Firebase surah cover for surah \(surah.number)")
             } else {
                 // Fallback: no artwork for authenticated users if Firebase fetch fails
                 self.artworkImage = nil
                 self.artworkURL = nil
-                print("⚠️ [PlayerArtworkViewModel] Failed to load Firebase cover for surah \(surah.number)")
             }
             self.isLoading = false
         }
@@ -67,11 +64,9 @@ class PlayerArtworkViewModel: ObservableObject {
 
     func forceRefreshArtwork() {
         guard let surah = self.audioPlayerService.currentSurah else {
-            print("❌ [PlayerArtworkViewModel] Could not force refresh, surah not available.")
             return
         }
 
-        print("🔄 [PlayerArtworkViewModel] Forcing refresh for surah: \(surah.englishName)")
 
         // Trigger a new fetch
         fetchArtwork(for: surah)

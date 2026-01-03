@@ -533,7 +533,6 @@ struct MainTabView: View {
                     self.allSurahs = surahs
                 }
             } catch {
-                print("❌ [MainTabView] Failed to load surahs: \(error)")
             }
         }
     }

@@ -118,7 +118,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     private func setupPrayers() {
         // Try to load cached prayer times first for faster startup
         if loadCachedPrayerTimes() {
-            print("📱 Loaded cached prayer times for faster startup")
         } else {
             // Initialize with default prayer times if no cache
             let now = Date()
@@ -177,7 +176,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     func reloadCompletions() {
         let today = dateKey(for: Date())
         if let completed = groupDefaults.array(forKey: "completed_\(today)") as? [String] {
-            print("📥 Reloading prayer completions: \(completed)")
             // Update both today's prayers and current prayers if viewing today
             for i in 0..<todaysPrayers.count {
                 let isCompleted = completed.contains(todaysPrayers[i].name)
@@ -190,7 +188,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             }
             updateProgressPercentage()
         } else {
-            print("📥 No completed prayers found for \(today)")
         }
     }
 
@@ -328,7 +325,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    print("Error fetching future prayer times: \(error)")
                     self.isLoadingFuturePrayers = false
                 }
             }
@@ -369,7 +365,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             // Load completion data for the selected date from shared group defaults
             let dateKeyString = dateKey(for: date)
             if let completed = groupDefaults.array(forKey: "completed_\(dateKeyString)") as? [String] {
-                print("📖 Loaded prayer completions for \(dateKeyString): \(completed)")
                 for i in 0..<prayers.count {
                     prayers[i].isCompleted = completed.contains(prayers[i].name)
                 }
@@ -397,13 +392,11 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     func togglePrayerCompletion(for prayerName: String) {
         // Only allow toggling completion for today's prayers
         guard Calendar.current.isDateInToday(selectedDate) else {
-            print("⚠️ Cannot mark prayers as completed for non-today dates")
             return
         }
 
         // Only allow toggling if prayer has passed or is currently active
         guard isPrayerPassed(prayerName) || prayerName == currentPrayer?.name else {
-            print("⚠️ Cannot mark future prayers as completed")
             return
         }
 
@@ -428,7 +421,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             }
 
             groupDefaults.set(completed, forKey: "completed_\(today)")
-            print("💾 Saved prayer completions to shared group defaults for \(today): \(completed)")
 
             // Reload widgets to reflect the change
             WidgetCenter.shared.reloadAllTimelines()
@@ -573,9 +565,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             UserDefaults.standard.set(prayerData, forKey: cacheKey)
             UserDefaults.standard.set(locationData, forKey: locationCacheKey)
 
-            print("📦 Cached prayer times for \(today)")
         } catch {
-            print("❌ Failed to cache prayer times: \(error)")
         }
     }
 
@@ -612,7 +602,6 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                     self.clearOldCache()
                 }
             } catch {
-                print("Error fetching prayer times: \(error)")
             }
         }
     }
@@ -633,16 +622,13 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                     let currentTimes = self.prayers.map { $0.time }
 
                     if newTimes != currentTimes {
-                        print("🔄 Updated prayer times in background")
                         self.updatePrayerTimesFromAPI(timings)
                         self.cachePrayerTimes()
                     } else {
-                        print("✅ Prayer times are up to date")
                     }
                     self.clearOldCache()
                 }
             } catch {
-                print("Error fetching prayer times in background: \(error)")
             }
         }
     }

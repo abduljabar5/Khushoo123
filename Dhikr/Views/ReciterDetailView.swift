@@ -165,7 +165,6 @@ struct ReciterDetailView: View {
                     self.isLoading = false
                 }
             } catch {
-                print("Error loading surahs: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                 }

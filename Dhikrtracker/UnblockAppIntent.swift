@@ -25,7 +25,6 @@ struct UnblockAppIntent: AppIntent {
         let isStrictMode = groupDefaults.bool(forKey: "focusStrictMode")
         if isStrictMode {
             // In strict mode, widgets cannot unblock - user must open app and use voice confirmation
-            print("⚠️ [Widget] Cannot unblock in strict mode - voice confirmation required")
             return .result()
         }
 
@@ -61,7 +60,6 @@ struct UnblockAppIntent: AppIntent {
             // Also clear the availability timestamp so the widget resets
             groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
 
-            print("✅ [Widget] Apps unlocked via early unlock")
         }
 
         // 3. Refresh Widget

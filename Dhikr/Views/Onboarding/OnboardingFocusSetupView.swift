@@ -234,8 +234,6 @@ struct OnboardingFocusSetupView: View {
                             return
                         }
 
-                        print("[Onboarding] FocusSetup - Saving selections")
-                        print("[FocusSetup] Saved - Fajr=\(focusManager.selectedFajr), Dhuhr=\(focusManager.selectedDhuhr), Asr=\(focusManager.selectedAsr), Maghrib=\(focusManager.selectedMaghrib), Isha=\(focusManager.selectedIsha), Duration=\(focusManager.blockingDuration)")
 
                         // Force immediate save of app selection before continuing
                         AppSelectionModel.shared.forceSave()
@@ -273,7 +271,6 @@ struct OnboardingFocusSetupView: View {
         }
         .familyActivityPicker(isPresented: $showAppPicker, selection: $selection)
         .onChange(of: selection) { newSelection in
-            print("[FocusSetup] Apps selected: \(selectedAppsCount)")
             // Save selection immediately - AppSelectionModel handles the save
             AppSelectionModel.shared.selection = newSelection
             // Notify FocusSettingsManager that app selection changed
@@ -283,10 +280,8 @@ struct OnboardingFocusSetupView: View {
             // Load existing selection if any
             let savedSelection = AppSelectionModel.shared.selection
             selection = savedSelection
-            print("[FocusSetup] Loaded saved app selection: \(selectedAppsCount) items")
         }
         .onAppear {
-            print("[Onboarding] FocusSetup screen shown")
         }
         .alert("Complete Setup Required", isPresented: $showIncompleteAlert) {
             Button("OK", role: .cancel) { }

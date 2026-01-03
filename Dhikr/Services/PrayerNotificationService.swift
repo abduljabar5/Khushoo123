@@ -50,14 +50,11 @@ class PrayerNotificationService: ObservableObject {
             }
 
             if granted {
-                print("✅ [Notifications] Permission granted")
             } else {
-                print("❌ [Notifications] Permission denied")
             }
 
             return granted
         } catch {
-            print("❌ [Notifications] Permission request failed: \(error)")
             await MainActor.run {
                 self.isRequestingPermission = false
             }
@@ -74,7 +71,6 @@ class PrayerNotificationService: ObservableObject {
         minutesBefore: Int = 5
     ) {
         guard isEnabled && hasNotificationPermission else {
-            print("📱 [Notifications] Skipping - notifications disabled or no permission")
             return
         }
 
@@ -87,7 +83,6 @@ class PrayerNotificationService: ObservableObject {
         }
 
         guard !futurePrayers.isEmpty else {
-            print("📱 [Notifications] No future prayers to schedule notifications for")
             return
         }
 
@@ -132,9 +127,7 @@ class PrayerNotificationService: ObservableObject {
             // Schedule notification
             notificationCenter.add(request) { error in
                 if let error = error {
-                    print("❌ [Notifications] Failed to schedule \(prayer.name) reminder: \(error)")
                 } else {
-                    print("📅 [Notifications] Scheduled \(prayer.name) reminder for \(formatter.string(from: reminderTime))")
                 }
             }
 
@@ -146,7 +139,6 @@ class PrayerNotificationService: ObservableObject {
             }
         }
 
-        print("📱 [Notifications] Scheduled \(scheduledCount) pre-prayer reminders")
     }
 
     func clearPrePrayerNotifications() {
@@ -159,14 +151,12 @@ class PrayerNotificationService: ObservableObject {
 
             if !identifiersToRemove.isEmpty {
                 self?.notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
-                print("🗑️ [Notifications] Cleared \(identifiersToRemove.count) pending pre-prayer notifications")
             }
         }
     }
 
     func clearAllNotifications() {
         notificationCenter.removeAllPendingNotificationRequests()
-        print("🗑️ [Notifications] Cleared all pending notifications")
     }
 
     // MARK: - Helper Methods

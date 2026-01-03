@@ -85,7 +85,6 @@ struct OnboardingWelcomeView: View {
             VStack(spacing: 16) {
                 // Primary: Continue
                 Button(action: {
-                    print("[Onboarding] Welcome - Continue tapped")
                     onContinue()
                 }) {
                     Text("Continue")
@@ -109,7 +108,6 @@ struct OnboardingWelcomeView: View {
             .padding(.bottom, 48)
         }
         .onAppear {
-            print("[Onboarding] Welcome screen shown")
         }
     }
 }

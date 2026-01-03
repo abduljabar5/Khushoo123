@@ -140,13 +140,11 @@ class BlockingStateService: ObservableObject {
         
         // Detect state mismatch
         if appsBlocked != hasRestrictions {
-            print("⚠️ State mismatch detected: appsActuallyBlocked=\(appsBlocked), hasRestrictions=\(hasRestrictions)")
             
             // Trust the ManagedSettings state as ground truth
             if hasRestrictions {
                 groupDefaults.set(true, forKey: "appsActuallyBlocked")
                 appsActuallyBlocked = true
-                print("🔧 Recovery: Set appsActuallyBlocked=true based on active restrictions")
             } else {
                 groupDefaults.set(false, forKey: "appsActuallyBlocked")
                 appsActuallyBlocked = false
@@ -155,7 +153,6 @@ class BlockingStateService: ObservableObject {
                 groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
                 blockingStartTime = nil
                 earlyUnlockAvailableAt = nil
-                print("🔧 Recovery: Cleared blocking state - no active restrictions found")
             }
         }
     }
@@ -241,7 +238,6 @@ class BlockingStateService: ObservableObject {
             lines.append(" • activity=\(raw) | prayer=\(nameStr) | start=\(startStr) | end=\(endStr)")
         }
         let signature = lines.joined(separator: "\n")
-        print("📡 [\(tsNow)] Currently monitored (from monitor):\n\(signature)")
 
         // If we have no prayer schedules, we cannot compute active windows; bail after logging
         guard !prayerSchedules.isEmpty else {
@@ -551,7 +547,6 @@ class BlockingStateService: ObservableObject {
                 for prayerName in prayersToMark {
                     if !completed.contains(prayerName) && prayerName != "Sunrise" {
                         completed.append(prayerName)
-                        print("🕌 Marking \(prayerName) as completed (strict mode bulk completion)")
                     }
                 }
             }
@@ -559,7 +554,6 @@ class BlockingStateService: ObservableObject {
             // Regular mode: only mark the current prayer as completed
             if !currentPrayerName.isEmpty && currentPrayerName != "Sunrise" && !completed.contains(currentPrayerName) {
                 completed.append(currentPrayerName)
-                print("🕌 Marking \(currentPrayerName) as completed (Wallahi confirmation)")
             }
         }
 
@@ -656,7 +650,6 @@ class BlockingStateService: ObservableObject {
         if !completed.contains(currentPrayerName) {
             completed.append(currentPrayerName)
             groupDefaults.set(completed, forKey: completedKey)
-            print("🕌 Marking \(currentPrayerName) as completed (early unlock)")
 
             // Post notification to update UI
             NotificationCenter.default.post(name: NSNotification.Name("PrayersCompletedUpdated"), object: nil)

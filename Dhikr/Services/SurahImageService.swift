@@ -18,7 +18,6 @@ class SurahImageService {
 
     private func setupCacheDirectory() {
         guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            print("❌ [SurahImageService] Could not access documents directory")
             return
         }
 
@@ -28,9 +27,7 @@ class SurahImageService {
         if !fileManager.fileExists(atPath: cacheDir.path) {
             do {
                 try fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-                print("✅ [SurahImageService] Created cache directory at: \(cacheDir.path)")
             } catch {
-                print("❌ [SurahImageService] Failed to create cache directory: \(error)")
             }
         }
 
@@ -45,24 +42,20 @@ class SurahImageService {
     func fetchSurahCover(for surahNumber: Int) async -> UIImage? {
         // Check if user is authenticated
         guard Auth.auth().currentUser != nil else {
-            print("⚠️ [SurahImageService] User not authenticated - cannot fetch surah cover")
             return nil
         }
 
         // Validate surah number
         guard surahNumber >= 1 && surahNumber <= 114 else {
-            print("❌ [SurahImageService] Invalid surah number: \(surahNumber)")
             return nil
         }
 
         // Check local cache first
         if let cachedImage = loadFromCache(surahNumber: surahNumber) {
-            print("✅ [SurahImageService] Loaded surah \(surahNumber) cover from cache")
             return cachedImage
         }
 
         // Fetch from Firebase Storage
-        print("🔄 [SurahImageService] Fetching surah \(surahNumber) cover from Firebase Storage")
         return await downloadFromFirebase(surahNumber: surahNumber)
     }
 
@@ -114,18 +107,15 @@ class SurahImageService {
             let data = try await imageRef.data(maxSize: 5 * 1024 * 1024)
 
             guard let image = UIImage(data: data) else {
-                print("❌ [SurahImageService] Failed to create image from data for surah \(surahNumber)")
                 return nil
             }
 
             // Save to cache
             saveToCache(data: data, surahNumber: surahNumber)
 
-            print("✅ [SurahImageService] Downloaded and cached surah \(surahNumber) cover")
             return image
 
         } catch {
-            print("❌ [SurahImageService] Failed to download surah \(surahNumber) cover: \(error.localizedDescription)")
             return nil
         }
     }
@@ -137,9 +127,7 @@ class SurahImageService {
 
         do {
             try data.write(to: filePath)
-            print("✅ [SurahImageService] Saved surah \(surahNumber) cover to cache")
         } catch {
-            print("❌ [SurahImageService] Failed to save surah \(surahNumber) cover to cache: \(error)")
         }
     }
 
@@ -154,9 +142,7 @@ class SurahImageService {
             for file in files {
                 try fileManager.removeItem(at: file)
             }
-            print("✅ [SurahImageService] Cleared all cached images")
         } catch {
-            print("❌ [SurahImageService] Failed to clear cache: \(error)")
         }
     }
 
@@ -172,7 +158,6 @@ class SurahImageService {
             }
             return Double(totalSize) / (1024 * 1024) // Convert to MB
         } catch {
-            print("❌ [SurahImageService] Failed to calculate cache size: \(error)")
             return 0
         }
     }

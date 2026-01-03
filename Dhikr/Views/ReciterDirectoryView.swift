@@ -107,7 +107,6 @@ struct ReciterDirectoryView: View {
         .onReceive(quranAPIService.$reciters) { reciters in
             // Update when global reciters are loaded
             if !reciters.isEmpty && self.allReciters.isEmpty {
-                print("🔄 [ReciterDirectoryView] Global reciters loaded, updating UI")
                 self.allReciters = reciters
                 self.filteredReciters = reciters
                 self.loadInitialBatch()
@@ -156,7 +155,6 @@ struct ReciterDirectoryView: View {
     private func loadData() {
         // Skip loading if not premium (they can't see the content anyway)
         guard subscriptionService.isPremium else {
-            print("🔒 [ReciterDirectoryView] Skipping reciter loading - user is not premium")
             isLoading = false
             return
         }
@@ -166,7 +164,6 @@ struct ReciterDirectoryView: View {
 
         // Check if reciters are already available from the global service
         if !quranAPIService.reciters.isEmpty {
-            print("✅ [ReciterDirectoryView] Using already loaded reciters (\(quranAPIService.reciters.count))")
             self.allReciters = quranAPIService.reciters
             self.filteredReciters = quranAPIService.reciters
             self.loadInitialBatch()
@@ -176,7 +173,6 @@ struct ReciterDirectoryView: View {
 
         // If global loading is in progress, show loading state but don't fetch again
         if quranAPIService.isLoadingReciters {
-            print("⏳ [ReciterDirectoryView] Global loading in progress, waiting...")
             self.isLoading = true
             return
         }
@@ -194,10 +190,8 @@ struct ReciterDirectoryView: View {
                 }
             } catch QuranAPIError.loadingInProgress {
                 // Global loading is in progress - UI will update via publisher
-                print("🔄 [ReciterDirectoryView] Global loading in progress, waiting for publisher update")
                 // Keep loading state, onReceive will handle the update
             } catch {
-                print("Error loading reciters: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                 }
@@ -249,12 +243,10 @@ struct ReciterDirectoryView: View {
         currentBatchIndex = 0
         let endIndex = min(batchSize, filteredReciters.count)
         displayedReciters = Array(filteredReciters[0..<endIndex])
-        print("📦 [ReciterDirectoryView] Loaded initial batch: \(displayedReciters.count) of \(filteredReciters.count)")
     }
 
     private func loadMoreReciters() {
         guard displayedReciters.count < filteredReciters.count else {
-            print("✅ [ReciterDirectoryView] All reciters loaded")
             return
         }
 
@@ -263,7 +255,6 @@ struct ReciterDirectoryView: View {
         let newReciters = Array(filteredReciters[startIndex..<endIndex])
 
         displayedReciters.append(contentsOf: newReciters)
-        print("📦 [ReciterDirectoryView] Loaded more reciters: \(displayedReciters.count) of \(filteredReciters.count)")
     }
 }
 

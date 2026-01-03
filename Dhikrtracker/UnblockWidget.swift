@@ -136,7 +136,6 @@ struct UnblockProvider: TimelineProvider {
                     }
                 }
             } catch {
-                print("Widget: Failed to decode prayer times: \(error)")
             }
         }
         

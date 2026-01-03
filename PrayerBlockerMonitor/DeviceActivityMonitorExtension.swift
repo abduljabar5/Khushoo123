@@ -19,7 +19,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         super.intervalDidStart(for: activity)
 
         let now = Date()
-        print("🔔 [Monitor] Interval started: \(activity.rawValue) at \(now)")
 
         // Parse prayer name from activity name (format: "Prayer_<Name>_<Timestamp>")
         let prayerName = extractPrayerName(from: activity.rawValue)
@@ -30,7 +29,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let selection = AppSelectionModel.getCurrentSelection()
 
         if selection.applicationTokens.isEmpty && selection.categoryTokens.isEmpty && selection.webDomainTokens.isEmpty {
-            print("⚠️ [Monitor] No apps selected for blocking. Nothing to apply.")
             return
         }
 
@@ -39,7 +37,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
         store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
 
-        print("🛡️ [Monitor] Shield applied. Apps: \(selection.applicationTokens.count), Cats: \(selection.categoryTokens.count), Domains: \(selection.webDomainTokens.count)")
 
         // 3. Update State for Main App
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
@@ -67,7 +64,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         super.intervalDidEnd(for: activity)
 
         let now = Date()
-        print("🔕 [Monitor] Interval ended: \(activity.rawValue) at \(now)")
 
         // Check if strict mode is enabled via App Group UserDefaults
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
@@ -76,7 +72,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if strictMode {
             // In strict mode, keep restrictions active until voice confirmation
             groupDefaults?.set(true, forKey: "isWaitingForVoiceConfirmation")
-            print("🎙️ [Monitor] Strict mode: Keeping restrictions active, waiting for voice confirmation")
 
         } else {
             // In normal mode, clear restrictions immediately
@@ -84,7 +79,6 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             groupDefaults?.set(false, forKey: "appsActuallyBlocked")
             groupDefaults?.removeObject(forKey: "currentPrayerName")
             groupDefaults?.synchronize()
-            print("🔓 [Monitor] Restrictions cleared.")
         }
     }
 }

@@ -132,7 +132,6 @@ class FocusSettingsManager: ObservableObject {
         // The DeviceActivityService will check for apps before scheduling.
         // This prevents accidentally clearing prayer selections during app selection changes.
         if !hasApps {
-            print("⚠️ [FocusSettings] No apps selected - prayers will not work until apps are selected")
         }
     }
 
@@ -144,20 +143,16 @@ class FocusSettingsManager: ObservableObject {
 
         hasAppsSelected = hasApps
 
-        print("📱 [FocusSettings] App selection refreshed - hasApps: \(hasApps)")
     }
     
     // MARK: - Public Methods
     
     /// Called when app selection changes (no debounce needed, immediate update)
     func appSelectionChanged() {
-        print("📱 [FocusSettings] App selection changed")
         // Only force reschedule if we are currently blocking to refresh the shield
         if BlockingStateService.shared.isCurrentlyBlocking {
-            print("🔒 [FocusSettings] Currently blocking - forcing immediate shield refresh")
             performUpdate(forceReschedule: true)
         } else {
-            print("ℹ️ [FocusSettings] Not blocking - saving selection only")
             // Just sync to UserDefaults so extension picks it up next time
             syncToUserDefaults()
         }
@@ -178,7 +173,6 @@ class FocusSettingsManager: ObservableObject {
         dirtyNotifications = false
         dirtyMetadata = false
 
-        print("🔄 [FocusSettings] Applying changes (Schedule: \(needsScheduleUpdate), Notif: \(needsNotificationUpdate))")
 
         // 1. Sync to UserDefaults (Main + Group) - Always do this first
         syncToUserDefaults()
@@ -193,7 +187,6 @@ class FocusSettingsManager: ObservableObject {
                 let storage = self.prayerTimeService.loadStorage()
 
                 guard let storage = storage else {
-                    print("⚠️ [FocusSettings] No prayer times in storage - cannot schedule blocking")
                     await MainActor.run {
                         self.isUpdating = false
                     }
@@ -204,7 +197,6 @@ class FocusSettingsManager: ObservableObject {
                 let selected = await self.getSelectedPrayers()
 
                 if forceReschedule {
-                    print("📅 [FocusSettings] Forcing complete reschedule...")
                     // Convert StoredPrayerTime to PrayerTime
                     let prayerTimes = self.parsePrayerTimes(from: storage)
 
@@ -214,7 +206,6 @@ class FocusSettingsManager: ObservableObject {
                         selectedPrayers: selected
                     )
                 } else {
-                    print("📅 [FocusSettings] Updating rolling window...")
                     DeviceActivityService.shared.scheduleRollingWindow(
                         from: storage,
                         duration: duration,
@@ -222,14 +213,12 @@ class FocusSettingsManager: ObservableObject {
                     )
                 }
             } else {
-                print("⏩ [FocusSettings] Skipping schedule update (metadata only)")
             }
             
             // Update Notifications only if needed
             if needsNotificationUpdate {
                 if await self.prayerRemindersEnabled {
                     // Schedule pre-prayer notifications
-                    print("🔔 [FocusSettings] Scheduling pre-prayer notifications...")
                     let storage = self.prayerTimeService.loadStorage()
                     if let storage = storage {
                         let prayerTimes = self.parsePrayerTimes(from: storage)
@@ -248,7 +237,6 @@ class FocusSettingsManager: ObservableObject {
             
             await MainActor.run {
                 self.isUpdating = false
-                print("✅ [FocusSettings] Update complete")
             }
         }
     }
