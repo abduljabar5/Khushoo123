@@ -240,9 +240,16 @@ class QuranAPIService: ObservableObject {
                 return nil
             }
 
+            // Parse the surahList (comma-separated string like "1,2,3,4,5...")
+            let availableSurahs = Set(
+                bestMoshaf.surahList
+                    .split(separator: ",")
+                    .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+            )
+
             // Log if reciter doesn't have complete Quran
-            if bestMoshaf.surahTotal < 114 {
-                print("ℹ️ [QuranAPIService] Including reciter \(mp3Reciter.name) with \(bestMoshaf.surahTotal) surahs")
+            if availableSurahs.count < 114 {
+                print("ℹ️ [QuranAPIService] Including reciter \(mp3Reciter.name) with \(availableSurahs.count) surahs")
             }
 
             return Reciter(
@@ -254,7 +261,8 @@ class QuranAPIService: ObservableObject {
                 reciterId: mp3Reciter.id,
                 country: nil,
                 dialect: nil,
-                artworkURL: nil
+                artworkURL: nil,
+                availableSurahs: availableSurahs
             )
         }
 
