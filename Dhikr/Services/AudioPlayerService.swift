@@ -270,6 +270,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             wasPlayingBeforeInterruption = false
             
         @unknown default:
+            break
         }
     }
     

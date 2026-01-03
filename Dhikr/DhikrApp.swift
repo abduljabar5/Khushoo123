@@ -451,8 +451,9 @@ struct DhikrApp: App {
             }
 
         case .denied, .restricted:
-
+            break
         @unknown default:
+            break
         }
     }
 
