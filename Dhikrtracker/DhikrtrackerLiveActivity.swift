@@ -50,7 +50,7 @@ struct DhikrtrackerLiveActivity: Widget {
             } minimal: {
                 Text(context.state.emoji)
             }
-            .widgetURL(URL(string: "http://www.apple.com"))
+            .widgetURL(URL(string: "khushoo://"))
             .keylineTint(Color.red)
         }
     }

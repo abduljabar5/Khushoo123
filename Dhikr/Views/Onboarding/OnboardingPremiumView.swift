@@ -185,7 +185,9 @@ struct OnboardingPremiumView: View {
                 // Legal Links
                 HStack(spacing: 16) {
                     Button("Terms") {
-                        // TODO: Open terms URL
+                        if let url = URL(string: "https://abduljabar5.github.io/Khushoo_site/#/terms") {
+                            UIApplication.shared.open(url)
+                        }
                     }
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(Color(hex: "CECECE"))
@@ -194,7 +196,9 @@ struct OnboardingPremiumView: View {
                         .foregroundColor(Color(hex: "CECECE"))
 
                     Button("Privacy") {
-                        // TODO: Open privacy URL
+                        if let url = URL(string: "https://abduljabar5.github.io/Khushoo_site/#/privacy") {
+                            UIApplication.shared.open(url)
+                        }
                     }
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(Color(hex: "CECECE"))
