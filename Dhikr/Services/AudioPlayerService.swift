@@ -288,7 +288,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
             
         case .newDeviceAvailable:
-            
+            break
         default:
             break
         }
