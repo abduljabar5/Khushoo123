@@ -98,26 +98,47 @@ struct MainTabView: View {
                 GeometryReader { geometry in
                     let size = geometry.size
                     let safeArea = geometry.safeAreaInsets
+                    let isIPad = UIDevice.current.userInterfaceIdiom == .pad
 
                     ZStack {
                         // Background
                         themeManager.theme.primaryBackground
                             .ignoresSafeArea()
 
-                        VStack(spacing: 10) {
-                            /// Drag Indicator
-                            Capsule()
-                                .fill(.primary.secondary)
-                                .frame(width: 35, height: 3)
-                                .padding(.top, 10)
+                        VStack(spacing: isIPad ? 0 : 10) {
+                            if isIPad {
+                                // iPad: Close button
+                                HStack {
+                                    Button(action: {
+                                        expandMiniPlayer = false
+                                    }) {
+                                        Image(systemName: "chevron.down.circle.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.leading, 20)
 
-                            Spacer()
-                                .frame(height: 80)
+                                    Spacer()
+                                }
+                                .padding(.top, safeArea.top > 0 ? 0 : 20)
+                                .padding(.bottom, 10)
+                            } else {
+                                // iPhone: Drag indicator with spacer
+                                Capsule()
+                                    .fill(.primary.secondary)
+                                    .frame(width: 35, height: 3)
+                                    .padding(.top, 10)
+
+                                Spacer()
+                                    .frame(height: 80)
+                            }
 
                             /// Full Player Controls
                             FullScreenPlayerContentView(size: size, safeArea: safeArea)
 
-                            Spacer()
+                            if !isIPad {
+                                Spacer()
+                            }
                         }
                     }
                     .navigationTransition(.zoom(sourceID: "MINIPLAYER", in: animation))
@@ -243,7 +264,11 @@ struct MainTabView: View {
     // MARK: - Full Screen Player Content
     @ViewBuilder
     func FullScreenPlayerContentView(size: CGSize, safeArea: EdgeInsets) -> some View {
-        VStack(spacing: 24) {
+        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+        // iPhone: original sizing (size.width - 50), iPad: constrained sizing
+        let artworkSize = isIPad ? min(size.width * 0.7, 600) : (size.width - 50)
+
+        VStack(spacing: isIPad ? 20 : 24) {
             // Large Artwork or Surah List with flip animation
             ZStack {
                 // Front side - Artwork
@@ -252,13 +277,13 @@ struct MainTabView: View {
                         Image(uiImage: artwork)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: size.width - 50, height: size.width - 50)
+                            .frame(width: artworkSize, height: artworkSize)
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                             .shadow(radius: 10)
                     } else {
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
                             .fill(.gray.opacity(0.3))
-                            .frame(width: size.width - 50, height: size.width - 50)
+                            .frame(width: artworkSize, height: artworkSize)
                     }
                 }
                 .rotation3DEffect(
@@ -268,13 +293,14 @@ struct MainTabView: View {
                 .opacity(showSurahList ? 0 : 1)
 
                 // Back side - Surah List
-                surahListView(size: size)
+                surahListView(size: size, isIPad: isIPad)
                     .rotation3DEffect(
                         .degrees(showSurahList ? 0 : -180),
                         axis: (x: 0, y: 1, z: 0)
                     )
                     .opacity(showSurahList ? 1 : 0)
             }
+            .frame(width: artworkSize, height: artworkSize)
 
             // Track info with like button
             ZStack {
@@ -328,49 +354,52 @@ struct MainTabView: View {
             .padding(.horizontal)
 
             // Progress slider
-            VStack(spacing: 6) {
+            VStack(spacing: isIPad ? 8 : 6) {
                 Slider(value: Binding(
                     get: { audioPlayerService.currentTime },
                     set: { audioPlayerService.seek(to: $0) }
                 ), in: 0...max(audioPlayerService.duration, 1), step: 1)
                 .tint(.primary)
+                .frame(height: isIPad ? 8 : nil)
 
                 HStack {
                     Text(audioPlayerService.currentTime.formattedTime)
                     Spacer()
                     Text(audioPlayerService.duration.formattedTime)
                 }
-                .font(.caption)
+                .font(isIPad ? .callout : .caption)
                 .foregroundColor(.secondary)
             }
-            .padding(.horizontal, 30)
+            .padding(.horizontal, isIPad ? 60 : 30)
 
             // Playback controls
-            HStack(spacing: 60) {
+            HStack(spacing: isIPad ? 80 : 60) {
                 Button(action: { audioPlayerService.previousTrack() }) {
                     Image(systemName: "backward.fill")
-                        .font(.title)
+                        .font(isIPad ? .largeTitle : .title)
                         .foregroundColor(.primary)
                 }
 
                 Button(action: { audioPlayerService.togglePlayPause() }) {
                     Image(systemName: audioPlayerService.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 72))
+                        .font(.system(size: isIPad ? 80 : 72))
                         .foregroundColor(.primary)
                 }
 
                 Button(action: { audioPlayerService.nextTrack() }) {
                     Image(systemName: "forward.fill")
-                        .font(.title)
+                        .font(isIPad ? .largeTitle : .title)
                         .foregroundColor(.primary)
                 }
             }
+            .padding(.vertical, isIPad ? 20 : 0)
+            .padding(.top, isIPad ? 0 : 10)
 
             // Bottom controls
-            HStack(spacing: 40) {
+            HStack(spacing: isIPad ? 60 : 40) {
                 Button(action: { audioPlayerService.toggleShuffle() }) {
                     Image(systemName: "shuffle")
-                        .font(.body)
+                        .font(isIPad ? .title3 : .body)
                         .foregroundColor(audioPlayerService.isShuffleEnabled ? .accentColor : .secondary)
                 }
 
@@ -378,18 +407,19 @@ struct MainTabView: View {
                 if showSleepTimer {
                     Button(action: { showSleepTimerSheet = true }) {
                         Image(systemName: audioPlayerService.sleepTimeRemaining != nil ? "timer.circle.fill" : "timer.circle")
-                            .font(.body)
+                            .font(isIPad ? .title3 : .body)
                             .foregroundColor(audioPlayerService.sleepTimeRemaining != nil ? .accentColor : .secondary)
                     }
                 }
 
                 Button(action: { audioPlayerService.toggleRepeatMode() }) {
                     Image(systemName: audioPlayerService.repeatMode.icon)
-                        .font(.body)
+                        .font(isIPad ? .title3 : .body)
                         .foregroundColor(audioPlayerService.repeatMode != .off ? .accentColor : .secondary)
                 }
             }
-            .padding(.horizontal, 60)
+            .padding(.horizontal, isIPad ? 80 : 60)
+            .padding(.bottom, isIPad ? 40 : 0)
         }
         .padding(.horizontal, 20)
         .sheet(isPresented: $showSleepTimerSheet) {
@@ -410,7 +440,10 @@ struct MainTabView: View {
     // MARK: - Surah List View
 
     @ViewBuilder
-    private func surahListView(size: CGSize) -> some View {
+    private func surahListView(size: CGSize, isIPad: Bool) -> some View {
+        // iPhone: original sizing (size.width - 50), iPad: constrained sizing
+        let artworkSize = isIPad ? min(size.width * 0.7, 600) : (size.width - 50)
+
         ScrollViewReader { scrollProxy in
             ScrollView {
                 if allSurahs.isEmpty {
@@ -502,7 +535,7 @@ struct MainTabView: View {
                     .padding(.horizontal, 8)
                 }
             }
-            .frame(width: size.width - 50, height: size.width - 50)
+            .frame(width: artworkSize, height: artworkSize)
             .background(
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                     .fill(themeManager.theme.tertiaryBackground.opacity(0.3))

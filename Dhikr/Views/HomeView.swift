@@ -483,101 +483,49 @@ struct HomeView: View {
 
     // MARK: - Featured Main Card
     private func featuredMainCard(reciter: Reciter) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+
+        return ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
-                    KFImage(reciter.artworkURL)
+            KFImage(reciter.artworkURL)
                 .placeholder {
                     ReciterPlaceholder(iconSize: 80)
                 }
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity)
                 .frame(height: 280)
-                        .clipped()
-                        .overlay(
-                            LinearGradient(
-                                colors: [
+                .clipped()
+                .overlay(
+                    LinearGradient(
+                        colors: [
                             Color.black.opacity(0.1),
                             Color.black.opacity(0.8)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-
-            // Top Badges
-            VStack {
-                HStack(spacing: 8) {
-                    // Crown Emoji + #1 Badge
-                    HStack(spacing: 4) {
-                        Text("👑")
-                            .font(.system(size: 12))
-                        Text("#1")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity(0.7))
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
-
-                            Spacer()
-
-                    // Share Button
-                    Button(action: {
-                        // Share action
-                    }) {
-                        Circle()
-                            .fill(Color.black.opacity(0.7))
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.white)
-                            )
-                    }
-
-                    // Favorite Button
-                    Button(action: {
-                        // Favorite action
-                    }) {
-                        Circle()
-                            .fill(Color.black.opacity(0.7))
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Image(systemName: "heart")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.white)
-                            )
-                    }
-                }
-                .padding(12)
-
-                Spacer()
-            }
+                )
 
             // Bottom Info
-                        HStack(alignment: .bottom) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(reciter.englishName)
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(reciter.englishName)
                         .font(.system(size: 22, weight: .bold))
-                                    .foregroundColor(.white)
+                        .foregroundColor(.white)
                         .lineLimit(1)
 
-                                    if let country = reciter.country {
+                    if let country = reciter.country {
                         HStack(spacing: 4) {
-                                        Text(countryFlag(for: country))
+                            Text(countryFlag(for: country))
                                 .font(.system(size: 12))
                             Text(country)
                                 .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.9))
+                                .foregroundColor(.white.opacity(0.9))
                         }
                     }
 
                     HStack(spacing: 12) {
-                        // Follower count
                         HStack(spacing: 4) {
                             Image(systemName: "person.2.fill")
                                 .font(.system(size: 10))
@@ -588,12 +536,8 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.4))
-                        )
+                        .background(Capsule().fill(Color.black.opacity(0.4)))
 
-                        // Track count
                         HStack(spacing: 4) {
                             Image(systemName: "music.note")
                                 .font(.system(size: 10))
@@ -604,26 +548,19 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.4))
-                        )
-                                }
-                            }
+                        .background(Capsule().fill(Color.black.opacity(0.4)))
+                    }
+                }
 
-                            Spacer()
+                Spacer()
 
-                // Play Button
-                            Button(action: {
-                                Task {
-                                    await playRandomSurah(for: reciter)
-                                }
-                            }) {
+                // Play button - only show on iPhone
+                if !isIPad {
                     Circle()
                         .fill(themeManager.theme.primaryAccent)
                         .frame(width: 50, height: 50)
                         .overlay(
-                                    Image(systemName: "play.fill")
+                            Image(systemName: "play.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(.white)
                                 .offset(x: 2)
@@ -635,6 +572,26 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 280)
         .cornerRadius(16)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Task {
+                await playRandomSurah(for: reciter)
+            }
+        }
+        // Top badges
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 4) {
+                Text("👑")
+                    .font(.system(size: 12))
+                Text("#1")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Color.black.opacity(0.7)))
+            .padding(12)
+        }
     }
 
     // MARK: - Featured Main Card Placeholder
@@ -678,7 +635,9 @@ struct HomeView: View {
 
     // MARK: - Featured Small Card
     private func featuredSmallCard(reciter: Reciter, rank: Int) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+
+        return ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
             KFImage(reciter.artworkURL)
                 .placeholder {
@@ -739,7 +698,6 @@ struct HomeView: View {
 
                     // Stats
                     HStack(spacing: 8) {
-                        // Viewer count
                         HStack(spacing: 3) {
                             Image(systemName: "person.2.fill")
                                 .font(.system(size: 8))
@@ -750,12 +708,8 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                    .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.4))
-                        )
+                        .background(Capsule().fill(Color.black.opacity(0.4)))
 
-                        // Surah count
                         HStack(spacing: 3) {
                             Image(systemName: "music.note")
                                 .font(.system(size: 8))
@@ -766,25 +720,18 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.4))
-                        )
+                        .background(Capsule().fill(Color.black.opacity(0.4)))
                     }
                 }
 
                 Spacer()
 
-                // Play Button (Right side)
-                Button(action: {
-                    Task {
-                        await playRandomSurah(for: reciter)
-                    }
-                }) {
+                // Play Button - only show on iPhone
+                if !isIPad {
                     Circle()
                         .fill(themeManager.theme.primaryAccent)
                         .frame(width: 36, height: 36)
-                    .overlay(
+                        .overlay(
                             Image(systemName: "play.fill")
                                 .font(.system(size: 12))
                                 .foregroundColor(.white)
@@ -796,6 +743,12 @@ struct HomeView: View {
         }
         .frame(height: 180)
         .cornerRadius(14)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Task {
+                await playRandomSurah(for: reciter)
+            }
+        }
     }
 
     // MARK: - Featured Small Card Placeholder

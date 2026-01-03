@@ -34,39 +34,38 @@ struct DhikrWidgetView: View {
     private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Title
-                    HStack {
-                        Text("Today's Dhikr")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(theme.primaryText)
-                        Spacer()
+        ScrollView {
+            VStack(spacing: 24) {
+                // Title
+                HStack {
+                    Text("Today's Dhikr")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(theme.primaryText)
+                    Spacer()
 
-                        // Goals button
-                        NavigationLink(destination: DhikrGoalsView()
-                            .environmentObject(dhikrService)
-                            .environmentObject(audioPlayerService)
-                            .environmentObject(bluetoothService)
-                        ) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "target")
-                                    .font(.system(size: 16))
-                                Text("Goals")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundColor(theme.primaryAccent)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(theme.primaryAccent.opacity(0.15))
-                            )
+                    // Goals button
+                    NavigationLink(destination: DhikrGoalsView()
+                        .environmentObject(dhikrService)
+                        .environmentObject(audioPlayerService)
+                        .environmentObject(bluetoothService)
+                    ) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "target")
+                                .font(.system(size: 16))
+                            Text("Goals")
+                                .font(.system(size: 14, weight: .semibold))
                         }
+                        .foregroundColor(theme.primaryAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(theme.primaryAccent.opacity(0.15))
+                        )
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
 
                 // Main count display
                 mainCountDisplay()
@@ -90,8 +89,6 @@ struct DhikrWidgetView: View {
         }
         .background((themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground).ignoresSafeArea())
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
-        .navigationBarHidden(true)
-        }
     }
 
     // MARK: - Main Count Display

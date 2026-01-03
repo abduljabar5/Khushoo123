@@ -45,7 +45,7 @@ struct OnboardingFocusSetupView: View {
     }
 
     private var allStepsComplete: Bool {
-        hasSelectedPrayer && hasSelectedDuration && hasSelectedApps
+        hasSelectedPrayer && hasSelectedDuration
     }
 
     var body: some View {
