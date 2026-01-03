@@ -110,8 +110,8 @@ class SurahImageService {
         let imageRef = storageRef.child("surah-covers/surah-\(surahNumber).jpg")
 
         do {
-            // Download image data (max 2MB - covers should be optimized)
-            let data = try await imageRef.data(maxSize: 2 * 1024 * 1024)
+            // Download image data (max 5MB - allows for high quality covers)
+            let data = try await imageRef.data(maxSize: 5 * 1024 * 1024)
 
             guard let image = UIImage(data: data) else {
                 print("❌ [SurahImageService] Failed to create image from data for surah \(surahNumber)")
