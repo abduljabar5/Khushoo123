@@ -37,16 +37,13 @@ class QuranAPIService: ObservableObject {
         guard !hasLoadedReciters && !isLoadingReciters else { return }
         
         isLoadingReciters = true
-        print("🚀 [QuranAPIService] Preloading reciters globally...")
         
         do {
             let loadedReciters = try await fetchRecitersInternal()
             self.allReciters = loadedReciters
             self.reciters = loadedReciters
             self.hasLoadedReciters = true
-            print("✅ [QuranAPIService] Global reciters preloaded: \(loadedReciters.count)")
         } catch {
-            print("❌ [QuranAPIService] Failed to preload reciters: \(error)")
         }
         
         isLoadingReciters = false
@@ -56,18 +53,15 @@ class QuranAPIService: ObservableObject {
     func fetchReciters() async throws -> [Reciter] {
         // If already loaded, return immediately
         if hasLoadedReciters && !allReciters.isEmpty {
-            print("✅ [QuranAPIService] Returning cached reciters (\(allReciters.count))")
             return allReciters
         }
         
         // If currently loading, throw a specific error to indicate UI should wait for publisher
         if isLoadingReciters {
-            print("⏳ [QuranAPIService] Already loading - UI should use publisher updates")
             throw QuranAPIError.loadingInProgress
         }
         
         // Otherwise, load now
-        print("🔄 [QuranAPIService] Starting fresh load...")
         await preloadReciters()
         if allReciters.isEmpty {
             throw QuranAPIError.networkError
@@ -77,13 +71,10 @@ class QuranAPIService: ObservableObject {
     
     // MARK: - Internal fetch method (does the actual work)
     private func fetchRecitersInternal() async throws -> [Reciter] {
-        print("🔍 [QuranAPIService] Fetching reciters from MP3Quran...")
 
         let reciters = try await fetchMP3QuranReciters()
-        print("✅ [QuranAPIService] Fetched \(reciters.count) reciters from MP3Quran.net")
 
         if reciters.isEmpty {
-            print("❌ [QuranAPIService] Failed to fetch reciters")
             throw QuranAPIError.networkError
         }
 
@@ -217,7 +208,6 @@ class QuranAPIService: ObservableObject {
     }
 
     private func fetchMP3QuranReciters() async throws -> [Reciter] {
-        print("🔍 [QuranAPIService] Fetching reciters from MP3Quran API...")
 
         guard let url = URL(string: "\(mp3QuranBaseURL)/reciters?language=eng") else {
             throw QuranAPIError.invalidURL
@@ -236,13 +226,18 @@ class QuranAPIService: ObservableObject {
             // Get the mushaf with the most surahs available
             // Priority: Complete mushaf (114 surahs), then the one with most surahs
             guard let bestMoshaf = mp3Reciter.moshaf.max(by: { $0.surahTotal < $1.surahTotal }) else {
-                print("⚠️ [QuranAPIService] Skipping reciter \(mp3Reciter.name) - no mushaf found")
                 return nil
             }
 
+            // Parse the surahList (comma-separated string like "1,2,3,4,5...")
+            let availableSurahs = Set(
+                bestMoshaf.surahList
+                    .split(separator: ",")
+                    .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+            )
+
             // Log if reciter doesn't have complete Quran
-            if bestMoshaf.surahTotal < 114 {
-                print("ℹ️ [QuranAPIService] Including reciter \(mp3Reciter.name) with \(bestMoshaf.surahTotal) surahs")
+            if availableSurahs.count < 114 {
             }
 
             return Reciter(
@@ -254,27 +249,24 @@ class QuranAPIService: ObservableObject {
                 reciterId: mp3Reciter.id,
                 country: nil,
                 dialect: nil,
-                artworkURL: nil
+                artworkURL: nil,
+                availableSurahs: availableSurahs
             )
         }
 
         // Sort reciters alphabetically by English name
         let sortedReciters = reciters.sorted { $0.englishName.localizedCaseInsensitiveCompare($1.englishName) == .orderedAscending }
 
-        print("✅ [QuranAPIService] Returning \(sortedReciters.count) reciters (sorted alphabetically)")
         return sortedReciters
     }
     
     // MARK: - Fetch Surahs
     func fetchSurahs() async throws -> [Surah] {
-        print("🔍 [QuranAPIService] Returning hardcoded surahs data...")
-        print("✅ [QuranAPIService] Successfully returned \(hardcodedSurahs.count) surahs")
         return hardcodedSurahs
     }
     
     // MARK: - Construct Audio URL
     func constructAudioURL(surahNumber: Int, reciter: Reciter) async throws -> String {
-        print("▶️ [QuranAPIService] Constructing audio URL for reciter: \(reciter.englishName)")
 
         guard let server = reciter.server else {
             throw QuranAPIError.audioNotFound
@@ -300,50 +292,86 @@ class QuranAPIService: ObservableObject {
                 return httpResponse.statusCode == 200
             }
         } catch {
-            print("❌ [QuranAPIService] Audio URL validation failed for \(audioURL): \(error)")
             return false
         }
         
         return false
     }
     
+    // MARK: - Validated Reciters Cache
+    private var validatedRecitersCache: [Reciter]?
+    private var validatedRecitersCacheDate: Date?
+    private let validatedRecitersCacheMaxAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
+
     // MARK: - Validate Reciter Audio Files
+    /// Validates a single reciter's audio by testing key surahs
+    /// Note: Uses throttling between requests to avoid hammering the server
     func validateReciterAudio(reciter: Reciter) async -> Bool {
         guard let server = reciter.server else {
             return false
         }
-        
-        // Test a few key surahs to ensure the reciter has working audio
-        let testSurahs = [1, 2, 36, 55, 67, 112, 113, 114] // Al-Fatiha, Al-Baqarah, Ya-Sin, Ar-Rahman, Al-Mulk, Al-Ikhlas, Al-Falaq, An-Nas
-        
+
+        // Test only 2 key surahs to minimize requests (Al-Fatiha and Al-Ikhlas)
+        let testSurahs = [1, 112]
+
         for surahNumber in testSurahs {
             let audioURL = "\(server)/\(String(format: "%03d", surahNumber)).mp3"
             let isValid = await isAudioURLValid(audioURL)
             if !isValid {
-                print("❌ [QuranAPIService] Reciter \(reciter.englishName) failed validation for surah \(surahNumber)")
                 return false
             }
+            // Throttle: 200ms between requests
+            try? await Task.sleep(nanoseconds: 200_000_000)
         }
-        
-        print("✅ [QuranAPIService] Reciter \(reciter.englishName) passed audio validation")
+
         return true
     }
-    
+
     // MARK: - Get Validated Reciters
+    /// Fetches and validates reciters with caching to avoid repeated validation
+    /// Warning: This is an expensive operation - use sparingly
     func fetchValidatedReciters() async throws -> [Reciter] {
+        // Return cached data if still valid
+        if let cached = validatedRecitersCache,
+           let cacheDate = validatedRecitersCacheDate,
+           Date().timeIntervalSince(cacheDate) < validatedRecitersCacheMaxAge {
+            return cached
+        }
+
         let allReciters = try await fetchReciters()
-        print("🔍 [QuranAPIService] Validating \(allReciters.count) reciters...")
-        
+
+        // Only validate a sample to avoid excessive requests
+        // Most reciters from MP3Quran.net are valid, so we trust the API
+        let sampleSize = min(allReciters.count, 50)
+        let shuffled = allReciters.shuffled()
+        let sample = Array(shuffled.prefix(sampleSize))
+
         var validatedReciters: [Reciter] = []
-        
-        for reciter in allReciters {
+        var invalidCount = 0
+
+        for reciter in sample {
             let isValid = await validateReciterAudio(reciter: reciter)
             if isValid {
                 validatedReciters.append(reciter)
+            } else {
+                invalidCount += 1
+            }
+
+            // If more than 20% are invalid, something is wrong - stop early
+            if invalidCount > sampleSize / 5 {
+                break
             }
         }
-        
-        print("✅ [QuranAPIService] Found \(validatedReciters.count) validated reciters out of \(allReciters.count) total")
+
+        // If validation passed for most, include all reciters (trust the API)
+        if invalidCount <= sampleSize / 5 {
+            validatedReciters = allReciters
+        }
+
+        // Cache the results
+        validatedRecitersCache = validatedReciters
+        validatedRecitersCacheDate = Date()
+
         return validatedReciters
     }
 } 

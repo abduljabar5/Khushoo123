@@ -124,7 +124,6 @@ struct HomeView: View {
             .onReceive(quranAPIService.$reciters) { reciters in
                 // Update when global reciters are loaded
                 if !reciters.isEmpty && (featuredReciter == nil || popularReciters.isEmpty || soothingReciters.isEmpty) {
-                    print("🔄 [HomeView] Global reciters loaded, updating UI")
                     processReciters(reciters)
                 }
             }
@@ -2457,38 +2456,31 @@ struct HomeView: View {
     
     // MARK: - Data Loading
     private func loadData() {
-        print("🏠 [HomeView] Starting data loading...")
 
         // Load verse of the day
         loadVerseOfTheDay()
         
         // Check if reciters are already available from the service
         if !quranAPIService.reciters.isEmpty {
-            print("🏠 [HomeView] Using already loaded reciters from service: \(quranAPIService.reciters.count)")
             processReciters(quranAPIService.reciters)
             return
         }
         
         // Check if service is currently loading
         if quranAPIService.isLoadingReciters {
-            print("🏠 [HomeView] Service is loading, waiting...")
         }
         
         Task {
             do {
-                print("🏠 [HomeView] Fetching reciters...")
                 let reciters = try await quranAPIService.fetchReciters()
-                print("🏠 [HomeView] Successfully fetched \(reciters.count) reciters")
 
                 await MainActor.run {
                     processReciters(reciters)
                 }
             } catch QuranAPIError.loadingInProgress {
                 // Global loading is in progress - UI will update via publisher
-                print("🔄 [HomeView] Global loading in progress, waiting for publisher update")
                 // Keep loading state, onReceive will handle the update
             } catch {
-                print("❌ [HomeView] Failed to load data: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                 }
@@ -2497,7 +2489,6 @@ struct HomeView: View {
     }
     
     private func processReciters(_ reciters: [Reciter]) {
-        print("🏠 [HomeView] Processing \(reciters.count) reciters...")
                 
         // Filter reciters by English name
                         self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
@@ -2510,7 +2501,6 @@ struct HomeView: View {
         self.thirdReciter = shuffledPopular.dropFirst(2).first ?? reciters.randomElement()
                     
                     self.isLoading = false
-        print("✅ [HomeView] Data loaded and UI updated. Popular: \(popularReciters.count), Soothing: \(soothingReciters.count), Featured: \(featuredReciter?.englishName ?? "none"), #2: \(secondReciter?.englishName ?? "none"), #3: \(thirdReciter?.englishName ?? "none")")
     }
 
     private func loadVerseOfTheDay() {
@@ -2578,7 +2568,6 @@ struct HomeView: View {
                     }
                 }
             } catch {
-                print("❌ [HomeView] Could not play random surah: \(error)")
             }
         }
     }
@@ -2704,10 +2693,8 @@ struct SurahCard: View {
                             audioPlayerService.load(surah: surah, reciter: firstReciter)
                         }
                     } else {
-                        print("❌ [SurahCard] No reciters available")
                     }
                 } catch {
-                    print("❌ [SurahCard] Failed to fetch reciters: \(error)")
                 }
             }
         }) {

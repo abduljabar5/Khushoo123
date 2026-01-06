@@ -12,7 +12,6 @@ struct AppPickerView: View {
             .onDisappear {
                 // When the picker is dismissed, save the selection.
                 // This is a failsafe, as the model also saves on change.
-                print("Picker dismissed, ensuring selection is saved.")
             }
             .navigationTitle("Select Apps to Block")
             .toolbar {

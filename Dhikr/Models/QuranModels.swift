@@ -55,10 +55,55 @@ struct Reciter: Codable, Identifiable, Equatable {
     let country: String?
     let dialect: String?
     let artworkURL: URL?
-    
+    let availableSurahs: Set<Int>  // Surah numbers this reciter has audio for
+
     // For mock data and easier use
     static var mock: Reciter {
-        Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil, country: "Kuwait", dialect: "Hafs", artworkURL: nil)
+        Reciter(identifier: "ar.alafasy", language: "ar", name: "مشاري راشد العفاسي", englishName: "Mishary Rashid Alafasy", server: nil, reciterId: nil, country: "Kuwait", dialect: "Hafs", artworkURL: nil, availableSurahs: Set(1...114))
+    }
+
+    /// Check if reciter has audio for a specific surah
+    func hasSurah(_ surahNumber: Int) -> Bool {
+        return availableSurahs.contains(surahNumber)
+    }
+
+    /// Returns true if reciter has the complete Quran (all 114 surahs)
+    var hasCompleteQuran: Bool {
+        return availableSurahs.count >= 114
+    }
+
+    // Custom decoder for backwards compatibility with stored data
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        identifier = try container.decode(String.self, forKey: .identifier)
+        language = try container.decode(String.self, forKey: .language)
+        name = try container.decode(String.self, forKey: .name)
+        englishName = try container.decode(String.self, forKey: .englishName)
+        server = try container.decodeIfPresent(String.self, forKey: .server)
+        reciterId = try container.decodeIfPresent(Int.self, forKey: .reciterId)
+        country = try container.decodeIfPresent(String.self, forKey: .country)
+        dialect = try container.decodeIfPresent(String.self, forKey: .dialect)
+        artworkURL = try container.decodeIfPresent(URL.self, forKey: .artworkURL)
+        // Default to all 114 surahs for backwards compatibility with stored data
+        availableSurahs = try container.decodeIfPresent(Set<Int>.self, forKey: .availableSurahs) ?? Set(1...114)
+    }
+
+    // Memberwise initializer
+    init(identifier: String, language: String, name: String, englishName: String, server: String?, reciterId: Int?, country: String?, dialect: String?, artworkURL: URL?, availableSurahs: Set<Int> = Set(1...114)) {
+        self.identifier = identifier
+        self.language = language
+        self.name = name
+        self.englishName = englishName
+        self.server = server
+        self.reciterId = reciterId
+        self.country = country
+        self.dialect = dialect
+        self.artworkURL = artworkURL
+        self.availableSurahs = availableSurahs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case identifier, language, name, englishName, server, reciterId, country, dialect, artworkURL, availableSurahs
     }
 }
 

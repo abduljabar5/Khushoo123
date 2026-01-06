@@ -79,7 +79,6 @@ class AudioPlayerService: NSObject, ObservableObject {
     static let shared = AudioPlayerService()
     private override init() {
         super.init()
-        print("🎵 [AudioPlayerService] Initialized")
 
         // Setup audio interruption handling
         setupAudioInterruptionHandling()
@@ -88,9 +87,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         if let data = UserDefaults.standard.data(forKey: likedItemsKey) {
             do {
                 self.likedItems = try JSONDecoder().decode(Set<LikedItem>.self, from: data)
-                print("🎵 [AudioPlayerService] Loaded \(likedItems.count) liked items.")
             } catch {
-                print("❌ [AudioPlayerService] Failed to decode liked items on init: \(error)")
                 self.likedItems = []
             }
         } else {
@@ -102,11 +99,9 @@ class AudioPlayerService: NSObject, ObservableObject {
         if let completedArray = UserDefaults.standard.array(forKey: "completedSurahNumbers") as? [Int] {
             self.completedSurahNumbers = Set(completedArray)
         }
-        print("🎵 [AudioPlayerService] Loaded listening stats: \(Int(totalListeningTime))s total, \(completedSurahNumbers.count) completed surahs")
 
         // Load auto-play setting (default to true)
         self.isAutoplayEnabled = UserDefaults.standard.object(forKey: "autoPlayNextSurah") as? Bool ?? true
-        print("🎵 [AudioPlayerService] Auto-play enabled: \(isAutoplayEnabled)")
 
         // Log all tracking data on app launch
         logAllTrackingData()
@@ -114,7 +109,6 @@ class AudioPlayerService: NSObject, ObservableObject {
 
     // MARK: - Tracking Data Logging
     private func logAllTrackingData() {
-        print("📊 ==================== TRACKING DATA SNAPSHOT (App Launch) ====================")
 
         // Audio Player Tracking Data
         let audioTrackingData: [String: Any] = [
@@ -129,8 +123,6 @@ class AudioPlayerService: NSObject, ObservableObject {
 
         if let audioJSON = try? JSONSerialization.data(withJSONObject: audioTrackingData, options: .prettyPrinted),
            let audioJSONString = String(data: audioJSON, encoding: .utf8) {
-            print("📊 [AudioPlayerService] Tracking Data:")
-            print(audioJSONString)
         }
 
         // Recent Plays
@@ -144,8 +136,6 @@ class AudioPlayerService: NSObject, ObservableObject {
 
         if let recentsJSON = try? JSONSerialization.data(withJSONObject: ["recentPlays": recentPlays], options: .prettyPrinted),
            let recentsJSONString = String(data: recentsJSON, encoding: .utf8) {
-            print("📊 [RecentsManager] Recent Plays (\(recentPlays.count) items):")
-            print(recentsJSONString)
         }
 
         // Favorite Reciters
@@ -158,8 +148,6 @@ class AudioPlayerService: NSObject, ObservableObject {
 
         if let favoritesJSON = try? JSONSerialization.data(withJSONObject: ["favoriteReciters": favoriteReciters], options: .prettyPrinted),
            let favoritesJSONString = String(data: favoritesJSON, encoding: .utf8) {
-            print("📊 [FavoritesManager] Favorite Reciters (\(favoriteReciters.count) items):")
-            print(favoritesJSONString)
         }
 
         // Last Played Info
@@ -172,27 +160,20 @@ class AudioPlayerService: NSObject, ObservableObject {
 
             if let lastPlayedJSON = try? JSONSerialization.data(withJSONObject: ["lastPlayed": lastPlayedData], options: .prettyPrinted),
                let lastPlayedJSONString = String(data: lastPlayedJSON, encoding: .utf8) {
-                print("📊 [AudioPlayerService] Last Played:")
-                print(lastPlayedJSONString)
             }
         } else {
-            print("📊 [AudioPlayerService] Last Played: None")
         }
 
-        print("📊 ============================================================================")
     }
     
     // MARK: - Activation
     func activate() {
-        print("🎵 [AudioPlayerService] Activating audio service...")
         setupAudioSession()
         setupRemoteTransportControls()
         setupDefaultArtwork()
-        print("🎵 [AudioPlayerService] Audio service activated")
     }
     
     func deactivate() {
-        print("🎵 [AudioPlayerService] Deactivating audio service...")
         
         saveLastPlayed()
         // Stop playback
@@ -202,9 +183,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             isAudioSessionActive = false
-            print("🎵 [AudioPlayerService] Audio session deactivated")
         } catch {
-            print("❌ [AudioPlayerService] Failed to deactivate audio session: \(error)")
         }
         
         // Remove remote command targets
@@ -219,12 +198,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
         
-        print("🎵 [AudioPlayerService] Audio service deactivated")
     }
     
     // MARK: - Setup
     private func setupAudioSession() {
-        print("🎵 [AudioPlayerService] Setting up audio session...")
         
         do {
             let audioSession = AVAudioSession.sharedInstance()
@@ -236,21 +213,12 @@ class AudioPlayerService: NSObject, ObservableObject {
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             isAudioSessionActive = true
             
-            print("✅ [AudioPlayerService] Audio session setup successful")
-            print("   - Category: \(audioSession.category)")
-            print("   - Mode: \(audioSession.mode)")
-            print("   - Sample Rate: \(audioSession.sampleRate)")
-            print("   - I/O Buffer Duration: \(audioSession.ioBufferDuration)")
-            print("   - Background Audio: Enabled")
             
         } catch {
-            print("❌ [AudioPlayerService] Failed to setup audio session: \(error)")
-            print("❌ [AudioPlayerService] Error details: \(error.localizedDescription)")
         }
     }
     
     private func setupAudioInterruptionHandling() {
-        print("🎵 [AudioPlayerService] Setting up audio interruption handling...")
         
         NotificationCenter.default.addObserver(
             self,
@@ -266,50 +234,43 @@ class AudioPlayerService: NSObject, ObservableObject {
             object: nil
         )
         
-        print("✅ [AudioPlayerService] Audio interruption handling setup complete")
     }
     
     @objc private func handleAudioSessionInterruption(notification: Notification) {
         guard let info = notification.userInfo,
               let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            print("⚠️ [AudioPlayerService] Invalid interruption notification")
             return
         }
         
         switch type {
         case .began:
-            print("🔇 [AudioPlayerService] Audio interruption began (call incoming)")
             wasPlayingBeforeInterruption = isPlaying
             if isPlaying {
                 pause()
             }
             
         case .ended:
-            print("🔊 [AudioPlayerService] Audio interruption ended (call ended)")
             
             guard let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt else {
-                print("⚠️ [AudioPlayerService] No interruption options provided")
                 return
             }
             
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
             
             if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
-                print("▶️ [AudioPlayerService] Auto-resuming playback after interruption")
                 
                 // Small delay to ensure audio session is ready
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                     self?.play()
                 }
             } else {
-                print("⏸️ [AudioPlayerService] Not resuming - either not suggested by system or wasn't playing before")
             }
             
             wasPlayingBeforeInterruption = false
             
         @unknown default:
-            print("❓ [AudioPlayerService] Unknown interruption type: \(type.rawValue)")
+            break
         }
     }
     
@@ -322,21 +283,18 @@ class AudioPlayerService: NSObject, ObservableObject {
         
         switch reason {
         case .oldDeviceUnavailable:
-            print("🎧 [AudioPlayerService] Audio device disconnected")
             if isPlaying {
                 pause()
             }
             
         case .newDeviceAvailable:
-            print("🎧 [AudioPlayerService] New audio device connected")
-            
+            break
         default:
             break
         }
     }
     
     private func setupRemoteTransportControls() {
-        print("🎵 [AudioPlayerService] Setting up remote transport controls...")
         
         let commandCenter = MPRemoteCommandCenter.shared()
         
@@ -371,12 +329,10 @@ class AudioPlayerService: NSObject, ObservableObject {
             return .success
         }
         
-        print("✅ [AudioPlayerService] Remote transport controls setup complete")
     }
     
     // MARK: - Artwork Setup
     private func setupDefaultArtwork() {
-        print("🎵 [AudioPlayerService] Setting up default artwork...")
         
         // Try to load app icon as artwork
         if let appIcon = UIImage(named: "AppIcon") ?? UIImage(systemName: "book.closed") {
@@ -384,9 +340,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                 return appIcon
             }
             defaultArtwork = artwork
-            print("✅ [AudioPlayerService] Default artwork created successfully")
         } else {
-            print("⚠️ [AudioPlayerService] Could not create default artwork - using system icon")
             // Fallback to a system icon
             if let systemIcon = UIImage(systemName: "music.note", withConfiguration: UIImage.SymbolConfiguration(pointSize: 200)) {
                 let artwork = MPMediaItemArtwork(boundsSize: systemIcon.size) { size in
@@ -461,7 +415,6 @@ class AudioPlayerService: NSObject, ObservableObject {
     /// Loads a specific surah for a specific reciter and starts playback.
     /// This is the primary entry point for starting audio.
     func load(surah: Surah, reciter: Reciter) {
-        print("🎵 [AudioPlayerService] Queued load for Surah: \(surah.englishName), Reciter: \(reciter.englishName)")
         Task {
             await loadAndPlay(surah: surah, reciter: reciter)
         }
@@ -469,21 +422,16 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     func play() {
         if player?.currentItem != nil {
-            print("🎵 [AudioPlayerService] Play requested")
 
             guard let player = player else {
-                print("❌ [AudioPlayerService] No player available")
                 return
             }
 
             // Ensure audio session is active
             if !isAudioSessionActive {
-                print("🎵 [AudioPlayerService] Reactivating audio session for playback")
                 setupAudioSession()
             } else {
-                print("🎵 [AudioPlayerService] Audio session is already active")
             }
-            print("🎵 [AudioPlayerService] Audio session active: \(isAudioSessionActive)")
             player.play()
             isPlaying = true
             hasPlayedOnce = true
@@ -492,25 +440,20 @@ class AudioPlayerService: NSObject, ObservableObject {
             // This ensures accurate time tracking when resuming from pause
             if lastRecordedTime == 0 {
                 lastRecordedTime = currentTime
-                print("🎵 [AudioPlayerService] Initialized time tracking at \(currentTime)s")
             } else {
-                print("🎵 [AudioPlayerService] Resuming time tracking from \(lastRecordedTime)s")
             }
 
             updateNowPlayingInfo()
-            print("✅ [AudioPlayerService] Playback started")
         }
     }
     
     func pause() {
-        print("🎵 [AudioPlayerService] Pause requested")
         
         player?.pause()
         isPlaying = false
         updateNowPlayingInfo()
         saveLastPlayed()
         
-        print("✅ [AudioPlayerService] Playback paused")
     }
     
     func togglePlayPause() {
@@ -522,10 +465,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     func seek(to time: TimeInterval, completion: ((Bool) -> Void)? = nil) {
-        print("🎵 [AudioPlayerService] Seeking to: \(time) seconds")
         
         guard let player = player else {
-            print("❌ [AudioPlayerService] No player available for seeking")
             completion?(false)
             return
         }
@@ -533,11 +474,9 @@ class AudioPlayerService: NSObject, ObservableObject {
         let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         player.seek(to: cmTime) { [weak self] finished in
             if finished {
-                print("✅ [AudioPlayerService] Seek completed to: \(time) seconds")
                 self?.currentTime = time
                 self?.updateNowPlayingInfo()
             } else {
-                print("❌ [AudioPlayerService] Seek failed")
             }
             completion?(finished)
         }
@@ -555,25 +494,20 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Verse Navigation
     func nextVerse() {
-        print("🎵 [AudioPlayerService] Next verse requested")
         
         if repeatMode == .all {
             // Restart from beginning
             loadFullSurahAudio(surah: currentSurah!, reciter: currentReciter!)
         } else {
-            print("🎵 [AudioPlayerService] No next verse available")
         }
     }
     
     func previousVerse() {
-        print("🎵 [AudioPlayerService] Previous verse requested")
         
-        print("🎵 [AudioPlayerService] No previous verse available")
     }
     
     // MARK: - Track Management
     private func loadFullSurahAudio(surah: Surah, reciter: Reciter) {
-        print("🎵 [AudioPlayerService] Loading full surah audio from Quran Foundation API")
         isLoading = true
         isReadyToPlay = false
         
@@ -581,10 +515,8 @@ class AudioPlayerService: NSObject, ObservableObject {
             do {
                 // Get full surah audio URL from Quran Foundation API
                 let audioURLString = try await QuranAPIService.shared.constructAudioURL(surahNumber: surah.number, reciter: reciter)
-                print("🎵 [AudioPlayerService] Got full surah audio URL: \(audioURLString)")
                 
                 guard let url = URL(string: audioURLString) else {
-                    print("❌ [AudioPlayerService] Invalid audio URL: \(audioURLString)")
                     await MainActor.run {
                         self.errorMessage = "Invalid audio URL"
                         self.isLoading = false
@@ -592,7 +524,6 @@ class AudioPlayerService: NSObject, ObservableObject {
                     return
                 }
                 
-                print("❗️❗️❗️ [AudioPlayerService] FINAL URL FOR PLAYER: \(url.absoluteString) ❗️❗️❗️")
                 
                 // Create and configure player
                 let playerItem = AVPlayerItem(url: url)
@@ -618,11 +549,9 @@ class AudioPlayerService: NSObject, ObservableObject {
                     self.setupRemoteTransportControls()
                     self.isLoading = false
                     self.isReadyToPlay = true
-                    print("✅ [AudioPlayerService] Full surah audio loaded successfully")
                 }
                 
             } catch {
-                print("❌ [AudioPlayerService] Failed to load full surah audio: \(error)")
                 await MainActor.run {
                     self.errorMessage = "Failed to load audio: \(error.localizedDescription)"
                     self.isLoading = false
@@ -674,7 +603,6 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     @objc private func playerDidFinishPlaying(note: NSNotification) {
-        print("🎵 [AudioPlayerService] Full surah completed")
         
         if let surah = currentSurah {
             markSurahCompleted(surah)
@@ -702,7 +630,6 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     func nextTrack() {
         guard !currentPlaylist.isEmpty else {
-            print("⚠️ [AudioPlayerService] Cannot go to next track, playlist is empty.")
             return
         }
         
@@ -739,14 +666,12 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.currentSurahIndex = nextIndex
             load(surah: nextSurah, reciter: self.currentReciter!)
         } else {
-            print("🎵 [AudioPlayerService] End of playlist reached.")
             pause() // Or handle as desired
         }
     }
     
     func previousTrack() {
         guard !currentPlaylist.isEmpty, let currentReciter = currentReciter else {
-            print("⚠️ [AudioPlayerService] Cannot go to previous track, playlist or reciter is missing.")
             return
         }
         
@@ -774,7 +699,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.currentSurahIndex = prevIndex
             load(surah: prevSurah, reciter: currentReciter)
         } else {
-            print("🎵 [AudioPlayerService] Beginning of playlist reached.")
             // Seek to the beginning of the current track instead of changing tracks
             seek(to: 0)
         }
@@ -796,14 +720,11 @@ class AudioPlayerService: NSObject, ObservableObject {
     private func handlePlayerItemStatus() {
         guard let playerItem = player?.currentItem else { return }
         
-        print("🎵 [AudioPlayerService] Player item status changed to: \(playerItem.status.rawValue)")
         
         switch playerItem.status {
         case .readyToPlay:
-            print("✅ [AudioPlayerService] Audio ready to play")
             isLoading = false
             duration = playerItem.duration.seconds
-            print("🎵 [AudioPlayerService] Duration: \(duration) seconds")
             
             // Update Now Playing info with duration
             updateNowPlayingInfo()
@@ -814,23 +735,17 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
             
         case .failed:
-            print("❌ [AudioPlayerService] Audio loading failed")
             isLoading = false
             if let error = playerItem.error {
-                print("❌ [AudioPlayerService] Error: \(error.localizedDescription)")
-                print("❌ [AudioPlayerService] Error details: \(error)")
                 errorMessage = error.localizedDescription
             } else {
-                print("❌ [AudioPlayerService] Unknown error occurred")
                 errorMessage = "Failed to load audio"
             }
             
         case .unknown:
-            print("⏳ [AudioPlayerService] Audio status unknown - still loading...")
             break
             
         @unknown default:
-            print("❓ [AudioPlayerService] Unknown player item status")
             break
         }
     }
@@ -841,14 +756,12 @@ class AudioPlayerService: NSObject, ObservableObject {
         let ranges = playerItem.loadedTimeRanges
         if let range = ranges.first {
             let duration = CMTimeGetSeconds(range.timeRangeValue.duration)
-            print("🎵 [AudioPlayerService] Loaded time range: \(duration) seconds")
         }
     }
     
     // MARK: - Now Playing Info
     private func updateNowPlayingInfo() {
         guard let surah = currentSurah, let reciter = currentReciter else { 
-            print("🎵 [AudioPlayerService] No current surah/reciter for Now Playing info")
             return 
         }
         
@@ -875,17 +788,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         
-        print("🎵 [AudioPlayerService] Updated Now Playing: \(surah.englishName) by \(reciter.englishName)")
-        print("   - Title: \(nowPlayingInfo[MPMediaItemPropertyTitle] ?? "Unknown")")
-        print("   - Artist: \(nowPlayingInfo[MPMediaItemPropertyArtist] ?? "Unknown")")
-        print("   - Duration: \(nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] ?? "Unknown")")
-        print("   - Current Time: \(nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] ?? "Unknown")")
-        print("   - Is Playing: \(isPlaying)")
     }
     
     // MARK: - Clear Current Audio
     private func clearCurrentAudio() {
-        print("🎵 [AudioPlayerService] Clearing current audio state...")
         isReadyToPlay = false
 
         // Stop current playback
@@ -907,12 +813,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         // Clear Now Playing info
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
 
-        print("🎵 [AudioPlayerService] Audio state cleared")
     }
     
     // MARK: - Cleanup
     deinit {
-        print("🎵 [AudioPlayerService] Deallocating audio player service")
         if let timeObserver = timeObserver {
             player?.removeTimeObserver(timeObserver)
         }
@@ -932,19 +836,16 @@ class AudioPlayerService: NSObject, ObservableObject {
         } else {
             repeatMode = allModes[0]
         }
-        print("🔁 [AudioPlayerService] Repeat mode is now \(repeatMode.rawValue).")
     }
     
     // MARK: - Load All Surahs (for navigation)
     func loadAllSurahs(_ surahs: [Surah]) {
         allSurahs = surahs.sorted { $0.number < $1.number }
-        print("🎵 [AudioPlayerService] Loaded \(allSurahs.count) surahs for navigation")
     }
     
     // MARK: - Shuffle Functionality
     func toggleShuffle() {
         isShuffleEnabled.toggle()
-        print("🔀 [AudioPlayerService] Shuffle mode is now \(isShuffleEnabled ? "ON" : "OFF").")
         
         if isShuffleEnabled {
             // When enabling shuffle, create a shuffled list of indices from the current playlist
@@ -961,14 +862,11 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Preload Last Played
     func preloadLastPlayed() {
-        print("🎵 [AudioPlayerService] Preloading last played audio in background")
         
         guard let lastPlayedInfo = getLastPlayedInfo() else {
-            print("❌ [AudioPlayerService] No last played data found for preloading")
             return
         }
         
-        print("🎵 [AudioPlayerService] Preloading: \(lastPlayedInfo.surah.englishName) by \(lastPlayedInfo.reciter.englishName)")
         
         Task {
             await preloadAudio(surah: lastPlayedInfo.surah, reciter: lastPlayedInfo.reciter, startTime: lastPlayedInfo.time)
@@ -977,10 +875,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Continue Last Played
     func continueLastPlayed() -> Bool {
-        print("🎵 [AudioPlayerService] Attempting to continue last played")
         
         guard let lastPlayedInfo = getLastPlayedInfo() else {
-            print("❌ [AudioPlayerService] No last played data found")
             return false
         }
         
@@ -988,7 +884,6 @@ class AudioPlayerService: NSObject, ObservableObject {
         if let surah = preloadedSurah, let reciter = preloadedReciter,
            surah.id == lastPlayedInfo.surah.id && reciter.id == lastPlayedInfo.reciter.id,
            isPreloaded && isReadyToPlay {
-            print("✅ [AudioPlayerService] Audio already preloaded, activating and playing immediately")
 
             // Now expose the preloaded audio to the UI
             currentSurah = surah
@@ -1009,14 +904,12 @@ class AudioPlayerService: NSObject, ObservableObject {
                 if completed {
                     self?.play()
                 } else {
-                    print("⚠️ [AudioPlayerService] Seek failed, playing from current position")
                     self?.play()
                 }
             }
             return true
         }
         
-        print("🎵 [AudioPlayerService] Audio not preloaded, loading: \(lastPlayedInfo.surah.englishName) by \(lastPlayedInfo.reciter.englishName) at \(lastPlayedInfo.time)s")
         
         Task {
             await loadAndPlay(surah: lastPlayedInfo.surah, reciter: lastPlayedInfo.reciter, startTime: lastPlayedInfo.time)
@@ -1037,9 +930,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             UserDefaults.standard.set(reciterData, forKey: lastPlayedReciterKey)
             UserDefaults.standard.set(currentTime, forKey: lastPlayedTimeKey)
             
-            print("🎵 [AudioPlayerService] Saved last played: \(surah.englishName) by \(reciter.englishName)")
         } catch {
-            print("❌ [AudioPlayerService] Failed to save last played: \(error)")
         }
     }
     
@@ -1049,7 +940,6 @@ class AudioPlayerService: NSObject, ObservableObject {
         let timeInSeconds = minutes * 60
         self.sleepTimeRemaining = timeInSeconds
         
-        print("⏰ [AudioPlayerService] Sleep timer set for \(minutes) minutes.")
         
         self.sleepTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else {
@@ -1061,7 +951,6 @@ class AudioPlayerService: NSObject, ObservableObject {
                 if remaining > 1 {
                     self.sleepTimeRemaining = remaining - 1
                 } else {
-                    print("⏰ [AudioPlayerService] Sleep timer finished. Pausing playback.")
                     self.pause()
                     self.cancelSleepTimer()
                 }
@@ -1073,7 +962,6 @@ class AudioPlayerService: NSObject, ObservableObject {
         sleepTimer?.invalidate()
         sleepTimer = nil
         sleepTimeRemaining = nil
-        print("⏰ [AudioPlayerService] Sleep timer cancelled.")
     }
     
     // MARK: - Get Last Played Info
@@ -1107,8 +995,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             ]
             if let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
                let jsonString = String(data: json, encoding: .utf8) {
-                print("💾 [AudioPlayerService] Surah Completed - Data Saved:")
-                print(jsonString)
             }
         }
     }
@@ -1127,8 +1013,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             ]
             if let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
                let jsonString = String(data: json, encoding: .utf8) {
-                print("💾 [AudioPlayerService] Listening Time Updated - Data Saved:")
-                print(jsonString)
             }
         }
     }
@@ -1161,32 +1045,31 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Artwork Update
     func updateArtwork(with newImage: UIImage) {
-        print("🖼️ [AudioPlayerService] Updating artwork without reloading player.")
         self.currentArtwork = newImage
         updateNowPlayingInfo()
     }
 
     private func fetchSurahCoverArtwork(for surah: Surah) async {
-        // Only fetch if user is authenticated
-        guard Auth.auth().currentUser != nil else {
+        // Check if user can access premium covers (premium OR authenticated)
+        let isPremium = await MainActor.run { SubscriptionService.shared.isPremium }
+        let isAuthenticated = Auth.auth().currentUser != nil
+
+        guard isPremium || isAuthenticated else {
             await MainActor.run {
                 self.currentArtwork = nil
             }
-            print("ℹ️ [AudioPlayerService] User not authenticated - no artwork shown")
             return
         }
 
-        // Fetch from Firebase Storage
+        // Fetch from Firebase Storage (SurahImageService handles anonymous auth if needed)
         if let image = await SurahImageService.shared.fetchSurahCover(for: surah.number) {
             await MainActor.run {
                 self.currentArtwork = image
-                print("✅ [AudioPlayerService] Loaded surah cover for surah \(surah.number)")
             }
         } else {
             await MainActor.run {
                 self.currentArtwork = nil
             }
-            print("⚠️ [AudioPlayerService] Failed to load surah cover for surah \(surah.number)")
         }
     }
     
@@ -1209,7 +1092,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
         } else {
              await MainActor.run {
-                print("⚠️ [AudioPlayerService] Requested surah not found in the new playlist. Defaulting to first track.")
                 self.currentSurahIndex = 0
             }
         }
@@ -1238,7 +1120,6 @@ class AudioPlayerService: NSObject, ObservableObject {
                 throw QuranAPIError.invalidURL
             }
             
-            print("▶️ [AudioPlayerService] Playing from URL: \(audioURL.absoluteString)")
             
             let playerItem = AVPlayerItem(url: audioURL)
             
@@ -1256,13 +1137,10 @@ class AudioPlayerService: NSObject, ObservableObject {
                     self.duration = item.duration.seconds
                     
                     if let time = startTime {
-                        print("🎵 [AudioPlayerService] Seeking to last played time: \(time)s")
                         self.seek(to: time) { [weak self] completed in
                             if completed {
-                                print("✅ [AudioPlayerService] Seek completed, starting playback")
                                 self?.play()
                             } else {
-                                print("⚠️ [AudioPlayerService] Seek failed, starting from beginning")
                                 self?.play()
                             }
                     }
@@ -1270,9 +1148,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                         self.play() // Start playing immediately if no seek needed
                     }
                     
-                    print("✅ [AudioPlayerService] Player item is ready to play.")
                 } else if item.status == .failed {
-                    print("❌ [AudioPlayerService] Player item failed to load.")
                     self.errorMessage = "Failed to load audio."
                 }
             }
@@ -1297,7 +1173,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             
         } catch {
             let errorDescription = "Error loading audio: \(error.localizedDescription)"
-            print("❌ [AudioPlayerService] \(errorDescription)")
             await MainActor.run {
                 self.errorMessage = errorDescription
             }
@@ -1310,7 +1185,6 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Preload Audio (without playing)
     private func preloadAudio(surah: Surah, reciter: Reciter, startTime: TimeInterval? = nil) async {
-        print("🎵 [AudioPlayerService] Preloading audio: \(surah.englishName) by \(reciter.englishName)")
         
         await MainActor.run {
             self.isLoading = true
@@ -1330,7 +1204,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
         } else {
              await MainActor.run {
-                print("⚠️ [AudioPlayerService] Requested surah not found in the new playlist. Defaulting to first track.")
                 self.currentSurahIndex = 0
                          }
         }
@@ -1353,7 +1226,6 @@ class AudioPlayerService: NSObject, ObservableObject {
                 throw QuranAPIError.invalidURL
             }
             
-            print("🔄 [AudioPlayerService] Preloading from URL: \(audioURL.absoluteString)")
             
             let playerItem = AVPlayerItem(url: audioURL)
             
@@ -1371,19 +1243,14 @@ class AudioPlayerService: NSObject, ObservableObject {
                     self.duration = item.duration.seconds
                     
                     if let time = startTime {
-                        print("🎵 [AudioPlayerService] Preloading: seeking to saved position: \(time)s")
                         self.seek(to: time) { completed in
                             if completed {
-                                print("✅ [AudioPlayerService] Preload seek completed, ready for instant play")
                             } else {
-                                print("⚠️ [AudioPlayerService] Preload seek failed")
                             }
                         }
                     }
                     
-                    print("✅ [AudioPlayerService] Audio preloaded and ready for instant playback")
                 } else if item.status == .failed {
-                    print("❌ [AudioPlayerService] Failed to preload audio")
                     self.errorMessage = "Failed to preload audio."
                 }
             }
@@ -1404,7 +1271,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             
         } catch {
             let errorDescription = "Error preloading audio: \(error.localizedDescription)"
-            print("❌ [AudioPlayerService] \(errorDescription)")
             await MainActor.run {
                 self.errorMessage = errorDescription
             }
@@ -1417,18 +1283,15 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Playlist Management
     private func buildPlaylist(for reciter: Reciter) async {
-        print("🏗️ [AudioPlayerService] Building playlist for reciter: \(reciter.englishName)")
 
         // Fetch all 114 surahs to serve as the playlist
         guard let allSurahs = try? await QuranAPIService.shared.fetchSurahs() else {
-            print("❌ [AudioPlayerService] Could not fetch master surah list to build playlist.")
             await MainActor.run {
                 self.currentPlaylist = []
             }
             return
         }
 
-        print("✅ [AudioPlayerService] Building playlist with all 114 surahs for reciter.")
 
         await MainActor.run {
             self.currentPlaylist = allSurahs
@@ -1453,10 +1316,8 @@ class AudioPlayerService: NSObject, ObservableObject {
         
         if likedItems.contains(item) {
             likedItems.remove(item)
-            print("💔 [AudioPlayerService] Unliked: Surah \(surahNumber) by \(reciterIdentifier)")
         } else {
             likedItems.insert(item)
-            print("❤️ [AudioPlayerService] Liked: Surah \(surahNumber) by \(reciterIdentifier)")
         }
         
         saveLikedItems()
@@ -1478,11 +1339,8 @@ class AudioPlayerService: NSObject, ObservableObject {
 
             if let json = try? JSONSerialization.data(withJSONObject: ["likedItems": likedData, "count": likedItems.count], options: .prettyPrinted),
                let jsonString = String(data: json, encoding: .utf8) {
-                print("💾 [AudioPlayerService] Liked Items - Data Saved:")
-                print(jsonString)
             }
         } catch {
-            print("❌ [AudioPlayerService] Failed to encode liked items: \(error)")
         }
     }
 } 

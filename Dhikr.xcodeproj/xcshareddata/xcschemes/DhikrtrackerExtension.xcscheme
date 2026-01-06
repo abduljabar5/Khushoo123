@@ -31,8 +31,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "81254FCF2E07941E0035AD52"
-               BuildableName = "Kushoo.app"
-               BlueprintName = "Kushoo"
+               BuildableName = "Khushoo.app"
+               BlueprintName = "Khushoo"
                ReferencedContainer = "container:Dhikr.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -72,8 +72,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "81254FCF2E07941E0035AD52"
-            BuildableName = "Kushoo.app"
-            BlueprintName = "Kushoo"
+            BuildableName = "Khushoo.app"
+            BlueprintName = "Khushoo"
             ReferencedContainer = "container:Dhikr.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
@@ -108,8 +108,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "81254FCF2E07941E0035AD52"
-            BuildableName = "Kushoo.app"
-            BlueprintName = "Kushoo"
+            BuildableName = "Khushoo.app"
+            BlueprintName = "Khushoo"
             ReferencedContainer = "container:Dhikr.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

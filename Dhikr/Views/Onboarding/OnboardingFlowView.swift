@@ -16,11 +16,14 @@ struct OnboardingFlowView: View {
     @StateObject private var subscriptionService = SubscriptionService.shared
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
+    @StateObject private var themeManager = ThemeManager.shared
 
     @State private var currentPage = 0
     @State private var isCompact: Bool = false // For Settings re-entry
     @State private var userName: String = ""
     @State private var isSchedulingBlocking = false
+
+    private var theme: AppTheme { themeManager.theme }
 
     init(compact: Bool = false) {
         _isCompact = State(initialValue: compact)
@@ -28,7 +31,7 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "F8F9FA")
+            theme.primaryBackground
                 .ignoresSafeArea()
 
             TabView(selection: $currentPage) {
@@ -98,18 +101,17 @@ struct OnboardingFlowView: View {
                     .padding(32)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(hex: "2C3E50"))
+                            .fill(theme.cardBackground)
                     )
                 }
             }
         }
+        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
         .onAppear {
-            print("[Onboarding] Flow started - compact=\(isCompact)")
         }
     }
 
     private func completeOnboarding() {
-        print("[Onboarding] Completing onboarding")
 
         // Schedule prayer blocking if user configured it during onboarding
         Task {
@@ -155,11 +157,9 @@ struct OnboardingFlowView: View {
 
     /// Schedule prayer blocking based on settings saved in onboarding
     private func scheduleBlockingFromOnboardingSettings() async {
-        print("🔄 [Onboarding] Checking if prayer blocking should be scheduled...")
 
         // 1. Check if user is premium (required for focus blocking)
         guard subscriptionService.isPremium else {
-            print("ℹ️ [Onboarding] User is not premium - skipping prayer blocking schedule")
             return
         }
 
@@ -176,7 +176,6 @@ struct OnboardingFlowView: View {
         let anyPrayerSelected = selectedFajr || selectedDhuhr || selectedAsr || selectedMaghrib || selectedIsha
 
         guard anyPrayerSelected else {
-            print("ℹ️ [Onboarding] No prayers selected - skipping schedule")
             return
         }
 
@@ -187,18 +186,17 @@ struct OnboardingFlowView: View {
                              !selection.webDomainTokens.isEmpty
 
         guard hasAppsSelected else {
-            print("⚠️ [Onboarding] No apps selected - skipping schedule")
             return
         }
 
         // 4. Check if Screen Time permission is granted
         guard await screenTimeAuth.isAuthorized else {
-            print("⚠️ [Onboarding] Screen Time permission not granted - skipping schedule")
             return
         }
 
-        // 5. Get duration
+        // 5. Get duration and buffer
         let duration = groupDefaults?.double(forKey: "focusBlockingDuration") ?? 15.0
+        let prePrayerBuffer = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? 0
 
         // Build selected prayers set
         var selectedPrayers: Set<String> = []
@@ -212,75 +210,32 @@ struct OnboardingFlowView: View {
         let prayerTimeService = PrayerTimeService()
         var storage: PrayerTimeStorage? = prayerTimeService.loadStorage()
 
-        // If no prayer times in storage, fetch them now
-        if storage == nil {
-            print("🔄 [Onboarding] No prayer times in storage - fetching now...")
-
-            // Get location
-            var location: CLLocation? = locationService.location
-
-            if location == nil {
-                // Request location if not available
-                print("📍 [Onboarding] Requesting location for prayer times fetch...")
-                locationService.requestLocation()
-
-                // Wait for location (up to 5 seconds)
-                for attempt in 1...10 {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                    if let loc = locationService.location {
-                        location = loc
-                        print("✅ [Onboarding] Got location on attempt \(attempt)")
-                        break
-                    }
-                    print("⏳ [Onboarding] Waiting for location... (attempt \(attempt)/10)")
-                }
+        for attempt in 1...10 {
+            storage = prayerTimeService.loadStorage()
+            if storage != nil {
+                break
             }
-
-            guard let validLocation = location else {
-                print("⚠️ [Onboarding] Could not get location - scheduling will happen when prayer times are fetched later")
-                return
-            }
-
-            // Fetch 6 months of prayer times
-            do {
-                print("🕌 [Onboarding] Fetching 6 months of prayer times...")
-                storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: validLocation, daysToFetch: 180)
-
-                // Save to storage
-                if let fetchedStorage = storage {
-                    prayerTimeService.saveStorage(fetchedStorage)
-                    print("✅ [Onboarding] Fetched and saved \(fetchedStorage.prayerTimes.count) days of prayer times")
-                }
-            } catch {
-                print("❌ [Onboarding] Failed to fetch prayer times: \(error.localizedDescription)")
-                return
-            }
-        } else {
-            print("✅ [Onboarding] Prayer times already in storage")
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         }
 
         guard let prayerStorage = storage else {
-            print("⚠️ [Onboarding] No prayer times available - scheduling will happen later")
             return
         }
 
         // 7. Schedule the rolling window
-        print("📅 [Onboarding] Scheduling prayer blocking: prayers=\(selectedPrayers), duration=\(duration)min")
         DeviceActivityService.shared.scheduleRollingWindow(
             from: prayerStorage,
             duration: duration,
-            selectedPrayers: selectedPrayers
+            selectedPrayers: selectedPrayers,
+            prePrayerBuffer: prePrayerBuffer
         )
 
-        print("✅ [Onboarding] Prayer blocking scheduled successfully")
     }
 
     private func updateAuthenticatedUserName(name: String) async {
         do {
             try await authService.updateDisplayName(newName: name)
-            print("✅ [Onboarding] Updated existing user's name to: \(name)")
         } catch {
-            print("❌ [Onboarding] Failed to update user name: \(error)")
         }
     }
 }

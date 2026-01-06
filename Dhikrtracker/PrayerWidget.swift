@@ -85,7 +85,6 @@ struct PrayerProvider: TimelineProvider {
                 let storage = try decoder.decode(PrayerTimeStorage.self, from: data)
                 todayTimings = storage.prayerTimes.first { calendar.isDate($0.date, inSameDayAs: today) }
             } catch {
-                print("Widget: Failed to decode prayer times: \(error)")
             }
         }
         

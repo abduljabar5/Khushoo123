@@ -40,7 +40,6 @@ class TrackingManager: ObservableObject {
         loadAllData()
         setupBatchWriteTimer()
 
-        print("📊 [TrackingManager] Initialized with centralized tracking")
         logAllData(context: "Initialization")
     }
 
@@ -78,7 +77,6 @@ class TrackingManager: ObservableObject {
         perSurahStats[surahNumber] = surahStat
 
         if wasNew {
-            print("✅ [TrackingManager] Surah \(surahNumber) completed for the first time")
         }
 
         invalidateCache()
@@ -111,12 +109,10 @@ class TrackingManager: ObservableObject {
 
         if likedTracks.contains(track) {
             likedTracks.remove(track)
-            print("💔 [TrackingManager] Unliked: Surah \(surahNumber) by \(reciterIdentifier)")
             scheduleBatchWrite()
             return false
         } else {
             likedTracks.insert(track)
-            print("❤️ [TrackingManager] Liked: Surah \(surahNumber) by \(reciterIdentifier)")
             scheduleBatchWrite()
             return true
         }
@@ -132,13 +128,11 @@ class TrackingManager: ObservableObject {
     func toggleFavoriteReciter(_ reciter: Reciter) -> Bool {
         if let index = favoriteReciters.firstIndex(where: { $0.identifier == reciter.identifier }) {
             favoriteReciters.remove(at: index)
-            print("💔 [TrackingManager] Removed favorite: \(reciter.englishName)")
             scheduleBatchWrite()
             return false
         } else {
             let favorite = FavoriteReciter(identifier: reciter.identifier)
             favoriteReciters.append(favorite)
-            print("⭐️ [TrackingManager] Added favorite: \(reciter.englishName)")
             scheduleBatchWrite()
             return true
         }
@@ -249,13 +243,11 @@ class TrackingManager: ObservableObject {
 
             logAllData(context: "Batch Write")
         } catch {
-            print("❌ [TrackingManager] Failed to save tracking data: \(error)")
         }
     }
 
     private func loadAllData() {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else {
-            print("ℹ️ [TrackingManager] No existing tracking data found")
             return
         }
 
@@ -271,16 +263,13 @@ class TrackingManager: ObservableObject {
             self.perSurahStats = trackingData.perSurahStats
             self.perReciterStats = trackingData.perReciterStats
 
-            print("✅ [TrackingManager] Loaded tracking data successfully")
         } catch {
-            print("❌ [TrackingManager] Failed to load tracking data: \(error)")
         }
     }
 
     // MARK: - Logging
 
     private func logAllData(context: String) {
-        print("📊 ==================== TRACKING DATA (\(context)) ====================")
 
         let summary: [String: Any] = [
             "listeningStatistics": [
@@ -300,10 +289,8 @@ class TrackingManager: ObservableObject {
 
         if let json = try? JSONSerialization.data(withJSONObject: summary, options: .prettyPrinted),
            let jsonString = String(data: json, encoding: .utf8) {
-            print(jsonString)
         }
 
-        print("📊 ================================================================")
     }
 
     deinit {

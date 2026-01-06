@@ -52,14 +52,12 @@ class AppSelectionModel: ObservableObject {
         DispatchQueue.global(qos: .utility).async {
             let encoder = JSONEncoder()
             guard let defaults = defaults else {
-                print("❌ Could not access UserDefaults for App Group - blocking will not work")
                 return
             }
 
             if let encoded = try? encoder.encode(currentSelection) {
                 defaults.set(encoded, forKey: key)
                 defaults.synchronize() // Force immediate write to disk for monitor extension
-                print("✅ [AppSelection] Saved \(currentSelection.applicationTokens.count) apps, \(currentSelection.categoryTokens.count) categories to App Group")
             }
         }
     }

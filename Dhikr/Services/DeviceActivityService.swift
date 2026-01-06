@@ -25,8 +25,6 @@ class DeviceActivityService: ObservableObject {
     private let updateIntervalDays = 0.25 // Update every 6 hours
 
     private init() {
-        print("📅 [PrayerBlocking] DeviceActivityService initialized")
-        print("📅 [PrayerBlocking] Max schedules: \(maxSchedules), Rolling window: \(rollingWindowDays) days")
     }
     
     /// Normalize a date to minute precision for consistent activity naming
@@ -40,9 +38,14 @@ class DeviceActivityService: ObservableObject {
     // MARK: - Rolling Window Management
 
     /// Schedule rolling 24-hour window of prayer times from storage
-    /// Returns true if scheduling was successful, false otherwise
+    /// - Parameters:
+    ///   - storage: Prayer time storage
+    ///   - duration: Blocking duration in minutes
+    ///   - selectedPrayers: Set of selected prayer names
+    ///   - prePrayerBuffer: Optional buffer time in minutes to start blocking BEFORE prayer time (default: 0)
+    /// - Returns: true if scheduling was successful, false otherwise
     @discardableResult
-    func scheduleRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) -> Bool {
+    func scheduleRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>, prePrayerBuffer: Double = 0) -> Bool {
         print("🔄 [PrayerBlocking] Starting rolling window schedule (24h)")
 
         // Pre-check: Verify apps are selected before doing any work
@@ -62,8 +65,10 @@ class DeviceActivityService: ObservableObject {
         }
 
         let calendar = Calendar.current
-        let now = Date()
-        let startOfToday = calendar.startOfDay(for: now)
+        // IMPORTANT: Capture timestamp ONCE and use it throughout to avoid race conditions
+        let scheduleTime = Date()
+        let startOfToday = calendar.startOfDay(for: scheduleTime)
+        let bufferSeconds = prePrayerBuffer * 60
 
         // Calculate end of rolling window (1 day from today)
         guard let endOfWindow = calendar.date(byAdding: .day, value: rollingWindowDays, to: startOfToday) else {
@@ -76,8 +81,6 @@ class DeviceActivityService: ObservableObject {
             storedTime.date >= startOfToday && storedTime.date < endOfWindow
         }
 
-        print("📅 [PrayerBlocking] Rolling window: \(rollingWindowDays) days starting from today")
-        print("📅 [PrayerBlocking] Found \(prayerTimesInWindow.count) prayer times in window")
 
         // Convert to PrayerTime objects
         var prayerTimes: [PrayerTime] = []
@@ -106,8 +109,10 @@ class DeviceActivityService: ObservableObject {
                                                   minute: timeComponents.minute ?? 0,
                                                   second: 0,
                                                   of: storedTime.date) {
-                    // Only add future prayers
-                    if prayerDate > now {
+                    // Only add prayers where blocking hasn't started yet
+                    // Blocking starts at prayerDate - buffer
+                    let blockingStartTime = prayerDate.addingTimeInterval(-bufferSeconds)
+                    if blockingStartTime > scheduleTime {
                         prayerTimes.append(PrayerTime(name: name, date: prayerDate))
                     }
                 }
@@ -128,18 +133,13 @@ class DeviceActivityService: ObservableObject {
         // Stop all existing schedules first
         stopAllMonitoring()
 
-        // Schedule the prayers
-        let success = schedulePrayerTimeBlocking(prayerTimes: prayersToSchedule, duration: duration, selectedPrayers: selectedPrayers)
+        // Schedule the prayers with buffer time, passing the captured timestamp
+        let success = schedulePrayerTimeBlocking(prayerTimes: prayersToSchedule, duration: duration, selectedPrayers: selectedPrayers, prePrayerBuffer: prePrayerBuffer, scheduleTime: scheduleTime)
 
-        // Only save last update time if scheduling was successful
-        if success {
-            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastRollingWindowUpdate")
-                groupDefaults.synchronize()
-                print("💾 [PrayerBlocking] Saved rolling window update time")
-            }
-        } else {
-            print("⚠️ [PrayerBlocking] Scheduling failed - not saving update time")
+        // Save last update time
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastRollingWindowUpdate")
+            groupDefaults.synchronize()
         }
 
         return success
@@ -149,7 +149,6 @@ class DeviceActivityService: ObservableObject {
     func needsRollingWindowUpdate() -> Bool {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let lastUpdateTs = groupDefaults.object(forKey: "lastRollingWindowUpdate") as? TimeInterval else {
-            print("🔍 [PrayerBlocking] No previous rolling window update found - needs update")
             return true
         }
 
@@ -159,9 +158,7 @@ class DeviceActivityService: ObservableObject {
         let needsUpdate = hoursSinceUpdate >= (updateIntervalDays * 24)
 
         if needsUpdate {
-            print("🔄 [PrayerBlocking] Rolling window update needed: \(String(format: "%.1f", hoursSinceUpdate)) hours since last update")
         } else {
-            print("✅ [PrayerBlocking] Rolling window up to date: \(String(format: "%.1f", hoursSinceUpdate)) hours since last update")
         }
 
         return needsUpdate
@@ -169,7 +166,6 @@ class DeviceActivityService: ObservableObject {
 
     /// Update rolling window (remove old schedules, add new ones)
     func updateRollingWindow(from storage: PrayerTimeStorage, duration: Double, selectedPrayers: Set<String>) {
-        print("🔄 [PrayerBlocking] Updating rolling window")
 
         let calendar = Calendar.current
         let now = Date()
@@ -186,7 +182,6 @@ class DeviceActivityService: ObservableObject {
                 return endTime < now
             }.count
 
-            print("🔄 [PrayerBlocking] Old schedules: \(oldCount) total, \(passedCount) passed")
         }
 
         // Reschedule with new rolling window
@@ -195,7 +190,6 @@ class DeviceActivityService: ObservableObject {
         // Count prayers after update
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
            let newSchedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] {
-            print("🔄 [PrayerBlocking] New schedules: \(newSchedules.count) total")
         }
     }
 
@@ -232,23 +226,28 @@ class DeviceActivityService: ObservableObject {
             formatter.timeStyle = .medium
             let startStr = formatter.string(from: startTime)
             let endStr = formatter.string(from: endTime)
-            print("📅 [Scheduler] Scheduled manual block: start=\(startStr), end=\(endStr), activity=\(activityName.rawValue)")
         } catch {
             let formatter = DateFormatter()
             formatter.dateStyle = .short
             formatter.timeStyle = .medium
             let ts = formatter.string(from: startTime)
-            print("❌ [\(ts)] Failed to schedule blocking: \(error.localizedDescription)")
         }
     }
     
     /// Schedule blocking for multiple prayer times (up to 20 schedules)
-    /// Returns true if at least one prayer was successfully scheduled
+    /// - Parameters:
+    ///   - prayerTimes: Array of prayer times to schedule
+    ///   - duration: Blocking duration in minutes
+    ///   - selectedPrayers: Set of selected prayer names
+    ///   - prePrayerBuffer: Buffer time in minutes to start blocking BEFORE prayer time (default: 0)
+    ///   - scheduleTime: The timestamp to use for all comparisons (for consistency)
+    /// - Returns: true if at least one prayer was successfully scheduled
     @discardableResult
-    func schedulePrayerTimeBlocking(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>) -> Bool {
+    func schedulePrayerTimeBlocking(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>, prePrayerBuffer: Double = 0, scheduleTime: Date? = nil) -> Bool {
         // Simplified: always compute next up-to-20 selected future prayers from now and try to schedule them.
         // Avoid relying on saved schedules to decide capacity, since UI may persist previews.
-        let now = Date()
+        // Use provided scheduleTime or capture now - but use consistently throughout
+        let now = scheduleTime ?? Date()
 
         // CRITICAL: Check if apps are selected before scheduling
         let selection = AppSelectionModel.getCurrentSelection()
@@ -257,7 +256,6 @@ class DeviceActivityService: ObservableObject {
                              !selection.webDomainTokens.isEmpty
 
         if !hasAppsSelected {
-            print("⚠️ [Scheduler] No apps selected - stopping all monitoring and skipping scheduling")
             stopAllMonitoring()
             return false
         }
@@ -269,13 +267,19 @@ class DeviceActivityService: ObservableObject {
             let delta = now.timeIntervalSince(last)
             if delta < 3 {
                 let fmt = DateFormatter(); fmt.dateStyle = .short; fmt.timeStyle = .medium
-                print("⚠️ [\(fmt.string(from: now))] [Scheduler] Back-to-back scheduling detected (Δ=\(String(format: "%.2f", delta))s). You may be invoking scheduling from multiple places.")
             }
         }
         lastScheduleInvocationAt = now
+        // Calculate buffer in seconds upfront for filtering
+        let bufferSeconds = prePrayerBuffer * 60
+
         // Ensure stable ordering by start date, then keep at most one of each prayer per day
+        // Filter by blocking start time (prayer date - buffer), not prayer date
         let sortedFutureSelected = prayerTimes
-            .filter { $0.date > now && selectedPrayers.contains($0.name) }
+            .filter { prayer in
+                let blockingStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+                return blockingStartTime > now && selectedPrayers.contains(prayer.name)
+            }
             .sorted(by: { $0.date < $1.date })
 
         var uniquePerDay: [PrayerTime] = []
@@ -295,13 +299,11 @@ class DeviceActivityService: ObservableObject {
         var availableSlots = max(0, maxSchedules - currentActiveCount)
 
         if availableSlots == 0 {
-            print("⚠️ Schedule capacity reached (\(currentActiveCount)/\(maxSchedules)). Clearing old schedules...")
             // Clear some old activities to make room
             performAggressiveCleanup()
             // Recalculate available slots after cleanup
             currentActiveCount = activeActivityNames.count
             availableSlots = max(0, maxSchedules - currentActiveCount)
-            print("✅ After cleanup: \(currentActiveCount) active, \(availableSlots) slots available")
         }
 
         let prayersToAdd = Array(uniquePerDay.prefix(min(availableSlots > 0 ? availableSlots : maxSchedules, maxSchedules)))
@@ -309,36 +311,43 @@ class DeviceActivityService: ObservableObject {
             print("❌ No capacity to schedule new prayers")
             return false
         }
-        
+
         var newActivityNames: [DeviceActivityName] = []
         var scheduledCount = 0
         var failedCount = 0
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
-        
+
+        // bufferSeconds already calculated above
+
         // Plan log: show which activity names we are about to request
         do {
             let planned = prayersToAdd.map { prayer in
                 let ts = Int(prayer.date.timeIntervalSince1970)
                 return "Prayer_\(prayer.name)_\(ts)"
             }
-            print("🗺️ [\(formatter.string(from: now))] [Scheduler] Planning to schedule: \(planned)")
         }
 
         for prayer in prayersToAdd {
-            // Skip past prayers
-            if prayer.date <= Date() {
+            // Skip past prayers (accounting for buffer) - use consistent timestamp
+            let effectiveStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+            if effectiveStartTime <= now {
                 // Silenced: skip past log
                 continue
             }
-            
-            // Calculate standard duration (no early stop logic)
+
+            // Calculate duration in seconds - duration is measured FROM PRAYER TIME
             let deviceActivityDurationSeconds = duration * 60
 
-            // Use normalized timestamp for consistent activity naming
-            let startTime = prayer.date
-            let endTime = startTime.addingTimeInterval(deviceActivityDurationSeconds)
+            // Apply buffer: start blocking BEFORE the actual prayer time
+            // Duration is measured from prayer time, not blocking start
+            // Example: If Dhuhr is 12:30 PM, buffer is 10 min, duration is 15 min:
+            //   - Blocking starts at 12:20 PM (10 min before prayer)
+            //   - Blocking ends at 12:45 PM (15 min after prayer)
+            //   - Total blocked time = buffer + duration = 25 min
+            let startTime = prayer.date.addingTimeInterval(-bufferSeconds)
+            let endTime = prayer.date.addingTimeInterval(deviceActivityDurationSeconds)
             let normalizedTs = normalizeTimestamp(startTime)
             let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
             
@@ -365,7 +374,6 @@ class DeviceActivityService: ObservableObject {
                 scheduledCount += 1
                 let startStr = formatter.string(from: startTime)
                 let endStr = formatter.string(from: endTime)
-                print("📅 [Scheduler] Scheduled \(prayer.name): start=\(startStr), end=\(endStr), activity=\(activityName.rawValue)")
                 sessionScheduledActivityNames.insert(activityName.rawValue)
             } catch {
                 // If already scheduled, ignore; otherwise log with scheduled start time
@@ -380,7 +388,6 @@ class DeviceActivityService: ObservableObject {
                 } else {
                     reason = "system refused (limit/rate/duplicate from prior run)"
                 }
-                print("❌ [\(ts)] [Scheduler] Failed to schedule \(prayer.name): \(error.localizedDescription) | activity=\(activityName.rawValue) | reason=\(reason)")
             }
         }
         
@@ -392,7 +399,6 @@ class DeviceActivityService: ObservableObject {
 
         // Summary log to show how many the OS accepted vs attempted
         let fmt = DateFormatter(); fmt.dateStyle = .short; fmt.timeStyle = .medium
-        print("🧮 [\(fmt.string(from: Date()))] [Scheduler] Summary: attempted=\(prayersToAdd.count), scheduled=\(scheduledCount), failed=\(failedCount)")
 
         // Log what is currently monitored according to the monitor extension (ground truth)
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
@@ -401,7 +407,6 @@ class DeviceActivityService: ObservableObject {
             formatter.dateStyle = .short
             formatter.timeStyle = .medium
             let ts = formatter.string(from: Date())
-            print("📡 [\(ts)] Currently monitored (from monitor): count=\(activeNames.count)")
             for raw in activeNames {
                 let parts = raw.split(separator: "_")
                 var startStr = ""
@@ -420,7 +425,6 @@ class DeviceActivityService: ObservableObject {
                         endStr = formatter.string(from: endDate)
                     }
                 }
-                print("   • activity=\(raw) | prayer=\(nameStr) | start=\(startStr) | end=\(endStr)")
             }
         }
 
@@ -676,73 +680,81 @@ class DeviceActivityService: ObservableObject {
     private let rescheduleDebounceInterval: TimeInterval = 1.0
     
     /// Force complete clear and reschedule all prayers with current settings
-    func forceCompleteReschedule(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>) {
-        let now = Date()
-        
+    /// - Parameters:
+    ///   - prayerTimes: Array of prayer times to schedule
+    ///   - duration: Blocking duration in minutes
+    ///   - selectedPrayers: Set of selected prayer names
+    ///   - prePrayerBuffer: Buffer time in minutes to start blocking BEFORE prayer time (default: 0)
+    func forceCompleteReschedule(prayerTimes: [PrayerTime], duration: Double, selectedPrayers: Set<String>, prePrayerBuffer: Double = 0) {
+        // IMPORTANT: Capture timestamp ONCE and use it throughout to avoid race conditions
+        let scheduleTime = Date()
+
         // Debounce to prevent duplicate scheduling within 1 second
-        if now.timeIntervalSince(lastRescheduleTime) < rescheduleDebounceInterval {
-            print("⏭️ [ForceReschedule] Skipping duplicate call (debounced)")
+        if scheduleTime.timeIntervalSince(lastRescheduleTime) < rescheduleDebounceInterval {
             return
         }
-        
-        lastRescheduleTime = now
-        print("🔄 [ForceReschedule] Starting reschedule...")
-        
+
+        lastRescheduleTime = scheduleTime
+
         // Stop ALL existing monitoring
         stopAllMonitoring()
-        
-        
+
+
         // Clear all saved schedules
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.removeObject(forKey: prayerScheduleKey)
         }
-        
+
         // Aggressive cleanup
         performAggressiveCleanup()
-        
+
         // Clear any active blocking state
         let store = ManagedSettingsStore()
         store.clearAllSettings()
-        
+
         // Brief pause to allow activities to stop (reduced from 2 seconds)
         Thread.sleep(forTimeInterval: 0.1)
-        
-        // Now schedule fresh with current settings
-        let currentTime = Date()
-        let futurePrayers = prayerTimes.filter { $0.date > currentTime }
+
+        // Calculate buffer in seconds
+        let bufferSeconds = prePrayerBuffer * 60
+
+        // Now schedule fresh with current settings - use captured scheduleTime for consistency
+        let futurePrayers = prayerTimes.filter { $0.date.addingTimeInterval(-bufferSeconds) > scheduleTime }
         let prayersToSchedule = Array(futurePrayers.filter { selectedPrayers.contains($0.name) }.prefix(20))
-        
+
         guard !prayersToSchedule.isEmpty else {
             return
         }
-        
+
         var successfullyScheduled = 0
         var newActivityNames: [DeviceActivityName] = []
-        
+
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
-        
+
         // Schedule all prayers concurrently for faster performance
         let dispatchGroup = DispatchGroup()
         let queue = DispatchQueue(label: "prayer-scheduling", qos: .userInitiated, attributes: .concurrent)
         let lockQueue = DispatchQueue(label: "prayer-scheduling-lock")
-        
+
         for prayer in prayersToSchedule {
             dispatchGroup.enter()
             queue.async {
                 defer { dispatchGroup.leave() }
-                
-                // Skip past prayers
-                let checkTime = Date()
-                if prayer.date <= checkTime {
+
+                // Skip past prayers (accounting for buffer) - use captured scheduleTime for consistency
+                let effectiveStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+                if effectiveStartTime <= scheduleTime {
                     return
                 }
-                
-                // Calculate standard duration (no early stop logic)
+
+                // Calculate duration in seconds - duration is measured FROM PRAYER TIME
                 let deviceActivityDurationSeconds = duration * 60
-                let prayerStartTime = prayer.date
-                let prayerEndTime = prayerStartTime.addingTimeInterval(deviceActivityDurationSeconds)
+                // Apply buffer: start blocking BEFORE the actual prayer time
+                // Duration is measured from prayer time, not blocking start
+                let prayerStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+                let prayerEndTime = prayer.date.addingTimeInterval(deviceActivityDurationSeconds)
                 
                 // Create unique activity name with normalized timestamp
                 let normalizedTs = self.normalizeTimestamp(prayerStartTime)
@@ -770,14 +782,12 @@ class DeviceActivityService: ObservableObject {
                     }
                     
                     // Log only successfully scheduled prayers
-                    print("✅ \(prayer.name) at \(formatter.string(from: prayerStartTime))")
                     
                 } catch {
                     let formatter = DateFormatter()
                     formatter.dateStyle = .short
                     formatter.timeStyle = .medium
                     let ts = formatter.string(from: prayerStartTime)
-                    print("❌ [\(ts)] \(prayer.name) failed: \(error.localizedDescription)")
                 }
             }
         }
@@ -791,7 +801,6 @@ class DeviceActivityService: ObservableObject {
         // Summary log to match the format from regular scheduling
         let attemptedCount = prayersToSchedule.count
         let failedCount = attemptedCount - successfullyScheduled
-        print("🧮 [ForceReschedule] Summary: attempted=\(attemptedCount), scheduled=\(successfullyScheduled), failed=\(failedCount)")
         
         // Save the new schedule to UserDefaults for future cleanup
         saveScheduleToUserDefaults(prayersToSchedule, duration: duration)
@@ -800,7 +809,6 @@ class DeviceActivityService: ObservableObject {
     /// Save prayer schedule to UserDefaults for cleanup tracking
     private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime], duration: Double) {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { 
-            print("❌ Failed to access group defaults for saving schedule")
             return 
         }
         
@@ -820,7 +828,6 @@ class DeviceActivityService: ObservableObject {
         
         groupDefaults.set(schedules, forKey: prayerScheduleKey)
         groupDefaults.synchronize() // Force immediate write to disk
-        print("💾 [DeviceActivity] Saved \(schedules.count) schedules to App Group")
     }
     
     /// Reset the initial scheduling flag (for debugging or complete reset)

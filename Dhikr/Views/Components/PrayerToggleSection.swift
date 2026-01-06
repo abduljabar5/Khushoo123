@@ -13,8 +13,14 @@ struct PrayerToggleSection: View {
     let showOverlayWhenEmpty: Bool
     let onSelectApps: () -> Void
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var blockingState = BlockingStateService.shared
 
     private var theme: AppTheme { themeManager.theme }
+
+    /// Whether settings should be disabled (during active blocking)
+    private var isDisabled: Bool {
+        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+    }
 
     private var containerBackground: some View {
         Group {
@@ -42,8 +48,8 @@ struct PrayerToggleSection: View {
                         icon: "sun.haze.fill",
                         isSelected: $focusManager.selectedFajr
                     )
-                    .disabled(!focusManager.hasAppsSelected)
-                    .opacity(focusManager.hasAppsSelected ? 1.0 : 0.5)
+                    .disabled(!focusManager.hasAppsSelected || isDisabled)
+                    .opacity(focusManager.hasAppsSelected && !isDisabled ? 1.0 : 0.5)
 
                     Divider().background(Color(white: 0.2))
 
@@ -52,8 +58,8 @@ struct PrayerToggleSection: View {
                         icon: "sun.max.fill",
                         isSelected: $focusManager.selectedDhuhr
                     )
-                    .disabled(!focusManager.hasAppsSelected)
-                    .opacity(focusManager.hasAppsSelected ? 1.0 : 0.5)
+                    .disabled(!focusManager.hasAppsSelected || isDisabled)
+                    .opacity(focusManager.hasAppsSelected && !isDisabled ? 1.0 : 0.5)
 
                     Divider().background(Color(white: 0.2))
 
@@ -62,8 +68,8 @@ struct PrayerToggleSection: View {
                         icon: "cloud.sun.fill",
                         isSelected: $focusManager.selectedAsr
                     )
-                    .disabled(!focusManager.hasAppsSelected)
-                    .opacity(focusManager.hasAppsSelected ? 1.0 : 0.5)
+                    .disabled(!focusManager.hasAppsSelected || isDisabled)
+                    .opacity(focusManager.hasAppsSelected && !isDisabled ? 1.0 : 0.5)
 
                     Divider().background(Color(white: 0.2))
 
@@ -72,8 +78,8 @@ struct PrayerToggleSection: View {
                         icon: "moon.fill",
                         isSelected: $focusManager.selectedMaghrib
                     )
-                    .disabled(!focusManager.hasAppsSelected)
-                    .opacity(focusManager.hasAppsSelected ? 1.0 : 0.5)
+                    .disabled(!focusManager.hasAppsSelected || isDisabled)
+                    .opacity(focusManager.hasAppsSelected && !isDisabled ? 1.0 : 0.5)
 
                     Divider().background(Color(white: 0.2))
 
@@ -82,8 +88,8 @@ struct PrayerToggleSection: View {
                         icon: "moon.stars.fill",
                         isSelected: $focusManager.selectedIsha
                     )
-                    .disabled(!focusManager.hasAppsSelected)
-                    .opacity(focusManager.hasAppsSelected ? 1.0 : 0.5)
+                    .disabled(!focusManager.hasAppsSelected || isDisabled)
+                    .opacity(focusManager.hasAppsSelected && !isDisabled ? 1.0 : 0.5)
                 }
                 .background(containerBackground)
             }
@@ -170,7 +176,6 @@ private struct PrayerToggleRow: View {
             focusManager: FocusSettingsManager.shared,
             showOverlayWhenEmpty: true,
             onSelectApps: {
-                print("Select apps tapped")
             }
         )
     }

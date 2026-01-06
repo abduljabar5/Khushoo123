@@ -81,7 +81,6 @@ class ShieldActionExtension: ShieldActionDelegate {
         groupDefaults.removeObject(forKey: "blockingStartTime")
         groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
         
-        print("🤲 [ShieldAction] Unblocked successfully after timer")
         completionHandler(.close)
     }
     

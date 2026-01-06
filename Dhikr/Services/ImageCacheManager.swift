@@ -31,9 +31,7 @@ class ImageCacheManager {
         // Configure downloader for better performance
         let downloader = ImageDownloader.default
         downloader.downloadTimeout = 10.0 // 10 second timeout
-        downloader.trustedHosts = Set(["images.unsplash.com", "unsplash.com"])
-        
-        print("🖼️ [ImageCacheManager] Configured with 50MB memory, 200MB disk cache")
+
     }
     
     // MARK: - Optimized Image Loading Options
@@ -72,12 +70,10 @@ class ImageCacheManager {
     // MARK: - Memory Management
     func clearMemoryCache() {
         ImageCache.default.clearMemoryCache()
-        print("🧹 [ImageCacheManager] Memory cache cleared")
     }
     
     func clearExpiredDiskCache() {
         ImageCache.default.cleanExpiredDiskCache { 
-            print("🧹 [ImageCacheManager] Expired disk cache cleaned")
         }
     }
     

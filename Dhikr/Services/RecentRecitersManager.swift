@@ -18,7 +18,6 @@ class RecentRecitersManager {
             let reciters = try JSONDecoder().decode([Reciter].self, from: data)
             return reciters
         } catch {
-            print("❌ [RecentRecitersManager] Error decoding recent reciters: \(error)")
             return []
         }
     }
@@ -44,7 +43,6 @@ class RecentRecitersManager {
             let data = try JSONEncoder().encode(recents)
             UserDefaults.standard.set(data, forKey: recentsKey)
         } catch {
-            print("❌ [RecentRecitersManager] Error encoding recent reciters: \(error)")
         }
     }
     

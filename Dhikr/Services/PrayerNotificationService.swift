@@ -50,14 +50,11 @@ class PrayerNotificationService: ObservableObject {
             }
 
             if granted {
-                print("✅ [Notifications] Permission granted")
             } else {
-                print("❌ [Notifications] Permission denied")
             }
 
             return granted
         } catch {
-            print("❌ [Notifications] Permission request failed: \(error)")
             await MainActor.run {
                 self.isRequestingPermission = false
             }
@@ -74,12 +71,15 @@ class PrayerNotificationService: ObservableObject {
         minutesBefore: Int = 5
     ) {
         guard isEnabled && hasNotificationPermission else {
-            print("📱 [Notifications] Skipping - notifications disabled or no permission")
             return
         }
 
         // Clear existing pre-prayer notifications
         clearPrePrayerNotifications()
+
+        // Read the pre-prayer buffer from settings
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let bufferMinutes = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? 0
 
         let now = Date()
         let futurePrayers = prayerTimes.filter { prayer in
@@ -87,7 +87,6 @@ class PrayerNotificationService: ObservableObject {
         }
 
         guard !futurePrayers.isEmpty else {
-            print("📱 [Notifications] No future prayers to schedule notifications for")
             return
         }
 
@@ -98,7 +97,12 @@ class PrayerNotificationService: ObservableObject {
         var scheduledCount = 0
 
         for prayer in futurePrayers {
-            let reminderTime = prayer.date.addingTimeInterval(-TimeInterval(minutesBefore * 60))
+            // Notification should fire before BLOCKING starts (not prayer time)
+            // Blocking starts at: prayer.date - bufferMinutes
+            // Notification fires at: blocking start - minutesBefore
+            // = prayer.date - bufferMinutes - minutesBefore
+            let blockingStartTime = prayer.date.addingTimeInterval(-bufferMinutes * 60)
+            let reminderTime = blockingStartTime.addingTimeInterval(-TimeInterval(minutesBefore * 60))
 
             // Skip if reminder time is in the past
             guard reminderTime > now else { continue }
@@ -107,8 +111,14 @@ class PrayerNotificationService: ObservableObject {
 
             // Create notification content
             let content = UNMutableNotificationContent()
-            content.title = "Prayer Time Approaching"
-            content.body = "\(prayer.name) prayer starts in \(minutesBefore) minutes. Your apps will be blocked soon."
+            content.title = "Focus Mode Starting Soon"
+            if bufferMinutes > 0 {
+                // With buffer: blocking starts before prayer
+                content.body = "\(prayer.name) prayer in \(Int(bufferMinutes) + minutesBefore) min. Focus mode starts in \(minutesBefore) min."
+            } else {
+                // No buffer: blocking starts at prayer time
+                content.body = "\(prayer.name) prayer starts in \(minutesBefore) minutes. Your apps will be blocked soon."
+            }
             content.sound = .default
             content.badge = 1
 
@@ -132,9 +142,7 @@ class PrayerNotificationService: ObservableObject {
             // Schedule notification
             notificationCenter.add(request) { error in
                 if let error = error {
-                    print("❌ [Notifications] Failed to schedule \(prayer.name) reminder: \(error)")
                 } else {
-                    print("📅 [Notifications] Scheduled \(prayer.name) reminder for \(formatter.string(from: reminderTime))")
                 }
             }
 
@@ -146,7 +154,6 @@ class PrayerNotificationService: ObservableObject {
             }
         }
 
-        print("📱 [Notifications] Scheduled \(scheduledCount) pre-prayer reminders")
     }
 
     func clearPrePrayerNotifications() {
@@ -159,14 +166,12 @@ class PrayerNotificationService: ObservableObject {
 
             if !identifiersToRemove.isEmpty {
                 self?.notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
-                print("🗑️ [Notifications] Cleared \(identifiersToRemove.count) pending pre-prayer notifications")
             }
         }
     }
 
     func clearAllNotifications() {
         notificationCenter.removeAllPendingNotificationRequests()
-        print("🗑️ [Notifications] Cleared all pending notifications")
     }
 
     // MARK: - Helper Methods

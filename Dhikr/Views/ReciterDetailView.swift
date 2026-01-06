@@ -119,10 +119,18 @@ struct ReciterDetailView: View {
     // MARK: - Surahs Section
     private var surahsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("All Surahs")
-                .font(.headline)
-                .fontWeight(.semibold)
-                .padding(.horizontal)
+            HStack {
+                Text(reciter.hasCompleteQuran ? "All Surahs" : "Available Surahs")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                if !reciter.hasCompleteQuran {
+                    Text("(\(surahs.count) of 114)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal)
             
             if isLoading {
                 ProgressView()
@@ -152,11 +160,11 @@ struct ReciterDetailView: View {
                 let allSurahs = try await quranAPIService.fetchSurahs()
 
                 await MainActor.run {
-                    self.surahs = allSurahs
+                    // Filter surahs to only show ones this reciter has audio for
+                    self.surahs = allSurahs.filter { reciter.hasSurah($0.number) }
                     self.isLoading = false
                 }
             } catch {
-                print("Error loading surahs: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                 }

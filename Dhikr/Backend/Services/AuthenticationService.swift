@@ -135,7 +135,6 @@ class AuthenticationService: ObservableObject {
     // MARK: - Sign Out
     func signOut() throws {
         do {
-            print("🚪 [AuthService] Signing out user...")
 
             // 1. Sign out from Firebase Auth
             try auth.signOut()
@@ -150,9 +149,7 @@ class AuthenticationService: ObservableObject {
             // 4. Clear any cached user data from UserDefaults
             clearUserCache()
 
-            print("✅ [AuthService] User signed out successfully")
         } catch {
-            print("❌ [AuthService] Sign out failed: \(error)")
             throw AuthError.unknown("Failed to sign out")
         }
     }
@@ -173,7 +170,6 @@ class AuthenticationService: ObservableObject {
         // Refresh user data to update local state
         await fetchUserData(uid: userId)
 
-        print("✅ [AuthService] Display name updated to: \(capitalizedName)")
     }
 
     // MARK: - Clear User Cache
@@ -193,7 +189,6 @@ class AuthenticationService: ObservableObject {
 
         defaults.synchronize()
 
-        print("🧹 [AuthService] User cache cleared")
     }
 
     // MARK: - Password Reset
@@ -213,22 +208,17 @@ class AuthenticationService: ObservableObject {
             throw AuthError.unknown("No user is currently signed in")
         }
 
-        print("🗑️ [AuthService] Starting account deletion for user: \(user.uid)")
 
         do {
             // 1. Delete user document from Firestore
-            print("📄 [AuthService] Deleting user document from Firestore...")
             try await db.collection("users").document(user.uid).delete()
-            print("✅ [AuthService] User document deleted from Firestore")
 
             // 2. Delete any user-related subcollections (if any exist)
             // For example: favorites, history, etc.
             // Add here if you have subcollections
 
             // 3. Delete Firebase Auth account
-            print("🔐 [AuthService] Deleting Firebase Auth account...")
             try await user.delete()
-            print("✅ [AuthService] Firebase Auth account deleted")
 
             // 4. Clear local state
             await MainActor.run {
@@ -239,12 +229,8 @@ class AuthenticationService: ObservableObject {
             // 5. Clear user cache
             clearUserCache()
 
-            print("✅ [AuthService] Account deletion completed successfully")
 
         } catch let error as NSError {
-            print("❌ [AuthService] Account deletion failed: \(error.localizedDescription)")
-            print("   Error domain: \(error.domain)")
-            print("   Error code: \(error.code)")
 
             // Re-throw with more context
             if error.domain == "FIRAuthErrorDomain" && error.code == 17014 {
@@ -294,19 +280,15 @@ class AuthenticationService: ObservableObject {
 
             if !userDoc.exists {
                 // NEW USER: Create user profile with best available name
-                print("📝 [Auth] Creating new Apple user account")
 
                 // Priority: Apple name > Onboarding name > Default
                 let finalName: String
                 if !appleDisplayName.isEmpty {
                     finalName = capitalizeName(appleDisplayName)
-                    print("✅ [Auth] Using Apple-provided name: \(finalName)")
                 } else if !onboardingName.isEmpty {
                     finalName = capitalizeName(onboardingName)
-                    print("✅ [Auth] Using onboarding name: \(finalName)")
                 } else {
                     finalName = "Apple User"
-                    print("⚠️ [Auth] No name available, using default: Apple User")
                 }
 
                 let newUser = User(
@@ -331,19 +313,15 @@ class AuthenticationService: ObservableObject {
                         let updatedName: String
                         if !appleDisplayName.isEmpty {
                             updatedName = capitalizeName(appleDisplayName)
-                            print("✅ [Auth] Updating existing user with Apple-provided name: \(updatedName)")
                         } else {
                             updatedName = capitalizeName(onboardingName)
-                            print("✅ [Auth] Updating existing user with onboarding name: \(updatedName)")
                         }
 
                         // Update Firestore with new name
                         try await db.collection("users").document(result.user.uid).updateData([
                             "displayName": updatedName
                         ])
-                        print("✅ [Auth] User name updated successfully")
                     } else {
-                        print("ℹ️ [Auth] Existing user signed in with name: \(currentName)")
                     }
                 }
             }
@@ -366,7 +344,6 @@ class AuthenticationService: ObservableObject {
         await MainActor.run { isLoading = true }
 
         // New approach: Try to create account first, then sign in if exists
-        print("📝 Attempting to create account with email: \(email)")
 
         do {
             // Try to create account first
@@ -376,7 +353,6 @@ class AuthenticationService: ObservableObject {
             }
 
             let result = try await auth.createUser(withEmail: email, password: password)
-            print("✅ Account created successfully: \(result.user.uid)")
 
             // Capitalize the name before saving
             let capitalizedName = capitalizeName(displayName)
@@ -398,22 +374,17 @@ class AuthenticationService: ObservableObject {
             }
 
         } catch let error as NSError {
-            print("❌ Create account failed: \(error.localizedDescription)")
-            print("📋 Error code: \(error.code)")
 
             // Check if account already exists
             if let authError = AuthErrorCode(_bridgedNSError: error), authError.code == .emailAlreadyInUse {
-                print("🔄 Account exists, attempting to sign in...")
 
                 // Account exists, try to sign in
                 do {
                     let result = try await auth.signIn(withEmail: email, password: password)
-                    print("✅ Sign in successful")
                     await fetchUserData(uid: result.user.uid)
                     await MainActor.run { isLoading = false }
 
                 } catch let signInError as NSError {
-                    print("❌ Sign in failed: \(signInError.localizedDescription)")
                     await MainActor.run { isLoading = false }
                     throw mapFirebaseError(signInError)
                 }
@@ -442,7 +413,9 @@ class AuthenticationService: ObservableObject {
         var randomBytes = [UInt8](repeating: 0, count: length)
         let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
         if errorCode != errSecSuccess {
-            fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+            // Fallback to UUID-based nonce if SecRandomCopyBytes fails
+            // This is extremely rare but we handle it gracefully
+            return UUID().uuidString.replacingOccurrences(of: "-", with: "") + UUID().uuidString.replacingOccurrences(of: "-", with: "")
         }
 
         let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
@@ -477,7 +450,6 @@ class AuthenticationService: ObservableObject {
                 }
             }
         } catch {
-            print("Error fetching user data: \(error)")
         }
     }
 

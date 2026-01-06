@@ -182,10 +182,6 @@ struct PaywallView: View {
                 Text("No active subscriptions found.")
             }
         }
-        .fullScreenCover(isPresented: $subscriptionService.showPostPurchaseSignInPrompt) {
-            PostPurchaseSignInPromptView()
-                .environmentObject(authService)
-        }
         .onAppear {
             // Load products if not already loaded
             Task {

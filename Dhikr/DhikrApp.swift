@@ -71,14 +71,9 @@ struct DhikrApp: App {
                         audioPlayerService.preloadLastPlayed()
                     }
 
-                    // Ensure blocking state is evaluated immediately on launch and shortly after
+                    // Ensure blocking state is evaluated on launch
+                    // Note: BlockingStateService already does initial check and polls every 15s
                     BlockingStateService.shared.forceCheck()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        BlockingStateService.shared.forceCheck()
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                        BlockingStateService.shared.forceCheck()
-                    }
                 }
                 .onChange(of: scenePhase) { newPhase in
                     handleScenePhaseChange(newPhase)
@@ -99,7 +94,6 @@ struct DhikrApp: App {
         // Initialize image cache manager
         _ = ImageCacheManager.shared
         
-        print("🚀 [DhikrApp] Performance optimizations initialized")
     }
     
     // MARK: - Notification Setup
@@ -141,7 +135,6 @@ struct DhikrApp: App {
      private func handleScenePhaseChange(_ newPhase: ScenePhase) {
         switch newPhase {
         case .background:
-            print("📲 App entering background")
             audioPlayerService.saveLastPlayed()
 
             // Save pending dhikr entries to disk
@@ -149,7 +142,6 @@ struct DhikrApp: App {
 
             // Check blocking state immediately when app goes to background
             BlockingStateService.shared.forceCheck()
-            print("✅ Force check triggered for background")
 
             // Clean up resources when app goes to background
             Task {
@@ -158,7 +150,6 @@ struct DhikrApp: App {
             }
             
         case .inactive:
-            print("📲 App becoming inactive")
             // Check blocking state when app becomes inactive (user switching away)
             BlockingStateService.shared.forceCheck()
             
@@ -166,7 +157,6 @@ struct DhikrApp: App {
             ImageCacheManager.shared.clearMemoryCache()
             
         case .active:
-            print("📲 App became active")
             // App became active - check blocking state immediately
             BlockingStateService.shared.forceCheck()
 
@@ -188,11 +178,9 @@ struct DhikrApp: App {
     private func migrateAppSelectionValidation() {
         let migrationKey = "didMigrateAppSelectionValidation_v1"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else {
-            print("✅ [Migration] App selection validation already migrated")
             return
         }
 
-        print("🔄 [Migration] Starting app selection validation migration...")
 
         // Check if user has prayers selected but no apps
         let selection = AppSelectionModel.shared.selection
@@ -210,7 +198,6 @@ struct DhikrApp: App {
                                    focusManager.selectedIsha
 
             if hasPrayersEnabled {
-                print("⚠️ [Migration] Detected prayers enabled with no apps - clearing invalid state")
 
                 // Clear all prayer selections (they were ineffective anyway)
                 focusManager.selectedFajr = false
@@ -222,17 +209,14 @@ struct DhikrApp: App {
                 // Stop any existing schedules
                 DeviceActivityService.shared.stopAllMonitoring()
 
-                print("✅ [Migration] Cleared invalid prayer selections and schedules")
             }
         }
 
         // Mark migration as complete
         UserDefaults.standard.set(true, forKey: migrationKey)
-        print("✅ [Migration] App selection validation migration complete")
     }
 
     private func handleMemoryPressure() {
-        print("⚠️ [DhikrApp] Memory pressure detected - cleaning up resources")
 
         // Aggressive memory cleanup
         ImageCacheManager.shared.clearMemoryCache()
@@ -254,11 +238,9 @@ struct DhikrApp: App {
     private func cleanupAppBlockingForFreeUsers() {
         // Only run cleanup if user is not premium
         guard !subscriptionService.isPremium else {
-            print("✅ [DhikrApp] User is premium - no cleanup needed")
             return
         }
 
-        print("🧹 [DhikrApp] Free user detected - cleaning up app blocking...")
 
         // Stop all app blocking schedules
         DeviceActivityService.shared.stopAllMonitoring()
@@ -280,7 +262,6 @@ struct DhikrApp: App {
         UserDefaults.standard.set(false, forKey: "focusSelectedMaghrib")
         UserDefaults.standard.set(false, forKey: "focusSelectedIsha")
 
-        print("✅ [DhikrApp] App blocking cleaned up for free user")
     }
 
     // MARK: - Premium Listener Setup
@@ -292,7 +273,6 @@ struct DhikrApp: App {
             object: nil,
             queue: .main
         ) { _ in
-            print("🎉 [DhikrApp] User became premium - starting background 6-month fetch...")
 
             Task {
                 await self.fetch6MonthsForPremiumUser()
@@ -305,7 +285,6 @@ struct DhikrApp: App {
             object: nil,
             queue: .main
         ) { _ in
-            print("⚠️ [DhikrApp] User lost premium - cleaning up app blocking...")
 
             // Stop all app blocking schedules
             DeviceActivityService.shared.stopAllMonitoring()
@@ -327,19 +306,16 @@ struct DhikrApp: App {
             UserDefaults.standard.set(false, forKey: "focusSelectedMaghrib")
             UserDefaults.standard.set(false, forKey: "focusSelectedIsha")
 
-            print("✅ [DhikrApp] App blocking disabled for free user")
         }
     }
 
     private func fetch6MonthsForPremiumUser() async {
-        print("📦 [DhikrApp] Fetching 6 months of prayer times for premium user...")
 
         let prayerTimeService = PrayerTimeService()
 
         // Check location permission
         guard locationService.authorizationStatus == .authorizedWhenInUse ||
               locationService.authorizationStatus == .authorizedAlways else {
-            print("⚠️ [DhikrApp] Location not authorized - cannot fetch prayer times")
             return
         }
 
@@ -348,7 +324,6 @@ struct DhikrApp: App {
         try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
         guard let location = locationService.location else {
-            print("⚠️ [DhikrApp] Location not available")
             return
         }
 
@@ -357,13 +332,11 @@ struct DhikrApp: App {
             let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location, daysToFetch: 180)
             prayerTimeService.saveStorage(storage)
 
-            print("✅ [DhikrApp] 6-month prayer times fetched successfully (\(storage.prayerTimes.count) days)")
 
             // Force reschedule app blocking if prayers are selected
             await forceRescheduleIfNeeded(storage: storage)
 
         } catch {
-            print("❌ [DhikrApp] Failed to fetch 6-month prayer times: \(error)")
         }
     }
 
@@ -380,11 +353,9 @@ struct DhikrApp: App {
         let anyPrayerSelected = selectedFajr || selectedDhuhr || selectedAsr || selectedMaghrib || selectedIsha
 
         guard anyPrayerSelected else {
-            print("ℹ️ [DhikrApp] No prayers selected - skipping reschedule")
             return
         }
 
-        print("🔄 [DhikrApp] Prayers are selected - force rescheduling app blocking...")
 
         // Get settings
         let duration = groupDefaults.double(forKey: "focusBlockingDuration")
@@ -397,20 +368,22 @@ struct DhikrApp: App {
         if selectedMaghrib { selectedPrayers.insert("Maghrib") }
         if selectedIsha { selectedPrayers.insert("Isha") }
 
+        // Get pre-prayer buffer
+        let prePrayerBuffer = groupDefaults.double(forKey: "focusPrePrayerBuffer")
+
         // Schedule rolling window
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
             duration: effectiveDuration,
-            selectedPrayers: selectedPrayers
+            selectedPrayers: selectedPrayers,
+            prePrayerBuffer: prePrayerBuffer
         )
 
-        print("✅ [DhikrApp] App blocking rescheduled successfully")
     }
 
     // MARK: - 6-Month Prayer Time Fetch
 
     private func fetch6MonthPrayerTimesOnLaunch() {
-        print("🔍 [DhikrApp] Checking if prayer times need to be fetched...")
 
         // Check if onboarding is complete before auto-requesting location
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -425,14 +398,11 @@ struct DhikrApp: App {
             if let storage = prayerTimeService.loadStorage() {
                 if storage.shouldRefresh {
                     if isPremium {
-                        print("🔄 [DhikrApp] Premium user - fetching 6 months")
                         await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 180)
                     } else {
-                        print("🔄 [DhikrApp] Free user - fetching 3 days only")
                         await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 3)
                     }
                 } else {
-                    print("✅ [DhikrApp] Storage is valid - no fetch needed")
                     // Check if rolling window needs update (only for premium users with app blocking)
                     if isPremium {
                         await checkAndUpdateRollingWindow(storage: storage)
@@ -440,10 +410,8 @@ struct DhikrApp: App {
                 }
             } else {
                 if isPremium {
-                    print("🔍 [DhikrApp] No storage found - fetching 6 months (premium)")
                     await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 180)
                 } else {
-                    print("🔍 [DhikrApp] No storage found - fetching 3 days (free)")
                     await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 3)
                 }
             }
@@ -463,16 +431,13 @@ struct DhikrApp: App {
             if let location = locationService.location {
                 await fetch6Months(prayerTimeService: prayerTimeService, location: location, daysToFetch: daysToFetch)
             } else {
-                print("⚠️ [DhikrApp] Location not available yet - will fetch when available")
             }
 
         case .notDetermined:
             if skipPermissionRequest {
-                print("📍 [DhikrApp] Location not determined - skipping auto-request (onboarding not complete)")
                 return
             }
 
-            print("📍 [DhikrApp] Requesting location permission...")
             locationService.requestLocationPermission()
 
             // Wait for permission response
@@ -487,25 +452,21 @@ struct DhikrApp: App {
                     await fetch6Months(prayerTimeService: prayerTimeService, location: location, daysToFetch: daysToFetch)
                 }
             } else {
-                print("⚠️ [DhikrApp] Location permission denied - prayer times will not be fetched")
             }
 
         case .denied, .restricted:
-            print("❌ [DhikrApp] Location permission denied - prayer times cannot be fetched")
-
+            break
         @unknown default:
-            print("⚠️ [DhikrApp] Unknown location permission status")
+            break
         }
     }
 
     private func fetch6Months(prayerTimeService: PrayerTimeService, location: CLLocation, daysToFetch: Int = 180) async {
         do {
-            print("🕌 [DhikrApp] Starting prayer time fetch (\(daysToFetch) days)...")
 
             let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location, daysToFetch: daysToFetch)
             prayerTimeService.saveStorage(storage)
 
-            print("✅ [DhikrApp] Prayer times fetched and saved successfully (\(storage.prayerTimes.count) days)")
 
             // Schedule rolling window (only for premium users with app blocking)
             if subscriptionService.isPremium {
@@ -517,7 +478,6 @@ struct DhikrApp: App {
             await scheduleBlockingIfConditionsMet(storage: storage)
 
         } catch {
-            print("❌ [DhikrApp] Failed to fetch prayer times: \(error.localizedDescription)")
         }
     }
 
@@ -605,19 +565,17 @@ struct DhikrApp: App {
 
     private func checkAndUpdateRollingWindow(storage: PrayerTimeStorage) async {
         if DeviceActivityService.shared.needsRollingWindowUpdate() {
-            print("🔄 [DhikrApp] Rolling window needs update")
             await scheduleRollingWindow(storage: storage)
         } else {
-            print("✅ [DhikrApp] Rolling window is up to date")
         }
     }
 
     private func scheduleRollingWindow(storage: PrayerTimeStorage) async {
-        print("📅 [DhikrApp] Scheduling rolling window...")
 
         // Get current settings
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
         let duration = groupDefaults?.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
+        let prePrayerBuffer = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? 0
 
         // Default to false (disabled) - prayers must be explicitly enabled
         let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
@@ -636,10 +594,10 @@ struct DhikrApp: App {
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
             duration: duration,
-            selectedPrayers: selectedPrayers
+            selectedPrayers: selectedPrayers,
+            prePrayerBuffer: prePrayerBuffer
         )
 
-        print("✅ [DhikrApp] Rolling window scheduled")
     }
 
 }

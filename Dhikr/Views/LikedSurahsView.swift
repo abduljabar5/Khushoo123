@@ -80,7 +80,6 @@ struct LikedSurahsView: View {
                     self.isLoading = false
                 }
             } catch {
-                print("❌ [LikedSurahsView] Error loading initial data: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                 }

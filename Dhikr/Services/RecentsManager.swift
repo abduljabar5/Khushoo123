@@ -29,7 +29,6 @@ class RecentsManager: ObservableObject {
             let items = try JSONDecoder().decode([RecentItem].self, from: data)
             self.recentItems = items
         } catch {
-            print("❌ [RecentsManager] Error decoding recent items: \(error)")
         }
     }
     
@@ -68,11 +67,8 @@ class RecentsManager: ObservableObject {
 
             if let json = try? JSONSerialization.data(withJSONObject: ["recentItems": recentData, "count": recentItems.count], options: .prettyPrinted),
                let jsonString = String(data: json, encoding: .utf8) {
-                print("💾 [RecentsManager] Recent Items - Data Saved:")
-                print(jsonString)
             }
         } catch {
-            print("❌ [RecentsManager] Error encoding recent items: \(error)")
         }
     }
 

@@ -16,7 +16,10 @@ struct OnboardingPermissionsView: View {
     @StateObject private var locationService = LocationService()
     @StateObject private var notificationService = PrayerNotificationService.shared
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showLocationAlert = false
+
+    private var theme: AppTheme { themeManager.theme }
 
     private var hasLocationPermission: Bool {
         switch locationService.authorizationStatus {
@@ -35,15 +38,15 @@ struct OnboardingPermissionsView: View {
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.system(size: 64))
-                    .foregroundColor(Color(hex: "1A9B8A"))
+                    .foregroundColor(theme.primaryAccent)
 
                 Text("Permissions")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(hex: "2C3E50"))
+                    .foregroundColor(theme.primaryText)
 
                 Text("Enable these to get the most out of Khushoo")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(Color(hex: "7F8C8D"))
+                    .foregroundColor(theme.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -53,12 +56,12 @@ struct OnboardingPermissionsView: View {
             VStack(spacing: 16) {
                 PermissionRow(
                     icon: "location.circle.fill",
-                    iconColor: Color(hex: "F39C12"),
+                    iconColor: theme.accentGold,
                     title: "Location",
                     description: "For accurate prayer times",
                     status: locationPermissionStatus,
+                    theme: theme,
                     action: {
-                        print("[Permissions] Requesting location")
                         locationService.requestLocationPermission()
                     }
                 )
@@ -69,8 +72,8 @@ struct OnboardingPermissionsView: View {
                     title: "Notifications",
                     description: "Prayer and dhikr reminders",
                     status: notificationService.hasNotificationPermission ? "Enabled" : "Not now",
+                    theme: theme,
                     action: {
-                        print("[Permissions] Requesting notifications")
                         Task {
                             await notificationService.requestNotificationPermission()
                         }
@@ -83,13 +86,12 @@ struct OnboardingPermissionsView: View {
                     title: "Screen Time",
                     description: "For prayer-time app blocking",
                     status: screenTimeAuth.isAuthorized ? "Enabled" : "Not now",
+                    theme: theme,
                     action: {
-                        print("[Permissions] Requesting Screen Time authorization")
                         Task {
                             do {
                                 try await screenTimeAuth.requestAuthorization()
                             } catch {
-                                print("❌ [Permissions] Screen Time authorization failed: \(error)")
                             }
                         }
                     }
@@ -103,10 +105,10 @@ struct OnboardingPermissionsView: View {
             if !hasLocationPermission {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(Color(hex: "F39C12"))
+                        .foregroundColor(theme.accentGold)
                     Text("Location is required for prayer times")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(hex: "7F8C8D"))
+                        .foregroundColor(theme.secondaryText)
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 16)
@@ -119,7 +121,6 @@ struct OnboardingPermissionsView: View {
                     return
                 }
 
-                print("[Permissions] Current statuses - Location: \(locationPermissionStatus), Notifications: \(notificationService.hasNotificationPermission ? "Enabled" : "Not now"), Screen Time: \(screenTimeAuth.isAuthorized ? "Enabled" : "Not now")")
                 onContinue()
             }) {
                 Text(hasLocationPermission ? "Continue to App" : "Enable Location to Continue")
@@ -132,12 +133,12 @@ struct OnboardingPermissionsView: View {
                             .fill(
                                 hasLocationPermission
                                     ? LinearGradient(
-                                        colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                                        colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                     : LinearGradient(
-                                        colors: [Color(hex: "BDC3C7"), Color(hex: "95A5A6")],
+                                        colors: [theme.tertiaryText, theme.secondaryText],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
@@ -148,8 +149,8 @@ struct OnboardingPermissionsView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
         }
+        .background(theme.primaryBackground)
         .onAppear {
-            print("[Onboarding] Permissions screen shown")
         }
         .alert("Location Permission Required", isPresented: $showLocationAlert) {
             Button("Enable Location", role: .none) {
@@ -183,6 +184,7 @@ struct PermissionRow: View {
     let title: String
     let description: String
     let status: String
+    let theme: AppTheme
     let action: () -> Void
 
     var body: some View {
@@ -190,7 +192,7 @@ struct PermissionRow: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(iconColor.opacity(0.1))
+                    .fill(iconColor.opacity(0.15))
                     .frame(width: 56, height: 56)
 
                 Image(systemName: icon)
@@ -202,11 +204,11 @@ struct PermissionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "2C3E50"))
+                    .foregroundColor(theme.primaryText)
 
                 Text(description)
                     .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(Color(hex: "7F8C8D"))
+                    .foregroundColor(theme.secondaryText)
             }
 
             Spacer()
@@ -215,21 +217,21 @@ struct PermissionRow: View {
             if status == "Enabled" {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(hex: "27AE60"))
+                        .foregroundColor(theme.accentGreen)
                     Text("Enabled")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(hex: "27AE60"))
+                        .foregroundColor(theme.accentGreen)
                 }
             } else {
                 Button(action: action) {
                     Text("Enable")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(hex: "1A9B8A"))
+                        .foregroundColor(theme.primaryAccent)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(hex: "1A9B8A"), lineWidth: 2)
+                                .stroke(theme.primaryAccent, lineWidth: 2)
                         )
                 }
             }
@@ -237,7 +239,7 @@ struct PermissionRow: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
+                .fill(theme.cardBackground)
         )
     }
 }

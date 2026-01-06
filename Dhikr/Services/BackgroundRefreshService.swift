@@ -24,14 +24,12 @@ class BackgroundRefreshService: NSObject, ObservableObject {
 
     private override init() {
         super.init()
-        print("🔄 [BackgroundRefresh] Service initialized")
         registerBackgroundTasks()
     }
 
     // MARK: - Background Task Registration
 
     private func registerBackgroundTasks() {
-        print("📅 [BackgroundRefresh] Registering background refresh task")
 
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: backgroundTaskIdentifier,
@@ -42,7 +40,6 @@ class BackgroundRefreshService: NSObject, ObservableObject {
             }
         }
 
-        print("✅ [BackgroundRefresh] Background task registered: \(backgroundTaskIdentifier)")
     }
 
     // MARK: - Schedule Background Refresh
@@ -56,23 +53,19 @@ class BackgroundRefreshService: NSObject, ObservableObject {
         do {
             try BGTaskScheduler.shared.submit(request)
             nextScheduledRefresh = request.earliestBeginDate
-            print("📅 [BackgroundRefresh] Scheduled next refresh for: \(request.earliestBeginDate!)")
         } catch {
-            print("❌ [BackgroundRefresh] Failed to schedule: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Handle Background Refresh
 
     private func handleBackgroundRefresh(task: BGAppRefreshTask) async {
-        print("🔄 [BackgroundRefresh] Background refresh triggered")
 
         // Schedule next refresh
         scheduleBackgroundRefresh()
 
         // Set expiration handler
         task.expirationHandler = {
-            print("⚠️ [BackgroundRefresh] Task expired before completion")
             task.setTaskCompleted(success: false)
         }
 
@@ -83,9 +76,7 @@ class BackgroundRefreshService: NSObject, ObservableObject {
 
             if success {
                 lastRefreshDate = Date()
-                print("✅ [BackgroundRefresh] Completed successfully")
             } else {
-                print("⚠️ [BackgroundRefresh] Completed with warnings")
             }
         }
     }
@@ -93,38 +84,29 @@ class BackgroundRefreshService: NSObject, ObservableObject {
     // MARK: - Perform Rolling Window Refresh (NO prayer time fetching)
 
     func performPrayerTimeRefresh(reason: String) async -> Bool {
-        print("🔄 [BackgroundRefresh] Starting refresh (reason: \(reason))")
-        print("ℹ️ [BackgroundRefresh] Note: Background refresh ONLY updates rolling window, never fetches prayer times")
 
         // Load existing storage
         guard let storage = prayerTimeService.loadStorage() else {
-            print("⚠️ [BackgroundRefresh] No storage found - user needs to open app to fetch prayer times")
             return false
         }
 
         // Check if storage is expired or invalid
         if storage.shouldRefresh {
-            print("⚠️ [BackgroundRefresh] Storage expired - user needs to open app to refresh")
-            print("⚠️ [BackgroundRefresh] Will skip rolling window update until prayer times are refreshed")
             return false
         }
 
         // Storage is valid - update rolling window only
-        print("✅ [BackgroundRefresh] Storage is valid, updating rolling window only")
         return await updateRollingWindowIfNeeded(storage: storage)
     }
 
     // MARK: - Update Rolling Window
 
     private func updateRollingWindowIfNeeded(storage: PrayerTimeStorage) async -> Bool {
-        print("🔍 [BackgroundRefresh] Checking if rolling window needs update")
 
         guard DeviceActivityService.shared.needsRollingWindowUpdate() else {
-            print("✅ [BackgroundRefresh] Rolling window is up to date")
             return true
         }
 
-        print("🔄 [BackgroundRefresh] Updating rolling window")
 
         // Get current settings
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
@@ -153,7 +135,6 @@ class BackgroundRefreshService: NSObject, ObservableObject {
         // Update prayer notifications if enabled
         await updatePrayerNotifications(storage: storage, selectedPrayers: selectedPrayers)
 
-        print("✅ [BackgroundRefresh] Rolling window updated successfully")
         return true
     }
 
@@ -165,11 +146,9 @@ class BackgroundRefreshService: NSObject, ObservableObject {
         let prayerRemindersEnabled = groupDefaults?.bool(forKey: "prayerRemindersEnabled") ?? UserDefaults.standard.bool(forKey: "prayerRemindersEnabled")
 
         guard prayerRemindersEnabled else {
-            print("ℹ️ [BackgroundRefresh] Prayer reminders disabled, skipping notification update")
             return
         }
 
-        print("🔔 [BackgroundRefresh] Updating prayer notifications for selected prayers")
 
         // Build prayer times from storage for next 4 days
         let calendar = Calendar.current
@@ -229,20 +208,16 @@ class BackgroundRefreshService: NSObject, ObservableObject {
             minutesBefore: 5
         )
 
-        print("✅ [BackgroundRefresh] Prayer notifications updated for \(selectedPrayers.count) selected prayers")
     }
 
     // MARK: - Manual Refresh (called from UI or FCM)
 
     func triggerManualRefresh(reason: String = "Manual") async {
-        print("🔄 [BackgroundRefresh] Manual refresh triggered: \(reason)")
         let success = await performPrayerTimeRefresh(reason: reason)
 
         if success {
             lastRefreshDate = Date()
-            print("✅ [BackgroundRefresh] Manual refresh completed")
         } else {
-            print("⚠️ [BackgroundRefresh] Manual refresh completed with warnings")
         }
     }
 }
@@ -252,13 +227,11 @@ class BackgroundRefreshService: NSObject, ObservableObject {
 extension BackgroundRefreshService: MessagingDelegate {
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        print("📱 [FCM] Received registration token: \(fcmToken ?? "nil")")
 
         // Store FCM token for local use
         if let token = fcmToken, let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.set(token, forKey: "fcmToken")
             groupDefaults.synchronize()
-            print("💾 [FCM] Token saved to UserDefaults")
 
             // Save to Firestore for Cloud Functions to use
             Task {
@@ -269,7 +242,6 @@ extension BackgroundRefreshService: MessagingDelegate {
 
     /// Save FCM token to Firestore for Cloud Functions
     private func saveFCMTokenToFirestore(token: String) async {
-        print("📤 [FCM] Saving token to Firestore...")
 
         let functions = Functions.functions()
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
@@ -283,12 +255,9 @@ extension BackgroundRefreshService: MessagingDelegate {
             ])
 
             if let data = result.data as? [String: Any], let success = data["success"] as? Bool, success {
-                print("✅ [FCM] Token saved to Firestore successfully")
             } else {
-                print("⚠️ [FCM] Token saved but unexpected response: \(result.data)")
             }
         } catch {
-            print("❌ [FCM] Failed to save token to Firestore: \(error.localizedDescription)")
         }
     }
 }
@@ -298,18 +267,15 @@ extension BackgroundRefreshService: MessagingDelegate {
 extension BackgroundRefreshService {
 
     func handleSilentNotification(userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-        print("📱 [BackgroundRefresh] Received silent notification")
 
         // Check if it's a prayer time refresh notification
         if let refreshType = userInfo["refreshType"] as? String, refreshType == "prayerTimeUpdate" {
-            print("🔄 [BackgroundRefresh] Prayer time refresh notification received")
 
             let success = await performPrayerTimeRefresh(reason: "Silent Notification")
 
             return success ? .newData : .failed
         }
 
-        print("ℹ️ [BackgroundRefresh] Unknown notification type, skipping")
         return .noData
     }
 }

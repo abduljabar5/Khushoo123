@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We need your location to provide you with accurate prayer times based on your current city.</string>
 	<key>NSMicrophoneUsageDescription</key>

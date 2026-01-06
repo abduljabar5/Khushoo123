@@ -29,10 +29,28 @@ struct PrayerTimeStorage: Codable {
     }
 
     var shouldRefresh: Bool {
-        // Refresh if data is older than 6 months or doesn't cover current needs
         let now = Date()
-        let sixMonthsAgo = Calendar.current.date(byAdding: .month, value: -6, to: now) ?? now
-        return fetchedAt < sixMonthsAgo || !isValid
+        let calendar = Calendar.current
+
+        // Don't refresh if data was fetched less than 24 hours ago
+        let oneDayAgo = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        if fetchedAt > oneDayAgo {
+            return false
+        }
+
+        // Check if we have sufficient future coverage
+        // For premium (long-term data), require at least 30 days remaining
+        // For free users (short-term data), require at least 1 day remaining
+        let daysCovered = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        let daysRemaining = calendar.dateComponents([.day], from: now, to: endDate).day ?? 0
+
+        if daysCovered >= 7 {
+            // Premium user data - only refresh if less than 30 days remaining
+            return daysRemaining < 30
+        } else {
+            // Free user data - only refresh if less than 1 day remaining
+            return daysRemaining < 1
+        }
     }
 }
 
@@ -60,17 +78,14 @@ class PrayerTimeService {
 
         let urlString = "https://api.aladhan.com/v1/timings/\(dateString)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
 
-        print("🕌 [PrayerBlocking] Fetching single day prayer times: \(dateString)")
 
         guard let url = URL(string: urlString) else {
-            print("❌ [PrayerBlocking] Invalid URL for date: \(dateString)")
             throw URLError(.badURL)
         }
 
         let (data, response) = try await URLSession.shared.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("❌ [PrayerBlocking] Bad server response for date: \(dateString)")
             throw URLError(.badServerResponse)
         }
 
@@ -94,9 +109,6 @@ class PrayerTimeService {
         let displayFormatter = DateFormatter()
         displayFormatter.dateFormat = "yyyy-MM-dd"
 
-        print("🕌 [PrayerBlocking] Starting prayer time fetch (\(daysToFetch) days) using calendar API")
-        print("🕌 [PrayerBlocking] Date range: \(displayFormatter.string(from: start)) to \(displayFormatter.string(from: end))")
-        print("🕌 [PrayerBlocking] Location: lat=\(String(format: "%.4f", latitude)), lon=\(String(format: "%.4f", longitude))")
 
         var storedTimes: [StoredPrayerTime] = []
         var currentDate = start
@@ -131,7 +143,6 @@ class PrayerTimeService {
                 for dayData in calendarResponse.data {
                     // Convert timestamp string to TimeInterval
                     guard let timestamp = TimeInterval(dayData.date.timestamp) else {
-                        print("⚠️ [PrayerBlocking] Failed to parse timestamp: \(dayData.date.timestamp)")
                         continue
                     }
 
@@ -152,13 +163,11 @@ class PrayerTimeService {
                 }
 
                 fetchedMonths += 1
-                print("🕌 [PrayerBlocking] Fetched month \(fetchedMonths)/\(totalMonths) (\(year)-\(String(format: "%02d", month)))")
 
-                // Small delay to be respectful to API (100ms per month request)
-                try await Task.sleep(nanoseconds: 100_000_000)
+                // Delay to be respectful to API (300ms per month request)
+                try await Task.sleep(nanoseconds: 300_000_000)
 
             } catch {
-                print("❌ [PrayerBlocking] Failed to fetch prayer times for \(year)-\(month): \(error.localizedDescription)")
                 throw error
             }
 
@@ -179,8 +188,6 @@ class PrayerTimeService {
             fetchedAt: Date()
         )
 
-        print("🕌 [PrayerBlocking] Completed 6-month fetch: \(storedTimes.count) days from \(fetchedMonths) months")
-        print("🕌 [PrayerBlocking] Date range: \(displayFormatter.string(from: start)) to \(displayFormatter.string(from: end))")
 
         return storage
     }
@@ -188,7 +195,6 @@ class PrayerTimeService {
     // MARK: - Storage Operations
     func saveStorage(_ storage: PrayerTimeStorage) {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
-            print("❌ [PrayerBlocking] Failed to access group defaults for saving storage")
             return
         }
 
@@ -201,17 +207,13 @@ class PrayerTimeService {
 
             let displayFormatter = DateFormatter()
             displayFormatter.dateFormat = "yyyy-MM-dd"
-            print("💾 [PrayerBlocking] Saved \(storage.prayerTimes.count) prayer times to UserDefaults")
-            print("💾 [PrayerBlocking] Date range: \(displayFormatter.string(from: storage.startDate)) to \(displayFormatter.string(from: storage.endDate))")
         } catch {
-            print("❌ [PrayerBlocking] Failed to save storage: \(error.localizedDescription)")
         }
     }
 
     func loadStorage() -> PrayerTimeStorage? {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let data = groupDefaults.data(forKey: storageKey) else {
-            print("🔍 [PrayerBlocking] No stored prayer times found")
             return nil
         }
 
@@ -222,13 +224,9 @@ class PrayerTimeService {
 
             let displayFormatter = DateFormatter()
             displayFormatter.dateFormat = "yyyy-MM-dd"
-            print("📖 [PrayerBlocking] Loaded \(storage.prayerTimes.count) prayer times from UserDefaults")
-            print("📖 [PrayerBlocking] Date range: \(displayFormatter.string(from: storage.startDate)) to \(displayFormatter.string(from: storage.endDate))")
-            print("📖 [PrayerBlocking] Valid: \(storage.isValid), Should Refresh: \(storage.shouldRefresh)")
 
             return storage
         } catch {
-            print("❌ [PrayerBlocking] Failed to load storage: \(error.localizedDescription)")
             return nil
         }
     }
@@ -237,7 +235,6 @@ class PrayerTimeService {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
         groupDefaults.removeObject(forKey: storageKey)
         groupDefaults.synchronize()
-        print("🗑️ [PrayerBlocking] Cleared stored prayer times")
     }
 
     // MARK: - Location Validation (Tiered System)
@@ -253,15 +250,11 @@ class PrayerTimeService {
 
         // Tier 1: Small change (<20km) - Don't refresh
         if maxDiff <= smallChange {
-            print("✅ [PrayerBlocking] Location change small (<20km) - keeping data")
             return false
         }
 
         // Tier 2: Medium change (20-100km) - Fetch 1 day to check if times actually changed
         if maxDiff <= mediumChange {
-            print("🔍 [PrayerBlocking] Location change medium (20-100km) - checking if times differ...")
-            print("🔍 [PrayerBlocking] Old: lat=\(String(format: "%.4f", storage.latitude)), lon=\(String(format: "%.4f", storage.longitude))")
-            print("🔍 [PrayerBlocking] New: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude))")
 
             do {
                 // Fetch prayer times for today at new location
@@ -276,23 +269,17 @@ class PrayerTimeService {
                     let timeDiff = maxTimeDifference(stored: todayStored, new: newTimings)
 
                     if timeDiff > 5 {
-                        print("⚠️ [PrayerBlocking] Prayer times differ by \(timeDiff) minutes - needs refresh")
                         return true
                     } else {
-                        print("✅ [PrayerBlocking] Prayer times similar (diff: \(timeDiff) min) - keeping data")
                         return false
                     }
                 }
             } catch {
-                print("⚠️ [PrayerBlocking] Failed to check time difference: \(error.localizedDescription) - refreshing to be safe")
                 return true
             }
         }
 
         // Tier 3: Large change (>100km) - Always refresh
-        print("🔄 [PrayerBlocking] Location changed significantly (>100km) - needs refresh")
-        print("🔄 [PrayerBlocking] Old: lat=\(String(format: "%.4f", storage.latitude)), lon=\(String(format: "%.4f", storage.longitude))")
-        print("🔄 [PrayerBlocking] New: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude))")
         return true
     }
 

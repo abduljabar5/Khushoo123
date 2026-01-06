@@ -322,8 +322,7 @@ struct QiblaCompassModal: View {
                 Button(action: {
                     if compassManager.canRefresh {
                         compassManager.refreshLocation()
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
+                        HapticManager.shared.impact(.light)
                     }
                 }) {
                     HStack(spacing: 6) {
@@ -644,21 +643,13 @@ struct QiblaCompassModal: View {
     private func triggerHaptic(for zone: Int) {
         switch zone {
         case 4: // Perfect alignment - Success notification
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-
+            HapticManager.shared.notification(.success)
         case 3: // Very close - Heavy impact
-            let generator = UIImpactFeedbackGenerator(style: .heavy)
-            generator.impactOccurred(intensity: 1.0)
-
+            HapticManager.shared.impact(.heavy)
         case 2: // Close - Medium impact
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred(intensity: 0.8)
-
+            HapticManager.shared.impact(.medium)
         case 1: // Getting close - Light impact
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred(intensity: 0.6)
-
+            HapticManager.shared.impact(.light)
         default:
             break
         }

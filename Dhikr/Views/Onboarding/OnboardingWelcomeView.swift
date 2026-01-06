@@ -9,6 +9,9 @@ import SwiftUI
 
 struct OnboardingWelcomeView: View {
     let onContinue: () -> Void
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,7 +22,7 @@ struct OnboardingWelcomeView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                            colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -35,14 +38,14 @@ struct OnboardingWelcomeView: View {
             // Title
             Text("Welcome to Khushoo")
                 .font(.system(size: 36, weight: .bold, design: .rounded))
-                .foregroundColor(Color(hex: "2C3E50"))
+                .foregroundColor(theme.primaryText)
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 16)
 
             // Subtitle
             Text("Your companion for prayer, dhikr, and spiritual focus")
                 .font(.system(size: 18, weight: .regular))
-                .foregroundColor(Color(hex: "7F8C8D"))
+                .foregroundColor(theme.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
                 .padding(.bottom, 48)
@@ -51,30 +54,34 @@ struct OnboardingWelcomeView: View {
             VStack(spacing: 24) {
                 ValuePointRow(
                     icon: "iphone.slash",
-                    iconColor: Color(hex: "1A9B8A"),
+                    iconColor: theme.primaryAccent,
                     title: "Prayer-Time App Blocking",
-                    description: "Stay focused during prayer times"
+                    description: "Stay focused during prayer times",
+                    theme: theme
                 )
 
                 ValuePointRow(
                     icon: "location.circle.fill",
-                    iconColor: Color(hex: "F39C12"),
+                    iconColor: theme.accentGold,
                     title: "Accurate Prayer Times",
-                    description: "Based on your location"
+                    description: "Based on your location",
+                    theme: theme
                 )
 
                 ValuePointRow(
                     icon: "hands.sparkles",
-                    iconColor: Color(hex: "27AE60"),
+                    iconColor: theme.accentGreen,
                     title: "Dhikr Tracking & Zikr Ring",
-                    description: "Track your daily remembrance"
+                    description: "Track your daily remembrance",
+                    theme: theme
                 )
 
                 ValuePointRow(
                     icon: "waveform",
-                    iconColor: Color(hex: "16A085"),
+                    iconColor: theme.accentTeal,
                     title: "Quran Audio",
-                    description: "15+ free reciters included"
+                    description: "15+ free reciters included",
+                    theme: theme
                 )
             }
             .padding(.horizontal, 32)
@@ -85,7 +92,6 @@ struct OnboardingWelcomeView: View {
             VStack(spacing: 16) {
                 // Primary: Continue
                 Button(action: {
-                    print("[Onboarding] Welcome - Continue tapped")
                     onContinue()
                 }) {
                     Text("Continue")
@@ -97,7 +103,7 @@ struct OnboardingWelcomeView: View {
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(
                                     LinearGradient(
-                                        colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                                        colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
@@ -108,8 +114,8 @@ struct OnboardingWelcomeView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
         }
+        .background(theme.primaryBackground)
         .onAppear {
-            print("[Onboarding] Welcome screen shown")
         }
     }
 }
@@ -121,13 +127,14 @@ struct ValuePointRow: View {
     let iconColor: Color
     let title: String
     let description: String
+    let theme: AppTheme
 
     var body: some View {
         HStack(spacing: 16) {
             // Icon
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(iconColor.opacity(0.1))
+                    .fill(iconColor.opacity(0.15))
                     .frame(width: 56, height: 56)
 
                 Image(systemName: icon)
@@ -139,11 +146,11 @@ struct ValuePointRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "2C3E50"))
+                    .foregroundColor(theme.primaryText)
 
                 Text(description)
                     .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(Color(hex: "7F8C8D"))
+                    .foregroundColor(theme.secondaryText)
             }
 
             Spacer()

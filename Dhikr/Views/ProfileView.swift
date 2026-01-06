@@ -8,6 +8,7 @@
 import SwiftUI
 import Kingfisher
 import UserNotifications
+import StoreKit
 
 struct ProfileView: View {
     @EnvironmentObject var dhikrService: DhikrService
@@ -796,7 +797,7 @@ struct ProfileView: View {
                     iconColor: themeManager.theme.primaryAccent,
                     title: "Version",
                     trailing: {
-                        Text("2.0.0")
+                        Text("1.0.0")
                             .font(.subheadline)
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
@@ -806,7 +807,9 @@ struct ProfileView: View {
                     .padding(.leading, 50)
 
                 Button(action: {
-                    print("Contact support tapped")
+                    if let url = URL(string: "mailto:khushooios@gmail.com?subject=Khushoo%20Support") {
+                        UIApplication.shared.open(url)
+                    }
                 }) {
                     settingsRow(
                         icon: "envelope.fill",
@@ -825,7 +828,7 @@ struct ProfileView: View {
                     .padding(.leading, 50)
 
                 Button(action: {
-                    print("Rate us tapped")
+                    requestAppReview()
                 }) {
                     settingsRow(
                         icon: "star.fill",
@@ -1154,9 +1157,7 @@ struct ProfileView: View {
 
             notificationCenter.add(request) { error in
                 if let error = error {
-                    print("❌ Failed to schedule dhikr reminder: \(error)")
                 } else {
-                    print("✅ Scheduled dhikr reminder at \(time.hour):\(time.minute)")
                 }
             }
         }
@@ -1166,7 +1167,6 @@ struct ProfileView: View {
         let notificationCenter = UNUserNotificationCenter.current()
         let identifiers = ["dhikr_reminder_0", "dhikr_reminder_1", "dhikr_reminder_2"]
         notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
-        print("🗑️ Cleared dhikr reminders")
     }
 
     // Helper to get first name for personalization
@@ -1183,20 +1183,22 @@ struct ProfileView: View {
         return components.first ?? ""
     }
 
+    private func requestAppReview() {
+        if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: scene)
+        }
+    }
+
     // MARK: - Account Deletion
     private func deleteAccount() async {
         do {
-            print("🗑️ [ProfileView] Starting account deletion...")
 
             // Delete account from Firebase (Auth and Firestore only)
             // Local data (dhikr counts, streaks, etc.) is preserved
             try await authService.deleteAccount()
 
-            print("✅ [ProfileView] Account deleted successfully")
-            print("ℹ️ [ProfileView] Local data (dhikr progress, streaks) preserved")
 
         } catch {
-            print("❌ [ProfileView] Failed to delete account: \(error)")
 
             // Handle re-authentication error
             if let authError = error as NSError?, authError.domain == "FIRAuthErrorDomain" {
@@ -1829,8 +1831,7 @@ struct InteractiveStreakCard: View {
             }
             
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
+            HapticManager.shared.impact(.medium)
         }
     }
 }
