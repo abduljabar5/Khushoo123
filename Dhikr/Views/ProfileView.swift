@@ -8,6 +8,7 @@
 import SwiftUI
 import Kingfisher
 import UserNotifications
+import StoreKit
 
 struct ProfileView: View {
     @EnvironmentObject var dhikrService: DhikrService
@@ -796,7 +797,7 @@ struct ProfileView: View {
                     iconColor: themeManager.theme.primaryAccent,
                     title: "Version",
                     trailing: {
-                        Text("2.0.0")
+                        Text("1.0.0")
                             .font(.subheadline)
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
@@ -806,6 +807,9 @@ struct ProfileView: View {
                     .padding(.leading, 50)
 
                 Button(action: {
+                    if let url = URL(string: "mailto:khushooios@gmail.com?subject=Khushoo%20Support") {
+                        UIApplication.shared.open(url)
+                    }
                 }) {
                     settingsRow(
                         icon: "envelope.fill",
@@ -824,6 +828,7 @@ struct ProfileView: View {
                     .padding(.leading, 50)
 
                 Button(action: {
+                    requestAppReview()
                 }) {
                     settingsRow(
                         icon: "star.fill",
@@ -1176,6 +1181,12 @@ struct ProfileView: View {
         // Extract first name
         let components = fullName.components(separatedBy: " ")
         return components.first ?? ""
+    }
+
+    private func requestAppReview() {
+        if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: scene)
+        }
     }
 
     // MARK: - Account Deletion

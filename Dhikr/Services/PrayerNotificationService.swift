@@ -77,6 +77,10 @@ class PrayerNotificationService: ObservableObject {
         // Clear existing pre-prayer notifications
         clearPrePrayerNotifications()
 
+        // Read the pre-prayer buffer from settings
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let bufferMinutes = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? 0
+
         let now = Date()
         let futurePrayers = prayerTimes.filter { prayer in
             prayer.date > now && selectedPrayers.contains(prayer.name)
@@ -93,7 +97,12 @@ class PrayerNotificationService: ObservableObject {
         var scheduledCount = 0
 
         for prayer in futurePrayers {
-            let reminderTime = prayer.date.addingTimeInterval(-TimeInterval(minutesBefore * 60))
+            // Notification should fire before BLOCKING starts (not prayer time)
+            // Blocking starts at: prayer.date - bufferMinutes
+            // Notification fires at: blocking start - minutesBefore
+            // = prayer.date - bufferMinutes - minutesBefore
+            let blockingStartTime = prayer.date.addingTimeInterval(-bufferMinutes * 60)
+            let reminderTime = blockingStartTime.addingTimeInterval(-TimeInterval(minutesBefore * 60))
 
             // Skip if reminder time is in the past
             guard reminderTime > now else { continue }
@@ -102,8 +111,14 @@ class PrayerNotificationService: ObservableObject {
 
             // Create notification content
             let content = UNMutableNotificationContent()
-            content.title = "Prayer Time Approaching"
-            content.body = "\(prayer.name) prayer starts in \(minutesBefore) minutes. Your apps will be blocked soon."
+            content.title = "Focus Mode Starting Soon"
+            if bufferMinutes > 0 {
+                // With buffer: blocking starts before prayer
+                content.body = "\(prayer.name) prayer in \(Int(bufferMinutes) + minutesBefore) min. Focus mode starts in \(minutesBefore) min."
+            } else {
+                // No buffer: blocking starts at prayer time
+                content.body = "\(prayer.name) prayer starts in \(minutesBefore) minutes. Your apps will be blocked soon."
+            }
             content.sound = .default
             content.badge = 1
 

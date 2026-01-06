@@ -13,6 +13,9 @@ struct OnboardingFocusSetupView: View {
 
     // Use shared FocusSettingsManager for all settings
     @StateObject private var focusManager = FocusSettingsManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var theme: AppTheme { themeManager.theme }
 
     // FamilyControls app selection
     @State private var showAppPicker = false
@@ -55,16 +58,16 @@ struct OnboardingFocusSetupView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "iphone.slash.circle.fill")
                         .font(.system(size: 64))
-                        .foregroundColor(Color(hex: "1A9B8A"))
+                        .foregroundColor(theme.primaryAccent)
                         .padding(.top, 32)
 
                     Text("Focus Blocking")
                         .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: "2C3E50"))
+                        .foregroundColor(theme.primaryText)
 
                     Text("Block distracting apps during prayer times")
                         .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(Color(hex: "7F8C8D"))
+                        .foregroundColor(theme.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -75,16 +78,16 @@ struct OnboardingFocusSetupView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
                             // Step indicator
-                            StepIndicator(number: 1, isComplete: hasSelectedPrayer)
+                            StepIndicator(number: 1, isComplete: hasSelectedPrayer, theme: theme)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Select Prayer Times")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(Color(hex: "2C3E50"))
+                                    .foregroundColor(theme.primaryText)
 
                                 Text("Choose when to block apps")
                                     .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(Color(hex: "95A5A6"))
+                                    .foregroundColor(theme.tertiaryText)
                             }
 
                             Spacer()
@@ -92,19 +95,19 @@ struct OnboardingFocusSetupView: View {
                         .padding(.horizontal, 24)
 
                         VStack(spacing: 0) {
-                            OnboardingPrayerToggleRow(icon: "sunrise.fill", iconColor: Color(hex: "F39C12"), name: "Fajr", isOn: $focusManager.selectedFajr)
+                            OnboardingPrayerToggleRow(icon: "sunrise.fill", iconColor: theme.accentGold, name: "Fajr", isOn: $focusManager.selectedFajr, theme: theme)
                             Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "sun.max.fill", iconColor: Color(hex: "F39C12"), name: "Dhuhr", isOn: $focusManager.selectedDhuhr)
+                            OnboardingPrayerToggleRow(icon: "sun.max.fill", iconColor: theme.accentGold, name: "Dhuhr", isOn: $focusManager.selectedDhuhr, theme: theme)
                             Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "sun.haze.fill", iconColor: Color(hex: "FFA726"), name: "Asr", isOn: $focusManager.selectedAsr)
+                            OnboardingPrayerToggleRow(icon: "sun.haze.fill", iconColor: Color(hex: "FFA726"), name: "Asr", isOn: $focusManager.selectedAsr, theme: theme)
                             Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "sunset.fill", iconColor: Color(hex: "FF7043"), name: "Maghrib", isOn: $focusManager.selectedMaghrib)
+                            OnboardingPrayerToggleRow(icon: "sunset.fill", iconColor: Color(hex: "FF7043"), name: "Maghrib", isOn: $focusManager.selectedMaghrib, theme: theme)
                             Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "moon.stars.fill", iconColor: Color(hex: "5E35B1"), name: "Isha", isOn: $focusManager.selectedIsha)
+                            OnboardingPrayerToggleRow(icon: "moon.stars.fill", iconColor: Color(hex: "5E35B1"), name: "Isha", isOn: $focusManager.selectedIsha, theme: theme)
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white)
+                                .fill(theme.cardBackground)
                         )
                         .padding(.horizontal, 24)
                     }
@@ -113,16 +116,16 @@ struct OnboardingFocusSetupView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
                             // Step indicator
-                            StepIndicator(number: 2, isComplete: hasSelectedDuration)
+                            StepIndicator(number: 2, isComplete: hasSelectedDuration, theme: theme)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Blocking Duration")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(Color(hex: "2C3E50"))
+                                    .foregroundColor(theme.primaryText)
 
-                                Text("How long to block apps")
+                                Text("Time after prayer starts")
                                     .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(Color(hex: "95A5A6"))
+                                    .foregroundColor(theme.tertiaryText)
                             }
 
                             Spacer()
@@ -140,16 +143,16 @@ struct OnboardingFocusSetupView: View {
                                         Text("min")
                                             .font(.system(size: 12, weight: .medium))
                                     }
-                                    .foregroundColor(focusManager.blockingDuration == duration ? .white : Color(hex: "2C3E50"))
+                                    .foregroundColor(focusManager.blockingDuration == duration ? .white : theme.primaryText)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 64)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(focusManager.blockingDuration == duration ? Color(hex: "1A9B8A") : Color.white)
+                                            .fill(focusManager.blockingDuration == duration ? theme.primaryAccent : theme.cardBackground)
                                     )
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(focusManager.blockingDuration == duration ? Color.clear : Color(hex: "ECECEC"), lineWidth: 2)
+                                            .stroke(focusManager.blockingDuration == duration ? Color.clear : theme.tertiaryBackground, lineWidth: 2)
                                     )
                                 }
                             }
@@ -161,16 +164,16 @@ struct OnboardingFocusSetupView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
                             // Step indicator
-                            StepIndicator(number: 3, isComplete: hasSelectedApps)
+                            StepIndicator(number: 3, isComplete: hasSelectedApps, theme: theme)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Apps to Block")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(Color(hex: "2C3E50"))
+                                    .foregroundColor(theme.primaryText)
 
                                 Text("Which apps to block")
                                     .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(Color(hex: "95A5A6"))
+                                    .foregroundColor(theme.tertiaryText)
                             }
 
                             Spacer()
@@ -183,29 +186,98 @@ struct OnboardingFocusSetupView: View {
                             HStack(spacing: 16) {
                                 Image(systemName: "app.badge")
                                     .font(.system(size: 24))
-                                    .foregroundColor(Color(hex: "1A9B8A"))
+                                    .foregroundColor(theme.primaryAccent)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Select Apps")
                                         .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(Color(hex: "2C3E50"))
+                                        .foregroundColor(theme.primaryText)
 
                                     Text(selectedAppsCount > 0 ? "\(selectedAppsCount) apps selected" : "Tap to choose")
                                         .font(.system(size: 14, weight: .regular))
-                                        .foregroundColor(Color(hex: "7F8C8D"))
+                                        .foregroundColor(theme.secondaryText)
                                 }
 
                                 Spacer()
 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(Color(hex: "CECECE"))
+                                    .foregroundColor(theme.tertiaryText)
                             }
                             .padding(16)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color.white)
+                                    .fill(theme.cardBackground)
                             )
+                        }
+                        .padding(.horizontal, 24)
+                    }
+
+                    // Pre-Prayer Buffer (Optional)
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            // Optional indicator
+                            ZStack {
+                                Circle()
+                                    .fill(theme.primaryAccent.opacity(0.2))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "clock.badge.checkmark")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(theme.primaryAccent)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Text("Pre-Prayer Focus")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(theme.primaryText)
+                                    Text("Optional")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(theme.primaryAccent)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(theme.primaryAccent.opacity(0.15))
+                                        .cornerRadius(4)
+                                }
+
+                                Text("Start blocking before prayer time")
+                                    .font(.system(size: 13, weight: .regular))
+                                    .foregroundColor(theme.tertiaryText)
+                            }
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 24)
+
+                        HStack(spacing: 12) {
+                            ForEach([0.0, 5.0, 10.0, 15.0], id: \.self) { buffer in
+                                Button(action: {
+                                    focusManager.prePrayerBuffer = buffer
+                                }) {
+                                    VStack(spacing: 4) {
+                                        if buffer == 0 {
+                                            Text("Off")
+                                                .font(.system(size: 16, weight: .bold))
+                                        } else {
+                                            Text("\(Int(buffer))")
+                                                .font(.system(size: 20, weight: .bold))
+                                            Text("min")
+                                                .font(.system(size: 12, weight: .medium))
+                                        }
+                                    }
+                                    .foregroundColor(focusManager.prePrayerBuffer == buffer ? .white : theme.primaryText)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 64)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(focusManager.prePrayerBuffer == buffer ? theme.primaryAccent : theme.cardBackground)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(focusManager.prePrayerBuffer == buffer ? Color.clear : theme.tertiaryBackground, lineWidth: 2)
+                                    )
+                                }
+                            }
                         }
                         .padding(.horizontal, 24)
                     }
@@ -217,10 +289,10 @@ struct OnboardingFocusSetupView: View {
                 if !allStepsComplete {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundColor(Color(hex: "F39C12"))
+                            .foregroundColor(theme.accentGold)
                         Text("Complete all 3 steps to continue")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(Color(hex: "7F8C8D"))
+                            .foregroundColor(theme.secondaryText)
                     }
                     .padding(.horizontal, 32)
                 }
@@ -251,12 +323,12 @@ struct OnboardingFocusSetupView: View {
                                     .fill(
                                         allStepsComplete
                                             ? LinearGradient(
-                                                colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                                                colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
                                                 startPoint: .leading,
                                                 endPoint: .trailing
                                             )
                                             : LinearGradient(
-                                                colors: [Color(hex: "BDC3C7"), Color(hex: "95A5A6")],
+                                                colors: [theme.tertiaryText, theme.secondaryText],
                                                 startPoint: .leading,
                                                 endPoint: .trailing
                                             )
@@ -269,6 +341,7 @@ struct OnboardingFocusSetupView: View {
                 .padding(.bottom, 48)
             }
         }
+        .background(theme.primaryBackground)
         .familyActivityPicker(isPresented: $showAppPicker, selection: $selection)
         .onChange(of: selection) { newSelection in
             // Save selection immediately - AppSelectionModel handles the save
@@ -302,11 +375,12 @@ struct OnboardingFocusSetupView: View {
 private struct StepIndicator: View {
     let number: Int
     let isComplete: Bool
+    let theme: AppTheme
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(isComplete ? Color(hex: "1A9B8A") : Color(hex: "ECECEC"))
+                .fill(isComplete ? theme.primaryAccent : theme.tertiaryBackground)
                 .frame(width: 32, height: 32)
 
             if isComplete {
@@ -316,7 +390,7 @@ private struct StepIndicator: View {
             } else {
                 Text("\(number)")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Color(hex: "95A5A6"))
+                    .foregroundColor(theme.tertiaryText)
             }
         }
     }
@@ -329,13 +403,14 @@ private struct OnboardingPrayerToggleRow: View {
     let iconColor: Color
     let name: String
     @Binding var isOn: Bool
+    let theme: AppTheme
 
     var body: some View {
         HStack(spacing: 16) {
             // Icon
             ZStack {
                 Circle()
-                    .fill(iconColor.opacity(0.1))
+                    .fill(iconColor.opacity(0.15))
                     .frame(width: 40, height: 40)
 
                 Image(systemName: icon)
@@ -345,7 +420,7 @@ private struct OnboardingPrayerToggleRow: View {
 
             Text(name)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(Color(hex: "2C3E50"))
+                .foregroundColor(theme.primaryText)
 
             Spacer()
 

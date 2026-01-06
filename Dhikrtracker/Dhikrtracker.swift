@@ -34,7 +34,7 @@ struct DhikrProvider: TimelineProvider {
         completion(entry)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<DhikrEntry>) -> ()) {
         // --- FIX: Create a single entry timeline that reloads on demand ---
         let entry = DhikrEntry(date: Date(), dhikrData: loadDhikrData())
         

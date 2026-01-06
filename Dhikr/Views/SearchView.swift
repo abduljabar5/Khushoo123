@@ -135,7 +135,30 @@ struct SearchView: View {
                             .padding(.bottom, 8)
                             .transition(.opacity)
                         }
-                        
+
+                        // Show banner when settings are locked during active blocking
+                        if blockingStateService.isCurrentlyBlocking || blockingStateService.appsActuallyBlocked {
+                            HStack(spacing: 12) {
+                                Image(systemName: "lock.fill")
+                                    .foregroundColor(.orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Settings Locked")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(theme.primaryText)
+                                    Text("Settings cannot be changed while apps are blocked")
+                                        .font(.caption)
+                                        .foregroundColor(theme.secondaryText)
+                                }
+                                Spacer()
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.orange.opacity(0.15))
+                            )
+                            .padding(.horizontal, 16)
+                        }
+
                         // Voice confirmation section (appears when blocking is active in strict mode)
                         VoiceConfirmationView(blockingState: blockingStateService)
 
@@ -173,6 +196,12 @@ struct SearchView: View {
 
                         BlockingDurationView(
                             duration: $focusManager.blockingDuration,
+                            theme: theme
+                        )
+                        .padding(.horizontal, 16)
+
+                        PrePrayerBufferView(
+                            buffer: $focusManager.prePrayerBuffer,
                             theme: theme
                         )
                         .padding(.horizontal, 16)
@@ -494,7 +523,8 @@ struct SearchView: View {
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
             duration: focusManager.blockingDuration,
-            selectedPrayers: focusManager.getSelectedPrayers()
+            selectedPrayers: focusManager.getSelectedPrayers(),
+            prePrayerBuffer: focusManager.prePrayerBuffer
         )
     }
     
@@ -866,7 +896,13 @@ private struct BlockingDurationView: View {
     @Binding var duration: Double
     let theme: AppTheme
     @StateObject private var themeManager = ThemeManager.shared
-    
+    @StateObject private var blockingState = BlockingStateService.shared
+
+    /// Whether settings should be disabled (during active blocking)
+    private var isDisabled: Bool {
+        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+    }
+
     private var backgroundShape: some View {
         Group {
             if themeManager.effectiveTheme == .dark {
@@ -881,16 +917,21 @@ private struct BlockingDurationView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Blocking Duration")
-                .font(.headline)
-                .foregroundColor(theme.primaryText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Blocking Duration")
+                    .font(.headline)
+                    .foregroundColor(theme.primaryText)
+                Text("Time after prayer starts")
+                    .font(.caption)
+                    .foregroundColor(theme.secondaryText)
+            }
 
             VStack(spacing: 16) {
                 HStack {
-                    Text("Set duration for all prayers")
+                    Text("Block apps for")
                         .foregroundColor(theme.primaryText)
                     Spacer()
-                    Text("\(Int(duration)) min")
+                    Text("\(Int(duration)) min after prayer")
                         .bold()
                         .foregroundColor(theme.primaryText)
                 }
@@ -900,19 +941,24 @@ private struct BlockingDurationView: View {
                     DurationButton(value: 15, current: Int(duration), theme: theme) {
                         duration = 15
                     }
+                    .disabled(isDisabled)
 
                     DurationButton(value: 20, current: Int(duration), theme: theme) {
                         duration = 20
                     }
+                    .disabled(isDisabled)
 
                     DurationButton(value: 30, current: Int(duration), theme: theme) {
                         duration = 30
                     }
+                    .disabled(isDisabled)
 
                     CustomDurationButton(current: Int(duration), theme: theme) { customValue in
                         duration = Double(customValue)
                     }
+                    .disabled(isDisabled)
                 }
+                .opacity(isDisabled ? 0.5 : 1.0)
             }
             .padding()
             .background(backgroundShape)
@@ -995,12 +1041,121 @@ private struct CustomDurationButton: View {
     }
 }
 
+// MARK: - Pre-Prayer Buffer View
+
+private struct PrePrayerBufferView: View {
+    @Binding var buffer: Double
+    let theme: AppTheme
+    @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var blockingState = BlockingStateService.shared
+
+    /// Whether settings should be disabled (during active blocking)
+    private var isDisabled: Bool {
+        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+    }
+
+    private var backgroundShape: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Pre-Prayer Focus")
+                    .font(.headline)
+                    .foregroundColor(theme.primaryText)
+                Text("Start blocking before prayer time to prepare")
+                    .font(.caption)
+                    .foregroundColor(theme.secondaryText)
+            }
+
+            VStack(spacing: 16) {
+                HStack {
+                    Image(systemName: "clock.badge.checkmark")
+                        .foregroundColor(Color(hex: "1A9B8A"))
+                    Text("Buffer Time")
+                        .foregroundColor(theme.primaryText)
+                    Spacer()
+                    Text(buffer == 0 ? "Off" : "\(Int(buffer)) min before")
+                        .bold()
+                        .foregroundColor(buffer == 0 ? theme.tertiaryText : theme.primaryText)
+                }
+
+                // Buffer Time Buttons
+                HStack(spacing: 10) {
+                    BufferButton(value: 0, current: Int(buffer), theme: theme) {
+                        buffer = 0
+                    }
+                    .disabled(isDisabled)
+
+                    BufferButton(value: 5, current: Int(buffer), theme: theme) {
+                        buffer = 5
+                    }
+                    .disabled(isDisabled)
+
+                    BufferButton(value: 10, current: Int(buffer), theme: theme) {
+                        buffer = 10
+                    }
+                    .disabled(isDisabled)
+
+                    BufferButton(value: 15, current: Int(buffer), theme: theme) {
+                        buffer = 15
+                    }
+                    .disabled(isDisabled)
+                }
+                .opacity(isDisabled ? 0.5 : 1.0)
+            }
+            .padding()
+            .background(backgroundShape)
+        }
+    }
+}
+
+private struct BufferButton: View {
+    let value: Int
+    let current: Int
+    let theme: AppTheme
+    let action: () -> Void
+
+    var isSelected: Bool {
+        current == value
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(value == 0 ? "Off" : "\(value)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(isSelected ? .white : theme.primaryText)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(isSelected ? Color(hex: "1A9B8A") : Color.gray.opacity(0.2))
+                )
+        }
+    }
+}
+
 
 private struct SelectAppsToBlockView: View {
     @StateObject private var appModel = AppSelectionModel.shared
     let theme: AppTheme
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var blockingState = BlockingStateService.shared
     var onSelectTapped: () -> Void
+
+    /// Whether settings should be disabled (during active blocking)
+    private var isDisabled: Bool {
+        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+    }
 
     private var backgroundShape: some View {
         Group {
@@ -1034,12 +1189,13 @@ private struct SelectAppsToBlockView: View {
                         Text("Add/Remove")
                             .font(.caption)
                     }
-                    .foregroundColor(Color(red: 0.2, green: 0.8, blue: 0.6))
+                    .foregroundColor(isDisabled ? theme.tertiaryText : Color(red: 0.2, green: 0.8, blue: 0.6))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color(red: 0.2, green: 0.8, blue: 0.6).opacity(0.15))
+                    .background((isDisabled ? theme.tertiaryText : Color(red: 0.2, green: 0.8, blue: 0.6)).opacity(0.15))
                     .cornerRadius(8)
                 }
+                .disabled(isDisabled)
             }
 
             // App grid display
@@ -1121,6 +1277,11 @@ private struct AdditionalSettingsView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var focusManager = FocusSettingsManager.shared
 
+    /// Whether settings should be disabled (during active blocking)
+    private var isDisabled: Bool {
+        blocking.isCurrentlyBlocking || blocking.appsActuallyBlocked
+    }
+
     private var backgroundShape: some View {
         Group {
             if themeManager.effectiveTheme == .dark {
@@ -1152,17 +1313,18 @@ private struct AdditionalSettingsView: View {
                     Toggle("", isOn: Binding(
                         get: { strictMode },
                         set: { newValue in
-                            if blocking.canToggleStrictMode {
+                            if blocking.canToggleStrictMode && !isDisabled {
                                 strictMode = newValue
                             }
                         }
                     ))
                     .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
-                    .disabled(!blocking.canToggleStrictMode)
+                    .disabled(!blocking.canToggleStrictMode || isDisabled)
                     .labelsHidden()
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .opacity(isDisabled ? 0.5 : 1.0)
 
                 Divider().background(Color(white: 0.2))
 
@@ -1189,6 +1351,7 @@ private struct AdditionalSettingsView: View {
                         Toggle("", isOn: Binding(
                             get: { prePrayerNotification && notificationService.hasNotificationPermission },
                             set: { newValue in
+                                guard !isDisabled else { return }
                                 if newValue && !notificationService.hasNotificationPermission {
                                     // Request permission first
                                     Task {
@@ -1215,11 +1378,13 @@ private struct AdditionalSettingsView: View {
                             }
                         ))
                         .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.2, green: 0.8, blue: 0.6)))
+                        .disabled(isDisabled)
                         .labelsHidden()
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .opacity(isDisabled ? 0.5 : 1.0)
             }
             .background(backgroundShape)
         }

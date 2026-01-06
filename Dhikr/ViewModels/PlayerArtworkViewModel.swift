@@ -8,7 +8,6 @@
 import Foundation
 import Combine
 import SwiftUI
-import FirebaseAuth
 
 @MainActor
 class PlayerArtworkViewModel: ObservableObject {
@@ -18,8 +17,14 @@ class PlayerArtworkViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let surahImageService = SurahImageService.shared
+    private let subscriptionService = SubscriptionService.shared
     private var cancellables = Set<AnyCancellable>()
     private let audioPlayerService: AudioPlayerService
+
+    /// Check if user can access premium cover art
+    private var canAccessPremiumCovers: Bool {
+        return subscriptionService.isPremium
+    }
 
     init(audioPlayerService: AudioPlayerService) {
         self.audioPlayerService = audioPlayerService
@@ -34,13 +39,12 @@ class PlayerArtworkViewModel: ObservableObject {
     }
 
     private func fetchArtwork(for surah: Surah) {
-        // Priority 1: If user is authenticated, fetch from Firebase Storage
-        if Auth.auth().currentUser != nil {
+        if canAccessPremiumCovers {
             fetchFromFirebaseStorage(for: surah)
             return
         }
 
-        // Priority 2: If not authenticated, show no artwork
+        // No access to premium covers
         self.artworkURL = nil
         self.artworkImage = nil
     }

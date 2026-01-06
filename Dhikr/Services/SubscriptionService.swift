@@ -25,7 +25,6 @@ class SubscriptionService: ObservableObject {
     @Published private(set) var subscriptionStatus: Product.SubscriptionInfo.Status?
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var purchaseState: PurchaseState = .idle
-    @Published var showPostPurchaseSignInPrompt: Bool = false
 
     private var updateListenerTask: Task<Void, Error>?
     private let db = Firestore.firestore()
@@ -291,9 +290,6 @@ class SubscriptionService: ObservableObject {
                 // Sync to Firebase if user is logged in
                 if currentUserId != nil {
                     await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
-                } else {
-                    // Show post-purchase sign-in prompt to encourage account creation
-                    showPostPurchaseSignInPrompt = true
                 }
 
                 // Update subscription status (works locally via StoreKit)

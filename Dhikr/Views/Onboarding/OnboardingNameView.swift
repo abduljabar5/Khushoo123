@@ -31,7 +31,7 @@ struct OnboardingNameView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                            colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -47,7 +47,7 @@ struct OnboardingNameView: View {
             // Title
             Text("What should we call you?")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundColor(Color(hex: "2C3E50"))
+                .foregroundColor(theme.primaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 12)
@@ -55,7 +55,7 @@ struct OnboardingNameView: View {
             // Subtitle
             Text("We'll use your name to personalize your experience")
                 .font(.system(size: 16, weight: .regular))
-                .foregroundColor(Color(hex: "7F8C8D"))
+                .foregroundColor(theme.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
                 .padding(.bottom, 48)
@@ -64,22 +64,22 @@ struct OnboardingNameView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your Name")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(hex: "2C3E50"))
+                    .foregroundColor(theme.primaryText)
                     .padding(.leading, 4)
 
-                TextField("", text: $name, prompt: Text("Enter your name").foregroundColor(Color(hex: "95A5A6")))
+                TextField("", text: $name, prompt: Text("Enter your name").foregroundColor(theme.tertiaryText))
                     .font(.system(size: 18))
-                    .foregroundColor(Color(hex: "2C3E50"))
+                    .foregroundColor(theme.primaryText)
                     .padding(16)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white)
-                            .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                            .fill(theme.cardBackground)
+                            .shadow(color: theme.shadowColor, radius: 8, x: 0, y: 2)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(
-                                isNameFieldFocused ? Color(hex: "1A9B8A") : Color.clear,
+                                isNameFieldFocused ? theme.primaryAccent : Color.clear,
                                 lineWidth: 2
                             )
                     )
@@ -115,12 +115,12 @@ struct OnboardingNameView: View {
                             .fill(
                                 isNameValid
                                     ? LinearGradient(
-                                        colors: [Color(hex: "1A9B8A"), Color(hex: "15756A")],
+                                        colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
                                     : LinearGradient(
-                                        colors: [Color(hex: "BDC3C7"), Color(hex: "95A5A6")],
+                                        colors: [theme.tertiaryText, theme.secondaryText],
                                         startPoint: .leading,
                                         endPoint: .trailing
                                     )
@@ -133,13 +133,13 @@ struct OnboardingNameView: View {
                 if !name.isEmpty && !isNameValid {
                     Text("Name must be at least 2 characters")
                         .font(.system(size: 13))
-                        .foregroundColor(Color(hex: "E74C3C"))
+                        .foregroundColor(.red)
                 }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
         }
-        .background(Color(hex: "F8F9FA"))
+        .background(theme.primaryBackground)
         .onAppear {
             // Auto-focus the name field for better UX
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {

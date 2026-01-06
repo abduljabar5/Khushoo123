@@ -39,7 +39,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         // Get duration setting (in minutes)
         let durationMinutes = groupDefaults?.double(forKey: "focusBlockingDuration") ?? 15
 
-        // Early unlock is fixed at 5 minutes after prayer start
+        // Early unlock is 5 minutes after PRAYER TIME (not blocking start)
         let earlyUnlockMinutes = 5
 
         // Calculate unlock times
@@ -47,9 +47,15 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         var earlyUnlockText = ""
 
         if let startTimestamp = groupDefaults?.object(forKey: "blockingStartTime") as? TimeInterval {
-            let startTime = Date(timeIntervalSince1970: startTimestamp)
-            let fullUnlockTime = startTime.addingTimeInterval(durationMinutes * 60)
-            let earlyUnlockTime = startTime.addingTimeInterval(Double(earlyUnlockMinutes) * 60)
+            // Get the actual prayer time - duration is measured from prayer time
+            let prayerTimestamp = groupDefaults?.object(forKey: "currentPrayerTime") as? TimeInterval ?? startTimestamp
+            let prayerTime = Date(timeIntervalSince1970: prayerTimestamp)
+
+            // Full unlock time is prayer time + duration (not blocking start + duration)
+            let fullUnlockTime = prayerTime.addingTimeInterval(durationMinutes * 60)
+
+            // Early unlock is 5 min after prayer time
+            let earlyUnlockTime = prayerTime.addingTimeInterval(Double(earlyUnlockMinutes) * 60)
 
             let formatter = DateFormatter()
             formatter.timeStyle = .short

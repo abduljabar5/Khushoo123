@@ -368,11 +368,15 @@ struct DhikrApp: App {
         if selectedMaghrib { selectedPrayers.insert("Maghrib") }
         if selectedIsha { selectedPrayers.insert("Isha") }
 
+        // Get pre-prayer buffer
+        let prePrayerBuffer = groupDefaults.double(forKey: "focusPrePrayerBuffer")
+
         // Schedule rolling window
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
             duration: effectiveDuration,
-            selectedPrayers: selectedPrayers
+            selectedPrayers: selectedPrayers,
+            prePrayerBuffer: prePrayerBuffer
         )
 
     }
@@ -485,6 +489,7 @@ struct DhikrApp: App {
         // Get current settings
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
         let duration = groupDefaults?.object(forKey: "focusBlockingDuration") as? Double ?? 15.0
+        let prePrayerBuffer = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? 0
 
         // Default to false (disabled) - prayers must be explicitly enabled
         let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
@@ -503,7 +508,8 @@ struct DhikrApp: App {
         DeviceActivityService.shared.scheduleRollingWindow(
             from: storage,
             duration: duration,
-            selectedPrayers: selectedPrayers
+            selectedPrayers: selectedPrayers,
+            prePrayerBuffer: prePrayerBuffer
         )
 
     }

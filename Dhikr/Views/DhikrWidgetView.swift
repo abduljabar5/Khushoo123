@@ -33,6 +33,25 @@ struct DhikrWidgetView: View {
 
     private var theme: AppTheme { themeManager.theme }
 
+    // MARK: - Consistent Background Helpers
+    private var cardBackground: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.11, green: 0.13, blue: 0.16)
+            : theme.primaryBackground
+    }
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -88,7 +107,7 @@ struct DhikrWidgetView: View {
             }
             .padding(.bottom, 100)
         }
-        .background((themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground).ignoresSafeArea())
+        .background(pageBackground.ignoresSafeArea())
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
         .navigationBarHidden(true)
         }
@@ -152,10 +171,7 @@ struct DhikrWidgetView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(theme.cardBackground)
-        )
+        .background(cardBackground)
         .padding(.horizontal, 20)
     }
 
@@ -231,7 +247,9 @@ struct DhikrWidgetView: View {
 
     // MARK: - Helper Methods
     private func formatNumber(_ number: Int) -> String {
-        if number >= 1000 {
+        if number >= 1_000_000 {
+            return String(format: "%.1fM", Double(number) / 1_000_000.0)
+        } else if number >= 1000 {
             return String(format: "%.1fK", Double(number) / 1000.0)
         }
         return "\(number)"
@@ -339,10 +357,7 @@ struct DhikrWidgetView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(theme.cardBackground)
-            )
+            .background(cardBackground)
             .padding(.horizontal, 20)
 
             // Breakdown by Type section
@@ -352,34 +367,34 @@ struct DhikrWidgetView: View {
                     .foregroundColor(theme.primaryText)
 
                 VStack(spacing: 12) {
-                    // SubhanAllah
+                    // SubhanAllah - cyan/teal
                     dhikrBreakdownRow(
                         emoji: "💙",
                         name: "Subhan'Allah",
                         subtitle: "Glory be to Allah",
                         percentage: allTimeTotal > 0 ? Int((Double(totalSubhanAllah) / Double(allTimeTotal)) * 100) : 0,
                         count: totalSubhanAllah,
-                        color: Color(red: 0.3, green: 0.6, blue: 1.0)
+                        color: theme.primaryAccent
                     )
 
-                    // Alhamdulillah
+                    // Alhamdulillah - green
                     dhikrBreakdownRow(
                         emoji: "💚",
                         name: "Alhamdulillah",
                         subtitle: "All praise to Allah",
                         percentage: allTimeTotal > 0 ? Int((Double(totalAlhamdulillah) / Double(allTimeTotal)) * 100) : 0,
                         count: totalAlhamdulillah,
-                        color: Color(red: 0.0, green: 0.8, blue: 0.4)
+                        color: theme.accentGreen
                     )
 
-                    // Astaghfirullah
+                    // Astaghfirullah - purple
                     dhikrBreakdownRow(
                         emoji: "💜",
                         name: "Astaghfirullah",
                         subtitle: "I seek forgiveness",
                         percentage: allTimeTotal > 0 ? Int((Double(totalAstaghfirullah) / Double(allTimeTotal)) * 100) : 0,
                         count: totalAstaghfirullah,
-                        color: Color(red: 0.7, green: 0.5, blue: 1.0)
+                        color: Color(red: 0.6, green: 0.4, blue: 1.0)
                     )
                 }
             }
@@ -389,14 +404,18 @@ struct DhikrWidgetView: View {
 
     // Helper for breakdown rows
     private func dhikrBreakdownRow(emoji: String, name: String, subtitle: String, percentage: Int, count: Int, color: Color) -> some View {
-        HStack(spacing: 16) {
+        let emojiBackground: Color = themeManager.effectiveTheme == .dark
+            ? Color(red: 0.15, green: 0.17, blue: 0.20)
+            : theme.cardBackground
+
+        return HStack(spacing: 16) {
             // Emoji icon
             Text(emoji)
                 .font(.system(size: 32))
                 .frame(width: 56, height: 56)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(theme.cardBackground)
+                        .fill(emojiBackground)
                 )
 
             // Name and subtitle
@@ -432,7 +451,7 @@ struct DhikrWidgetView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(theme.cardBackground)
+                .fill(themeManager.effectiveTheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : theme.cardBackground)
         )
     }
 }
@@ -444,6 +463,18 @@ struct DhikrStatCard: View {
     @StateObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
+
+    private var cardBackground: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -457,10 +488,7 @@ struct DhikrStatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(theme.cardBackground)
-        )
+        .background(cardBackground)
     }
 }
 
@@ -477,6 +505,18 @@ struct DhikrCard: View {
     @State private var inputText = ""
 
     private var theme: AppTheme { themeManager.theme }
+
+    private var cardBackground: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
 
     private var progress: Double {
         guard goal > 0 else { return 0 }
@@ -564,10 +604,7 @@ struct DhikrCard: View {
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(theme.cardBackground)
-        )
+        .background(cardBackground)
         .sheet(isPresented: $showingInputSheet) {
             DhikrInputSheet(
                 currentCount: count,
@@ -645,6 +682,30 @@ struct MonthlyActivityContainer: View {
 
     private var theme: AppTheme { themeManager.theme }
 
+    private var cardBackground: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
+    private var smallCardBackground: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Monthly Activity")
@@ -692,7 +753,7 @@ struct MonthlyActivityContainer: View {
 
                     ForEach(0..<5) { index in
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.green.opacity(0.2 + Double(index) * 0.2))
+                            .fill(theme.accentGreen.opacity(0.2 + Double(index) * 0.2))
                             .frame(width: 20, height: 20)
                     }
 
@@ -703,10 +764,7 @@ struct MonthlyActivityContainer: View {
                 .padding(.horizontal, 20)
             }
             .padding(.vertical, 20)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(theme.cardBackground)
-            )
+            .background(cardBackground)
             .padding(.horizontal, 20)
 
             // Monthly Statistics Section
@@ -738,7 +796,7 @@ struct MonthlyActivityContainer: View {
                     .foregroundColor(theme.primaryText)
 
                 Rectangle()
-                    .fill(Color.green)
+                    .fill(theme.accentGreen)
                     .frame(height: 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(width: 60)
@@ -761,11 +819,11 @@ struct MonthlyActivityContainer: View {
                         HStack(spacing: 4) {
                             Text(percentageChange >= 0 ? "+\(Int(percentageChange))%" : "\(Int(percentageChange))%")
                                 .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(percentageChange >= 0 ? .green : .red)
+                                .foregroundColor(percentageChange >= 0 ? theme.accentGreen : Color(red: 1.0, green: 0.4, blue: 0.4))
 
                             Image(systemName: percentageChange >= 0 ? "arrow.up" : "arrow.down")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(percentageChange >= 0 ? .green : .red)
+                                .foregroundColor(percentageChange >= 0 ? theme.accentGreen : Color(red: 1.0, green: 0.4, blue: 0.4))
                         }
 
                         Text("vs Last Mo")
@@ -777,10 +835,10 @@ struct MonthlyActivityContainer: View {
             .padding(24)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(theme.cardBackground)
+                    .fill(themeManager.effectiveTheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : theme.cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            .stroke(theme.accentGreen.opacity(0.3), lineWidth: 1)
                     )
             )
 
@@ -793,7 +851,7 @@ struct MonthlyActivityContainer: View {
 
                     Text("\(monthStats.bestDay.count)")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color(red: 1.0, green: 0.8, blue: 0.4))
+                        .foregroundColor(theme.accentGold)
 
                     Text("Best Day")
                         .font(.system(size: 13))
@@ -805,20 +863,17 @@ struct MonthlyActivityContainer: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(theme.cardBackground)
-                )
+                .background(smallCardBackground)
 
                 // Goals Met Card
                 VStack(alignment: .leading, spacing: 12) {
                     Text("✓")
                         .font(.system(size: 32))
-                        .foregroundColor(.blue)
+                        .foregroundColor(theme.primaryAccent)
 
                     Text("\(monthStats.goalsMetPercentage)%")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.blue)
+                        .foregroundColor(theme.primaryAccent)
 
                     Text("Goals Met")
                         .font(.system(size: 13))
@@ -826,10 +881,7 @@ struct MonthlyActivityContainer: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(theme.cardBackground)
-                )
+                .background(smallCardBackground)
             }
 
             // Distribution
@@ -839,23 +891,23 @@ struct MonthlyActivityContainer: View {
                     .foregroundColor(theme.primaryText)
 
                 HStack(spacing: 16) {
-                    // SubhanAllah
+                    // SubhanAllah - cyan/teal
                     distributionCard(
                         name: "SubhanAllah",
                         count: monthStats.subhanAllah,
                         total: monthStats.total,
-                        color: Color(red: 0.0, green: 0.5, blue: 1.0)
+                        color: theme.primaryAccent
                     )
 
-                    // Alhamdulillah
+                    // Alhamdulillah - green
                     distributionCard(
                         name: "Alhamdulillah",
                         count: monthStats.alhamdulillah,
                         total: monthStats.total,
-                        color: Color(red: 0.0, green: 0.8, blue: 0.4)
+                        color: theme.accentGreen
                     )
 
-                    // Astaghfirullah
+                    // Astaghfirullah - purple
                     distributionCard(
                         name: "Astaghfirullah",
                         count: monthStats.astaghfirullah,
@@ -880,10 +932,7 @@ struct MonthlyActivityContainer: View {
                     timeSlotRow(label: "Night", percentage: monthStats.timeBreakdown.night)
                 }
                 .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(theme.cardBackground)
-                )
+                .background(smallCardBackground)
             }
         }
         .padding(.horizontal, 20)
@@ -924,10 +973,7 @@ struct MonthlyActivityContainer: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(theme.cardBackground)
-        )
+        .background(smallCardBackground)
     }
 
     private func timeSlotRow(label: String, percentage: Int) -> some View {
@@ -1088,7 +1134,9 @@ struct MonthlyActivityContainer: View {
     }
 
     private func formatNumber(_ number: Int) -> String {
-        if number >= 1000 {
+        if number >= 1_000_000 {
+            return String(format: "%.1fM", Double(number) / 1_000_000.0)
+        } else if number >= 1000 {
             return String(format: "%.1fK", Double(number) / 1000.0)
         }
         return "\(number)"
@@ -1216,6 +1264,14 @@ struct CalendarDayCell: View {
 
     private var theme: AppTheme { themeManager.theme }
 
+    private var cellBackground: Color {
+        if themeManager.effectiveTheme == .dark {
+            return Color(red: 0.15, green: 0.17, blue: 0.20)
+        } else {
+            return theme.cardBackground
+        }
+    }
+
     private var intensity: Double {
         guard let stats = stats, stats.total > 0, maxTotal > 0 else { return 0 }
         return Double(stats.total) / Double(maxTotal)
@@ -1225,7 +1281,7 @@ struct CalendarDayCell: View {
         Button(action: onTap) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(intensity > 0 ? Color.green.opacity(0.3 + intensity * 0.7) : theme.cardBackground)
+                    .fill(intensity > 0 ? theme.accentGreen.opacity(0.3 + intensity * 0.7) : cellBackground)
                     .frame(height: 40)
 
                 Text("\(day)")
@@ -1241,9 +1297,15 @@ struct CalendarDayCell: View {
 struct DayDetailSheet: View {
     let stats: DailyDhikrStats
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var themeManager = ThemeManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.11, green: 0.13, blue: 0.16)
+            : theme.primaryBackground
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -1278,9 +1340,9 @@ struct DayDetailSheet: View {
 
                 // Breakdown
                 VStack(spacing: 16) {
-                    DhikrStatRow(name: "Astaghfirullah", count: stats.astaghfirullah, color: .purple)
-                    DhikrStatRow(name: "Alhamdulillah", count: stats.alhamdulillah, color: .green)
-                    DhikrStatRow(name: "SubhanAllah", count: stats.subhanAllah, color: .cyan)
+                    DhikrStatRow(name: "Astaghfirullah", count: stats.astaghfirullah, color: Color(red: 0.6, green: 0.4, blue: 1.0))
+                    DhikrStatRow(name: "Alhamdulillah", count: stats.alhamdulillah, color: theme.accentGreen)
+                    DhikrStatRow(name: "SubhanAllah", count: stats.subhanAllah, color: theme.primaryAccent)
                 }
             } else {
                 // No dhikr message
@@ -1306,7 +1368,7 @@ struct DayDetailSheet: View {
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground)
+        .background(pageBackground)
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
     }
 
@@ -1326,6 +1388,18 @@ struct DhikrStatRow: View {
 
     private var theme: AppTheme { themeManager.theme }
 
+    private var cardBackground: some View {
+        Group {
+            if themeManager.effectiveTheme == .dark {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
+            } else {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.cardBackground)
+            }
+        }
+    }
+
     var body: some View {
         HStack {
             Circle()
@@ -1343,10 +1417,7 @@ struct DhikrStatRow: View {
                 .foregroundColor(color)
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(theme.cardBackground)
-        )
+        .background(cardBackground)
     }
 }
 
@@ -1363,6 +1434,18 @@ struct DhikrInputSheet: View {
     @FocusState private var isFocused: Bool
 
     private var theme: AppTheme { themeManager.theme }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.11, green: 0.13, blue: 0.16)
+            : theme.primaryBackground
+    }
+
+    private var inputFieldBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.15, green: 0.17, blue: 0.20)
+            : theme.cardBackground
+    }
 
     init(currentCount: Int, color: Color, dhikrType: DhikrType, onSave: @escaping (Int) -> Void) {
         self.currentCount = currentCount
@@ -1401,7 +1484,7 @@ struct DhikrInputSheet: View {
                         .padding(.vertical, 20)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(theme.cardBackground)
+                                .fill(inputFieldBackground)
                         )
                         .focused($isFocused)
                 }
@@ -1453,7 +1536,7 @@ struct DhikrInputSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
-            .background((themeManager.effectiveTheme == .dark ? Color.black : theme.primaryBackground).ignoresSafeArea())
+            .background(pageBackground.ignoresSafeArea())
             .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

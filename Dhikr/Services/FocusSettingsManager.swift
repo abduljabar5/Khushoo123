@@ -10,45 +10,53 @@ class FocusSettingsManager: ObservableObject {
     
     // MARK: - Published Settings (Bound to UI)
     @Published var blockingDuration: Double {
-        didSet { 
+        didSet {
             dirtySchedule = true
-            subject.send() 
+            subject.send()
+        }
+    }
+    /// Pre-Prayer Focus buffer time in minutes (0, 10, 15, 20)
+    /// This starts blocking BEFORE the actual prayer time
+    @Published var prePrayerBuffer: Double {
+        didSet {
+            dirtySchedule = true
+            subject.send()
         }
     }
     @Published var selectedFajr: Bool {
-        didSet { 
+        didSet {
             dirtySchedule = true
-            subject.send() 
+            subject.send()
         }
     }
     @Published var selectedDhuhr: Bool {
-        didSet { 
+        didSet {
             dirtySchedule = true
-            subject.send() 
+            subject.send()
         }
     }
     @Published var selectedAsr: Bool {
-        didSet { 
+        didSet {
             dirtySchedule = true
-            subject.send() 
+            subject.send()
         }
     }
     @Published var selectedMaghrib: Bool {
-        didSet { 
+        didSet {
             dirtySchedule = true
-            subject.send() 
+            subject.send()
         }
     }
     @Published var selectedIsha: Bool {
-        didSet { 
+        didSet {
             dirtySchedule = true
-            subject.send() 
+            subject.send()
         }
     }
     @Published var strictMode: Bool {
-        didSet { 
+        didSet {
             dirtyMetadata = true
-            subject.send() 
+            subject.send()
         }
     }
     @Published var prayerRemindersEnabled: Bool {
@@ -79,19 +87,23 @@ class FocusSettingsManager: ObservableObject {
         // Load initial values from UserDefaults (standard + group)
         let defaults = UserDefaults.standard
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-        
+
         // Calculate initial values locally
         var initialDuration = groupDefaults?.double(forKey: "focusBlockingDuration") ?? defaults.double(forKey: "focusBlockingDuration")
         if initialDuration == 0 { initialDuration = 15 } // Default
         if initialDuration < 15 { initialDuration = 15 } // iOS minimum requirement
 
+        // Pre-prayer buffer (default: 0 = no buffer)
+        let initialBuffer = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? defaults.double(forKey: "focusPrePrayerBuffer")
+
         self.blockingDuration = initialDuration
+        self.prePrayerBuffer = initialBuffer
         self.selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? defaults.bool(forKey: "focusSelectedFajr")
         self.selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? defaults.bool(forKey: "focusSelectedDhuhr")
         self.selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? defaults.bool(forKey: "focusSelectedAsr")
         self.selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? defaults.bool(forKey: "focusSelectedMaghrib")
         self.selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? defaults.bool(forKey: "focusSelectedIsha")
-        
+
         self.strictMode = groupDefaults?.bool(forKey: "focusStrictMode") ?? defaults.bool(forKey: "focusStrictMode")
         self.prayerRemindersEnabled = groupDefaults?.bool(forKey: "prayerRemindersEnabled") ?? defaults.bool(forKey: "prayerRemindersEnabled")
 
@@ -194,6 +206,7 @@ class FocusSettingsManager: ObservableObject {
                 }
 
                 let duration = await self.blockingDuration
+                let buffer = await self.prePrayerBuffer
                 let selected = await self.getSelectedPrayers()
 
                 if forceReschedule {
@@ -203,13 +216,15 @@ class FocusSettingsManager: ObservableObject {
                     DeviceActivityService.shared.forceCompleteReschedule(
                         prayerTimes: prayerTimes,
                         duration: duration,
-                        selectedPrayers: selected
+                        selectedPrayers: selected,
+                        prePrayerBuffer: buffer
                     )
                 } else {
                     DeviceActivityService.shared.scheduleRollingWindow(
                         from: storage,
                         duration: duration,
-                        selectedPrayers: selected
+                        selectedPrayers: selected,
+                        prePrayerBuffer: buffer
                     )
                 }
             } else {
@@ -244,14 +259,15 @@ class FocusSettingsManager: ObservableObject {
     private func syncToUserDefaults() {
         let defaults = UserDefaults.standard
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-        
+
         // Helper to set both
         func setBoth(_ value: Any?, forKey key: String) {
             defaults.set(value, forKey: key)
             groupDefaults?.set(value, forKey: key)
         }
-        
+
         setBoth(blockingDuration, forKey: "focusBlockingDuration")
+        setBoth(prePrayerBuffer, forKey: "focusPrePrayerBuffer")
         setBoth(selectedFajr, forKey: "focusSelectedFajr")
         setBoth(selectedDhuhr, forKey: "focusSelectedDhuhr")
         setBoth(selectedAsr, forKey: "focusSelectedAsr")
@@ -259,7 +275,7 @@ class FocusSettingsManager: ObservableObject {
         setBoth(selectedIsha, forKey: "focusSelectedIsha")
         setBoth(strictMode, forKey: "focusStrictMode")
         setBoth(prayerRemindersEnabled, forKey: "prayerRemindersEnabled")
-        
+
         groupDefaults?.synchronize()
     }
     
