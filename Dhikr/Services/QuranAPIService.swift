@@ -249,7 +249,7 @@ class QuranAPIService: ObservableObject {
                 reciterId: mp3Reciter.id,
                 country: nil,
                 dialect: nil,
-                artworkURL: nil,
+                artworkURL: ReciterImageMapping.imageURL(for: mp3Reciter.id),
                 availableSurahs: availableSurahs
             )
         }

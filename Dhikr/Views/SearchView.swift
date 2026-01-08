@@ -103,6 +103,17 @@ struct SearchView: View {
             // This handles the post-onboarding scenario where scheduling may have failed
             focusManager.ensureInitialSchedulingIfNeeded()
         }
+        .alert("Screen Time Error", isPresented: $screenTimeAuth.showErrorAlert) {
+            Button("OK", role: .cancel) {
+                screenTimeAuth.clearError()
+            }
+        } message: {
+            if let error = screenTimeAuth.lastError {
+                Text("\(error.errorDescription ?? "An error occurred.")\n\n\(error.recoverySuggestion)")
+            } else {
+                Text("An error occurred while requesting Screen Time permission. You can try again later in Settings.")
+            }
+        }
     }
 
     // MARK: - Private Methods
@@ -211,13 +222,11 @@ struct SearchView: View {
                             showOverlayWhenEmpty: true,
                             onSelectApps: {
                                 Task {
-                                    do {
-                                        try await screenTimeAuth.requestAuthorizationIfNeeded()
+                                    let success = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
+                                    if success {
                                         await MainActor.run {
                                             showingAppPicker = true
                                         }
-                                    } catch {
-                                        // Silenced repeated auth error log
                                     }
                                 }
                             }
@@ -238,13 +247,11 @@ struct SearchView: View {
 
                         SelectAppsToBlockView(theme: theme) {
                             Task {
-                                do {
-                                    try await screenTimeAuth.requestAuthorizationIfNeeded()
+                                let success = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
+                                if success {
                                     await MainActor.run {
                                         showingAppPicker = true
                                     }
-                                } catch {
-                                    // Silenced repeated auth error log
                                 }
                             }
                         }
@@ -1308,6 +1315,7 @@ private struct AdditionalSettingsView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var focusManager = FocusSettingsManager.shared
     @State private var showingPermissionDeniedAlert = false
+    @State private var showingNotificationDeniedAlert = false
 
     /// Whether settings should be disabled (during active blocking)
     private var isDisabled: Bool {
@@ -1405,6 +1413,11 @@ private struct AdditionalSettingsView: View {
                             set: { newValue in
                                 guard !isDisabled else { return }
                                 if newValue && !notificationService.hasNotificationPermission {
+                                    // Check if permission was previously denied
+                                    if notificationService.isNotificationPermissionDenied {
+                                        showingNotificationDeniedAlert = true
+                                        return
+                                    }
                                     // Request permission first
                                     Task {
                                         let granted = await notificationService.requestNotificationPermission()
@@ -1422,6 +1435,9 @@ private struct AdditionalSettingsView: View {
                                                     minutesBefore: 5
                                                 )
                                             }
+                                        } else {
+                                            // Permission denied, update the denied state
+                                            notificationService.checkPermissionStatus()
                                         }
                                     }
                                 } else {
@@ -1448,6 +1464,16 @@ private struct AdditionalSettingsView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Strict mode requires microphone and speech recognition permissions. Please enable them in Settings.")
+            }
+            .alert("Notification Permission Required", isPresented: $showingNotificationDeniedAlert) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Pre-prayer notifications require notification permissions. Please enable them in Settings.")
             }
         }
     }
@@ -1858,10 +1884,7 @@ private struct ScreenTimePermissionOverlay: View {
                     Button(action: {
                         isRequesting = true
                         Task {
-                            do {
-                                try await screenTimeAuth.requestAuthorization()
-                            } catch {
-                            }
+                            let _ = await screenTimeAuth.requestAuthorizationWithErrorHandling()
                             isRequesting = false
                         }
                     }) {
@@ -1899,6 +1922,17 @@ private struct ScreenTimePermissionOverlay: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 48)
+            }
+        }
+        .alert("Screen Time Error", isPresented: $screenTimeAuth.showErrorAlert) {
+            Button("OK", role: .cancel) {
+                screenTimeAuth.clearError()
+            }
+        } message: {
+            if let error = screenTimeAuth.lastError {
+                Text("\(error.errorDescription ?? "An error occurred.")\n\n\(error.recoverySuggestion)")
+            } else {
+                Text("An error occurred while requesting Screen Time permission. You can try again later in Settings.")
             }
         }
     }

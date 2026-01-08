@@ -18,8 +18,22 @@ struct OnboardingPermissionsView: View {
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showLocationAlert = false
+    @State private var showLocationDeniedAlert = false
+    @State private var showNotificationDeniedAlert = false
+    @State private var showScreenTimeDeniedAlert = false
+    @State private var isRequestingLocation = false
+    @State private var isRequestingNotifications = false
+    @State private var isRequestingScreenTime = false
 
     private var theme: AppTheme { themeManager.theme }
+
+    private var isLocationDenied: Bool {
+        locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted
+    }
+
+    private var isNotificationDenied: Bool {
+        notificationService.isNotificationPermissionDenied
+    }
 
     private var hasLocationPermission: Bool {
         switch locationService.authorizationStatus {
@@ -61,8 +75,18 @@ struct OnboardingPermissionsView: View {
                     description: "For accurate prayer times",
                     status: locationPermissionStatus,
                     theme: theme,
+                    isLoading: isRequestingLocation,
                     action: {
-                        locationService.requestLocationPermission()
+                        if isLocationDenied {
+                            showLocationDeniedAlert = true
+                        } else {
+                            isRequestingLocation = true
+                            locationService.requestLocationPermission()
+                            // Location permission returns quickly, reset after short delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                isRequestingLocation = false
+                            }
+                        }
                     }
                 )
 
@@ -71,11 +95,20 @@ struct OnboardingPermissionsView: View {
                     iconColor: Color(hex: "FF7043"),
                     title: "Notifications",
                     description: "Prayer and dhikr reminders",
-                    status: notificationService.hasNotificationPermission ? "Enabled" : "Not now",
+                    status: notificationPermissionStatus,
                     theme: theme,
+                    isLoading: isRequestingNotifications,
                     action: {
-                        Task {
-                            await notificationService.requestNotificationPermission()
+                        if isNotificationDenied {
+                            showNotificationDeniedAlert = true
+                        } else {
+                            isRequestingNotifications = true
+                            Task {
+                                await notificationService.requestNotificationPermission()
+                                await MainActor.run {
+                                    isRequestingNotifications = false
+                                }
+                            }
                         }
                     }
                 )
@@ -85,13 +118,19 @@ struct OnboardingPermissionsView: View {
                     iconColor: Color(hex: "5E35B1"),
                     title: "Screen Time",
                     description: "For prayer-time app blocking",
-                    status: screenTimeAuth.isAuthorized ? "Enabled" : "Not now",
+                    status: screenTimePermissionStatus,
                     theme: theme,
+                    isLoading: isRequestingScreenTime,
                     action: {
-                        Task {
-                            do {
-                                try await screenTimeAuth.requestAuthorization()
-                            } catch {
+                        if screenTimeAuth.authorizationStatus == .denied {
+                            showScreenTimeDeniedAlert = true
+                        } else {
+                            isRequestingScreenTime = true
+                            Task {
+                                let _ = await screenTimeAuth.requestAuthorizationWithErrorHandling()
+                                await MainActor.run {
+                                    isRequestingScreenTime = false
+                                }
                             }
                         }
                     }
@@ -152,6 +191,20 @@ struct OnboardingPermissionsView: View {
         .background(theme.primaryBackground)
         .onAppear {
         }
+        .onChange(of: locationService.authorizationStatus) { newStatus in
+            // Show alert immediately when location is denied
+            if newStatus == .denied || newStatus == .restricted {
+                isRequestingLocation = false
+                showLocationDeniedAlert = true
+            }
+        }
+        .onChange(of: notificationService.isNotificationPermissionDenied) { isDenied in
+            // Show alert immediately when notifications are denied
+            if isDenied {
+                isRequestingNotifications = false
+                showNotificationDeniedAlert = true
+            }
+        }
         .alert("Location Permission Required", isPresented: $showLocationAlert) {
             Button("Enable Location", role: .none) {
                 locationService.requestLocationPermission()
@@ -159,6 +212,41 @@ struct OnboardingPermissionsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Location access is required to calculate accurate prayer times for your area. Please enable location permission to continue.")
+        }
+        .alert("Location Access Denied", isPresented: $showLocationDeniedAlert) {
+            Button("Open Settings", role: .none) {
+                openSettings()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Location permission was denied. Please enable it in Settings to get accurate prayer times for your location.")
+        }
+        .alert("Notifications Disabled", isPresented: $showNotificationDeniedAlert) {
+            Button("Open Settings", role: .none) {
+                openSettings()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Notification permission was denied. Please enable it in Settings to receive prayer time reminders.")
+        }
+        .alert("Screen Time Access Denied", isPresented: $showScreenTimeDeniedAlert) {
+            Button("Open Settings", role: .none) {
+                openSettings()
+            }
+            Button("Skip", role: .cancel) { }
+        } message: {
+            Text("Screen Time permission was denied. Please enable it in Settings to use prayer-time app blocking.")
+        }
+        .alert("Screen Time Error", isPresented: $screenTimeAuth.showErrorAlert) {
+            Button("OK", role: .cancel) {
+                screenTimeAuth.clearError()
+            }
+        } message: {
+            if let error = screenTimeAuth.lastError {
+                Text("\(error.errorDescription ?? "An error occurred.")\n\n\(error.recoverySuggestion)")
+            } else {
+                Text("An error occurred while requesting Screen Time permission. You can skip this step and enable it later.")
+            }
         }
     }
 
@@ -174,6 +262,33 @@ struct OnboardingPermissionsView: View {
             return "Not now"
         }
     }
+
+    private var notificationPermissionStatus: String {
+        if notificationService.hasNotificationPermission {
+            return "Enabled"
+        } else if notificationService.isNotificationPermissionDenied {
+            return "Denied"
+        } else {
+            return "Not now"
+        }
+    }
+
+    private var screenTimePermissionStatus: String {
+        switch screenTimeAuth.authorizationStatus {
+        case .approved:
+            return "Enabled"
+        case .denied:
+            return "Denied"
+        case .notDetermined:
+            return "Not now"
+        }
+    }
+
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+    }
 }
 
 // MARK: - Supporting Views
@@ -185,6 +300,7 @@ struct PermissionRow: View {
     let description: String
     let status: String
     let theme: AppTheme
+    var isLoading: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -222,6 +338,10 @@ struct PermissionRow: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(theme.accentGreen)
                 }
+            } else if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: theme.primaryAccent))
+                    .frame(width: 70, height: 32)
             } else {
                 Button(action: action) {
                     Text("Enable")

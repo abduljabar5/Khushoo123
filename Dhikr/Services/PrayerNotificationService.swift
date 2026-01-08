@@ -14,6 +14,7 @@ class PrayerNotificationService: ObservableObject {
 
     @Published var hasNotificationPermission = false
     @Published var isRequestingPermission = false
+    @Published var isNotificationPermissionDenied = false
 
     private let notificationCenter = UNUserNotificationCenter.current()
     private let prePrayerIdentifierPrefix = "prayer_reminder_"
@@ -28,6 +29,7 @@ class PrayerNotificationService: ObservableObject {
         notificationCenter.getNotificationSettings { [weak self] settings in
             DispatchQueue.main.async {
                 self?.hasNotificationPermission = settings.authorizationStatus == .authorized
+                self?.isNotificationPermissionDenied = settings.authorizationStatus == .denied
             }
         }
     }
@@ -46,11 +48,8 @@ class PrayerNotificationService: ObservableObject {
 
             await MainActor.run {
                 self.hasNotificationPermission = granted
+                self.isNotificationPermissionDenied = !granted
                 self.isRequestingPermission = false
-            }
-
-            if granted {
-            } else {
             }
 
             return granted

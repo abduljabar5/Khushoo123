@@ -486,25 +486,27 @@ struct HomeView: View {
 
         return ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
-            KFImage(reciter.artworkURL)
-                .placeholder {
-                    ReciterPlaceholder(iconSize: 80)
-                }
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity)
-                .frame(height: 280)
-                .clipped()
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.1),
-                            Color.black.opacity(0.8)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+            GeometryReader { geo in
+                KFImage(reciter.artworkURL)
+                    .placeholder {
+                        ReciterPlaceholder(iconSize: 80)
+                    }
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: geo.size.width, height: 280)
+                    .clipped()
+            }
+            .frame(height: 280)
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.1),
+                        Color.black.opacity(0.8)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
+            )
 
             // Bottom Info
             HStack(alignment: .bottom) {
@@ -638,24 +640,27 @@ struct HomeView: View {
 
         return ZStack(alignment: .bottomLeading) {
             // Reciter Image Background
-            KFImage(reciter.artworkURL)
-                .placeholder {
-                    ReciterPlaceholder(iconSize: 60)
-                }
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(height: 180)
-                .clipped()
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.1),
-                            Color.black.opacity(0.8)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+            GeometryReader { geo in
+                KFImage(reciter.artworkURL)
+                    .placeholder {
+                        ReciterPlaceholder(iconSize: 60)
+                    }
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: geo.size.width, height: 180)
+                    .clipped()
+            }
+            .frame(height: 180)
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.1),
+                        Color.black.opacity(0.8)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
+            )
 
             // Rank Badge (Top-left)
             VStack {
