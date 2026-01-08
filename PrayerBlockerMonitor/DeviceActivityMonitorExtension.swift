@@ -72,7 +72,7 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         if strictMode {
             // In strict mode, keep restrictions active until voice confirmation
             groupDefaults?.set(true, forKey: "isWaitingForVoiceConfirmation")
-
+            groupDefaults?.synchronize()
         } else {
             // In normal mode, clear restrictions immediately
             store.clearAllSettings()

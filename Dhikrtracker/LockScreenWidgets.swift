@@ -168,7 +168,7 @@ struct PrayerCircularView: View {
 
     var body: some View {
         if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
-            // Show next prayer with countdown
+            // Show next prayer with countdown or "Now" if in grace period
             ZStack {
                 AccessoryWidgetBackground()
 
@@ -177,11 +177,19 @@ struct PrayerCircularView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .widgetAccentable()
 
-                    Text(prayerTime, style: .timer)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .monospacedDigit()
-                        .minimumScaleFactor(0.7)
-                        .multilineTextAlignment(.center)
+                    if entry.isCurrentPrayerActive {
+                        // Within 30-minute grace period - show "Now"
+                        Text("Now")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                    } else {
+                        // Show countdown to future prayer
+                        Text(prayerTime, style: .timer)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.7)
+                            .multilineTextAlignment(.center)
+                    }
                 }
             }
             .containerBackground(.fill.tertiary, for: .widget)
@@ -253,7 +261,7 @@ struct PrayerRectangularView: View {
             }
 
             if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
-                // Next prayer info
+                // Next prayer info or current prayer "Now" state
                 HStack(spacing: 6) {
                     Image(systemName: prayerIcon(for: nextPrayer))
                         .font(.system(size: 14, weight: .semibold))
@@ -262,18 +270,32 @@ struct PrayerRectangularView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(nextPrayer)
                             .font(.system(size: 14, weight: .semibold))
-                        Text(prayerTime, style: .time)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                        if entry.isCurrentPrayerActive {
+                            // Within 30-minute grace period
+                            Text("Pray now")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(prayerTime, style: .time)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     Spacer()
 
-                    // Countdown
-                    Text(prayerTime, style: .timer)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                    // Countdown or "Now" indicator
+                    if entry.isCurrentPrayerActive {
+                        Text("Now")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .widgetAccentable()
+                    } else {
+                        Text(prayerTime, style: .timer)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 // Day ended - show completion summary
@@ -333,7 +355,12 @@ struct PrayerInlineView: View {
     var body: some View {
         if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
             Label {
-                Text("\(nextPrayer) at ") + Text(prayerTime, style: .time)
+                if entry.isCurrentPrayerActive {
+                    // Within 30-minute grace period
+                    Text("\(nextPrayer) - Now")
+                } else {
+                    Text("\(nextPrayer) at ") + Text(prayerTime, style: .time)
+                }
             } icon: {
                 Image(systemName: prayerIcon(for: nextPrayer))
             }
@@ -361,6 +388,8 @@ struct PrayerLockScreenEntry: TimelineEntry {
     let nextPrayer: String?
     let nextPrayerTime: Date?
     let prayerStatus: [PrayerStatus]
+    // When true, we're within 30 min of the displayed prayer (show "Now" instead of countdown)
+    let isCurrentPrayerActive: Bool
 }
 
 struct PrayerStatus {
@@ -380,7 +409,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
                 PrayerStatus(name: "Asr", isCompleted: false),
                 PrayerStatus(name: "Maghrib", isCompleted: false),
                 PrayerStatus(name: "Isha", isCompleted: false)
-            ]
+            ],
+            isCurrentPrayerActive: false
         )
     }
 
@@ -390,12 +420,18 @@ struct PrayerLockScreenProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PrayerLockScreenEntry>) -> Void) {
         let entry = loadEntry()
+        let calendar = Calendar.current
 
-        // Refresh at next prayer time or in 15 minutes
+        // Determine next refresh time
         let nextRefresh: Date
-        if let prayerTime = entry.nextPrayerTime {
+        if entry.isCurrentPrayerActive, let prayerTime = entry.nextPrayerTime {
+            // In grace period - refresh when the 30-minute grace period ends
+            nextRefresh = calendar.date(byAdding: .minute, value: 30, to: prayerTime) ?? Date().addingTimeInterval(900)
+        } else if let prayerTime = entry.nextPrayerTime {
+            // Refresh at next prayer time
             nextRefresh = prayerTime
         } else {
+            // No prayer time - refresh in 15 minutes
             nextRefresh = Date().addingTimeInterval(900)
         }
 
@@ -436,14 +472,17 @@ struct PrayerLockScreenProvider: TimelineProvider {
             PrayerStatus(name: name, isCompleted: completed.contains(name))
         }
 
-        // Find next prayer
+        // Find next prayer or current prayer (within 30-min grace period)
         var nextPrayer: String?
         var nextPrayerTime: Date?
+        var isCurrentPrayerActive = false
 
         if let timings = todayTimings {
             let prayerTimeStrings = [timings.fajr, timings.dhuhr, timings.asr, timings.maghrib, timings.isha]
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm"
+
+            var foundNext = false
 
             for (index, timeStr) in prayerTimeStrings.enumerated() {
                 let cleanTime = timeStr.components(separatedBy: " ").first ?? ""
@@ -453,10 +492,22 @@ struct PrayerLockScreenProvider: TimelineProvider {
                     components.hour = timeComponents.hour
                     components.minute = timeComponents.minute
 
-                    if let fullDate = calendar.date(from: components), fullDate > now {
-                        nextPrayer = prayerNames[index]
-                        nextPrayerTime = fullDate
-                        break
+                    if let fullDate = calendar.date(from: components) {
+                        // 30-minute grace period - show as "Now" for 30 min after prayer time
+                        let graceEndTime = calendar.date(byAdding: .minute, value: 30, to: fullDate) ?? fullDate
+
+                        if fullDate > now && !foundNext {
+                            // Future prayer - show countdown
+                            nextPrayer = prayerNames[index]
+                            nextPrayerTime = fullDate
+                            foundNext = true
+                        } else if fullDate <= now && graceEndTime > now && !foundNext {
+                            // Within 30-minute grace period - this is the "current" prayer
+                            nextPrayer = prayerNames[index]
+                            nextPrayerTime = fullDate
+                            isCurrentPrayerActive = true
+                            foundNext = true
+                        }
                     }
                 }
             }
@@ -466,7 +517,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
             date: now,
             nextPrayer: nextPrayer,
             nextPrayerTime: nextPrayerTime,
-            prayerStatus: prayerStatus
+            prayerStatus: prayerStatus,
+            isCurrentPrayerActive: isCurrentPrayerActive
         )
     }
 
@@ -481,7 +533,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
                 PrayerStatus(name: "Asr", isCompleted: false),
                 PrayerStatus(name: "Maghrib", isCompleted: false),
                 PrayerStatus(name: "Isha", isCompleted: false)
-            ]
+            ],
+            isCurrentPrayerActive: false
         )
     }
 }
@@ -525,7 +578,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
             PrayerStatus(name: "Asr", isCompleted: false),
             PrayerStatus(name: "Maghrib", isCompleted: false),
             PrayerStatus(name: "Isha", isCompleted: false)
-        ]
+        ],
+        isCurrentPrayerActive: false
     )
 }
 
@@ -542,6 +596,7 @@ struct PrayerLockScreenProvider: TimelineProvider {
             PrayerStatus(name: "Asr", isCompleted: false),
             PrayerStatus(name: "Maghrib", isCompleted: false),
             PrayerStatus(name: "Isha", isCompleted: false)
-        ]
+        ],
+        isCurrentPrayerActive: false
     )
 }

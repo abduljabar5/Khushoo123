@@ -31,6 +31,8 @@ class SubscriptionService: ObservableObject {
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     private var currentUserId: String?
     private var isInitialSync: Bool = true  // Track if this is the first sync to avoid false "became premium" triggers
+    private var productsLoaded: Bool = false  // Track if products have been loaded
+    private var hasCompletedSuccessfulCheck: Bool = false  // Track if we've done a successful StoreKit check
 
     enum PurchaseState: Equatable {
         case idle
@@ -51,16 +53,28 @@ class SubscriptionService: ObservableObject {
     }
 
     private init() {
-        // Start listening to auth state changes
-        setupAuthListener()
+        // FIX: Read cached premium status immediately on startup
+        // This prevents the UI from showing "not premium" while we verify with StoreKit
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            let cachedPremium = groupDefaults.bool(forKey: "isPremiumUser")
+            if cachedPremium {
+                self.isPremium = true
+                print("✅ [SubscriptionService] Loaded cached premium status: true")
+            }
+        }
 
         // Start listening for transaction updates
         updateListenerTask = listenForTransactions()
 
         // Load products and check subscription status
+        // IMPORTANT: Auth listener is set up AFTER this task starts to avoid race condition
         Task { @MainActor in
             await loadProducts()
             await syncSubscriptionStatus()
+
+            // Only set up auth listener AFTER initial sync completes
+            // This prevents the auth listener from calling syncSubscriptionStatus before products load
+            self.setupAuthListener()
         }
     }
 
@@ -99,10 +113,11 @@ class SubscriptionService: ObservableObject {
             // Sort by price (monthly first, then yearly)
             await MainActor.run {
                 self.availableProducts = products.sorted { $0.price < $1.price }
-                for product in products {
-                }
+                self.productsLoaded = !products.isEmpty
+                print("✅ [SubscriptionService] Loaded \(products.count) products")
             }
         } catch {
+            print("❌ [SubscriptionService] Failed to load products: \(error)")
         }
     }
 
@@ -110,6 +125,10 @@ class SubscriptionService: ObservableObject {
     func syncSubscriptionStatus() async {
         var isPremiumActive = false
         var latestTransaction: StoreKit.Transaction?
+        var foundEntitlement = false  // Track if we found any entitlement (even if we can't verify status)
+        var successfulCheck = false   // Track if we completed a full check successfully
+
+        print("🔄 [SubscriptionService] Starting subscription status sync...")
 
         // STEP 1: Check StoreKit for active subscriptions (works without login)
         // Users can purchase and use premium without account, then sync later
@@ -119,7 +138,10 @@ class SubscriptionService: ObservableObject {
 
                 // Check if this is one of our premium products
                 if SubscriptionProductID.allCases.map({ $0.rawValue }).contains(transaction.productID) {
-                    // Get subscription status
+                    foundEntitlement = true
+                    print("✅ [SubscriptionService] Found entitlement for product: \(transaction.productID)")
+
+                    // FIX: Try to get subscription status, but don't fail silently if products aren't loaded
                     if let subscription = availableProducts.first(where: { $0.id == transaction.productID })?.subscription {
                         let status = try await subscription.status.first
                         self.subscriptionStatus = status
@@ -129,16 +151,41 @@ class SubscriptionService: ObservableObject {
                         case .subscribed, .inGracePeriod:
                             isPremiumActive = true
                             latestTransaction = transaction
-                        case .inBillingRetryPeriod, .revoked, .expired, .none:
+                            successfulCheck = true
+                            print("✅ [SubscriptionService] Subscription is active (state: \(String(describing: status?.state)))")
+                        case .inBillingRetryPeriod:
+                            // Still consider premium during billing retry
+                            isPremiumActive = true
+                            latestTransaction = transaction
+                            successfulCheck = true
+                            print("⚠️ [SubscriptionService] Subscription in billing retry period - still premium")
+                        case .revoked, .expired:
                             isPremiumActive = false
+                            successfulCheck = true
+                            print("❌ [SubscriptionService] Subscription revoked/expired")
+                        case .none:
+                            // FIX: If we have an entitlement but can't get status, assume premium
+                            // This handles edge cases where StoreKit returns entitlement but status check fails
+                            isPremiumActive = true
+                            latestTransaction = transaction
+                            print("⚠️ [SubscriptionService] Status is nil but entitlement exists - assuming premium")
                         @unknown default:
                             isPremiumActive = false
+                            successfulCheck = true
                         }
+                    } else {
+                        // FIX: Products not loaded yet - if we have an entitlement, assume premium
+                        // This fixes the race condition where auth listener fires before products load
+                        print("⚠️ [SubscriptionService] Products not loaded, but entitlement exists - assuming premium")
+                        isPremiumActive = true
+                        latestTransaction = transaction
+                        // Don't mark as successful check since we couldn't verify status
                     }
 
                     await transaction.finish()
                 }
             } catch {
+                print("❌ [SubscriptionService] Error checking transaction: \(error)")
             }
         }
 
@@ -147,46 +194,73 @@ class SubscriptionService: ObservableObject {
             if isPremiumActive, let transaction = latestTransaction {
                 // Active subscription from StoreKit - sync to Firebase
                 await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
-            } else {
-                // No active subscription from StoreKit
+                successfulCheck = true
+            } else if !foundEntitlement {
+                // No entitlements from StoreKit at all
                 // Check Firebase for subscription (user might have purchased on another device)
                 let firebaseStatus = await loadSubscriptionFromFirebase(userId: userId)
                 if firebaseStatus {
                     isPremiumActive = true
+                    print("✅ [SubscriptionService] Premium restored from Firebase")
                 } else {
-                    // No active subscription anywhere - mark as cancelled in Firebase
-                    await markSubscriptionInactive(userId: userId)
+                    // Only mark as inactive if we did a successful check and found nothing
+                    if successfulCheck || productsLoaded {
+                        await markSubscriptionInactive(userId: userId)
+                        successfulCheck = true
+                    }
                 }
-            }
-        } else {
-            // User not logged in - premium still works via StoreKit
-            if isPremiumActive {
             }
         }
 
         let wasPremium = self.isPremium
-        self.isPremium = isPremiumActive
 
-        // Sync premium status to App Group UserDefaults for monitor extension
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.set(isPremiumActive, forKey: "isPremiumUser")
-            groupDefaults.synchronize()
+        // FIX: Only update premium status if we're certain about the result
+        // Don't downgrade to false if we couldn't complete a proper check
+        if isPremiumActive {
+            // Always upgrade to premium if we found active subscription
+            self.isPremium = true
+            hasCompletedSuccessfulCheck = true
+        } else if successfulCheck || (productsLoaded && !foundEntitlement) {
+            // Only downgrade to false if:
+            // 1. We completed a successful check and found no active subscription, OR
+            // 2. Products are loaded and we found no entitlements at all
+            self.isPremium = false
+            hasCompletedSuccessfulCheck = true
+            print("ℹ️ [SubscriptionService] Setting premium to false (successful check, no subscription)")
+        } else {
+            // Uncertain state - keep existing value (from cache)
+            print("⚠️ [SubscriptionService] Uncertain state - keeping cached premium: \(self.isPremium)")
         }
 
-        // Only trigger state change notifications after the initial sync
-        if !isInitialSync {
+        // FIX: Only sync to UserDefaults if we're certain about the result
+        // This prevents overwriting a valid cached "true" with "false" due to race conditions
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            if isPremiumActive || hasCompletedSuccessfulCheck {
+                groupDefaults.set(self.isPremium, forKey: "isPremiumUser")
+                groupDefaults.synchronize()
+                print("💾 [SubscriptionService] Saved premium status to cache: \(self.isPremium)")
+            }
+        }
+
+        // Only trigger state change notifications after the initial sync AND if we're certain
+        if !isInitialSync && hasCompletedSuccessfulCheck {
             // If user just became premium, trigger background data fetch
-            if isPremiumActive && !wasPremium {
+            if self.isPremium && !wasPremium {
+                print("🎉 [SubscriptionService] User became premium - posting notification")
                 NotificationCenter.default.post(name: NSNotification.Name("UserBecamePremium"), object: nil)
             }
 
-            // If user lost premium status, turn off app blocking
-            if !isPremiumActive && wasPremium {
+            // FIX: Only fire UserLostPremium if we're CERTAIN the user lost premium
+            // (successful check confirmed no subscription)
+            if !self.isPremium && wasPremium && successfulCheck {
+                print("😢 [SubscriptionService] User lost premium - posting notification")
                 NotificationCenter.default.post(name: NSNotification.Name("UserLostPremium"), object: nil)
             }
         } else {
             isInitialSync = false
         }
+
+        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium)")
     }
 
     // MARK: - Firebase Sync Methods

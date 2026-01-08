@@ -137,7 +137,12 @@ struct PaywallView: View {
                         Button("Restore Purchases") {
                             Task {
                                 await subscriptionService.restorePurchases()
-                                showingRestoreAlert = true
+                                // FIX: Auto-dismiss if premium was restored successfully
+                                if subscriptionService.isPremium {
+                                    dismiss()
+                                } else {
+                                    showingRestoreAlert = true
+                                }
                             }
                         }
                         .font(.system(size: 14, weight: .medium, design: .rounded))

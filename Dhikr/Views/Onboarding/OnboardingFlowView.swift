@@ -21,7 +21,6 @@ struct OnboardingFlowView: View {
     @State private var currentPage = 0
     @State private var isCompact: Bool = false // For Settings re-entry
     @State private var userName: String = ""
-    @State private var isSchedulingBlocking = false
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -34,105 +33,123 @@ struct OnboardingFlowView: View {
             theme.primaryBackground
                 .ignoresSafeArea()
 
-            TabView(selection: $currentPage) {
-                // Screen 1: Welcome
-                OnboardingWelcomeView(onContinue: { currentPage = 1 })
-                    .tag(0)
-
-                // Screen 2: Name Input (NEW)
-                OnboardingNameView(onContinue: { name in
-                    userName = name
-                    userDisplayName = name // Save to AppStorage
-
-                    // If user is already authenticated with "Apple User", update their name now
-                    if authService.isAuthenticated,
-                       let currentUser = authService.currentUser,
-                       (currentUser.displayName == "Apple User" || currentUser.displayName.isEmpty) {
-                        Task {
-                            await updateAuthenticatedUserName(name: name)
+            // Use conditional views instead of TabView to prevent swipe navigation
+            Group {
+                switch currentPage {
+                case 0:
+                    // Screen 1: Welcome
+                    OnboardingWelcomeView(onContinue: {
+                        print("📱 [Onboarding] Page 0 → 1 (Welcome → Name)")
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentPage = 1
                         }
-                    }
+                    })
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
 
-                    currentPage = 2
-                })
-                .tag(1)
+                case 1:
+                    // Screen 2: Name Input
+                    OnboardingNameView(onContinue: { name in
+                        userName = name
+                        userDisplayName = name // Save to AppStorage
 
-                // Screen 3: Focus Setup
-                OnboardingFocusSetupView(onContinue: { currentPage = 3 })
-                    .tag(2)
+                        // If user is already authenticated with "Apple User", update their name now
+                        if authService.isAuthenticated,
+                           let currentUser = authService.currentUser,
+                           (currentUser.displayName == "Apple User" || currentUser.displayName.isEmpty) {
+                            Task {
+                                await updateAuthenticatedUserName(name: name)
+                            }
+                        }
 
-                // Screen 4: Permissions
-                OnboardingPermissionsView(onContinue: {
-                    if subscriptionService.isPremium {
-                        // Skip premium screen if already subscribed
-                        completeOnboarding()
-                    } else {
-                        currentPage = 4
-                    }
-                })
-                .tag(3)
+                        print("📱 [Onboarding] Page 1 → 2 (Name → Focus Setup)")
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentPage = 2
+                        }
+                    })
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
 
-                // Screen 5: Premium (skip if already premium)
-                if !subscriptionService.isPremium {
+                case 2:
+                    // Screen 3: Focus Setup
+                    OnboardingFocusSetupView(onContinue: {
+                        print("📱 [Onboarding] Page 2 → 3 (Focus Setup → Permissions)")
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentPage = 3
+                        }
+                    })
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+
+                case 3:
+                    // Screen 4: Permissions
+                    OnboardingPermissionsView(onContinue: {
+                        if subscriptionService.isPremium {
+                            // Skip premium screen if already subscribed
+                            print("📱 [Onboarding] Page 3 → Complete (Permissions → Skip Premium, already subscribed)")
+                            completeOnboarding()
+                        } else {
+                            print("📱 [Onboarding] Page 3 → 4 (Permissions → Premium)")
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                currentPage = 4
+                            }
+                        }
+                    })
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+
+                case 4:
+                    // Screen 5: Premium (only shown if not already premium)
                     OnboardingPremiumView(
                         onStartTrial: completeOnboarding,
                         onContinueWithoutPremium: completeOnboarding
                     )
-                    .tag(4)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
 
-            // Loading overlay when scheduling blocking
-            if isSchedulingBlocking {
-                ZStack {
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.5)
-
-                        Text("Setting up prayer blocking...")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(32)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(theme.cardBackground)
-                    )
+                default:
+                    OnboardingWelcomeView(onContinue: { currentPage = 1 })
                 }
             }
         }
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
         .onAppear {
+            print("📱 [Onboarding] OnboardingFlowView appeared - starting on page \(currentPage)")
         }
     }
 
     private func completeOnboarding() {
+        print("🎉 [Onboarding] completeOnboarding() called")
 
-        // Schedule prayer blocking if user configured it during onboarding
         Task {
-            // Check if scheduling is needed before showing loading
-            if await shouldScheduleBlocking() {
-                isSchedulingBlocking = true
+            // Check if scheduling will be needed (quick pre-check)
+            let needsScheduling = await shouldScheduleBlocking()
+            print("📋 [Onboarding] Should schedule blocking: \(needsScheduling)")
+
+            // Set global scheduling state so UI can show progress indicator
+            if needsScheduling {
+                await MainActor.run {
+                    BlockingStateService.shared.isSchedulingBlocking = true
+                }
+                print("🔄 [Onboarding] Set isSchedulingBlocking = true (will show progress in app)")
             }
 
-            await scheduleBlockingFromOnboardingSettings()
-
-            // Complete onboarding
+            // Mark onboarding complete - triggers DhikrApp's prayer time fetch
+            print("✅ [Onboarding] Marking onboarding as complete")
             hasCompletedOnboarding = true
-            isSchedulingBlocking = false
+
+            // Dismiss immediately - don't make user wait!
+            // DhikrApp will handle scheduling in background and update BlockingStateService when done
+            print("👋 [Onboarding] Dismissing immediately - scheduling continues in background")
             dismiss()
         }
     }
 
     /// Check if we should schedule blocking (quick pre-check)
     private func shouldScheduleBlocking() async -> Bool {
+        print("🔍 [Onboarding] Checking if should schedule blocking...")
+
         // Quick check: premium + prayers selected + apps selected + screen time permission
-        guard subscriptionService.isPremium else { return false }
+        guard subscriptionService.isPremium else {
+            print("   ❌ Not premium")
+            return false
+        }
+        print("   ✅ Is premium")
 
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
         let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
@@ -142,94 +159,30 @@ struct OnboardingFlowView: View {
         let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? false
 
         let anyPrayerSelected = selectedFajr || selectedDhuhr || selectedAsr || selectedMaghrib || selectedIsha
-        guard anyPrayerSelected else { return false }
+        guard anyPrayerSelected else {
+            print("   ❌ No prayers selected")
+            return false
+        }
+        print("   ✅ Prayers selected - Fajr:\(selectedFajr) Dhuhr:\(selectedDhuhr) Asr:\(selectedAsr) Maghrib:\(selectedMaghrib) Isha:\(selectedIsha)")
 
         let selection = AppSelectionModel.getCurrentSelection()
         let hasAppsSelected = !selection.applicationTokens.isEmpty ||
                              !selection.categoryTokens.isEmpty ||
                              !selection.webDomainTokens.isEmpty
-        guard hasAppsSelected else { return false }
+        guard hasAppsSelected else {
+            print("   ❌ No apps selected")
+            return false
+        }
+        print("   ✅ Apps selected - apps:\(selection.applicationTokens.count) categories:\(selection.categoryTokens.count) domains:\(selection.webDomainTokens.count)")
 
-        guard await screenTimeAuth.isAuthorized else { return false }
+        let isAuthorized = await screenTimeAuth.isAuthorized
+        guard isAuthorized else {
+            print("   ❌ Screen Time not authorized")
+            return false
+        }
+        print("   ✅ Screen Time authorized")
 
         return true
-    }
-
-    /// Schedule prayer blocking based on settings saved in onboarding
-    private func scheduleBlockingFromOnboardingSettings() async {
-
-        // 1. Check if user is premium (required for focus blocking)
-        guard subscriptionService.isPremium else {
-            return
-        }
-
-        // 2. Get settings from UserDefaults (saved in OnboardingFocusSetupView)
-        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-
-        // Check if any prayers are selected
-        let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
-        let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? false
-        let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? false
-        let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? false
-        let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? false
-
-        let anyPrayerSelected = selectedFajr || selectedDhuhr || selectedAsr || selectedMaghrib || selectedIsha
-
-        guard anyPrayerSelected else {
-            return
-        }
-
-        // 3. Check if apps are selected
-        let selection = AppSelectionModel.getCurrentSelection()
-        let hasAppsSelected = !selection.applicationTokens.isEmpty ||
-                             !selection.categoryTokens.isEmpty ||
-                             !selection.webDomainTokens.isEmpty
-
-        guard hasAppsSelected else {
-            return
-        }
-
-        // 4. Check if Screen Time permission is granted
-        guard await screenTimeAuth.isAuthorized else {
-            return
-        }
-
-        // 5. Get duration and buffer
-        let duration = groupDefaults?.double(forKey: "focusBlockingDuration") ?? 15.0
-        let prePrayerBuffer = groupDefaults?.double(forKey: "focusPrePrayerBuffer") ?? 0
-
-        // Build selected prayers set
-        var selectedPrayers: Set<String> = []
-        if selectedFajr { selectedPrayers.insert("Fajr") }
-        if selectedDhuhr { selectedPrayers.insert("Dhuhr") }
-        if selectedAsr { selectedPrayers.insert("Asr") }
-        if selectedMaghrib { selectedPrayers.insert("Maghrib") }
-        if selectedIsha { selectedPrayers.insert("Isha") }
-
-        // 6. Get or fetch prayer times
-        let prayerTimeService = PrayerTimeService()
-        var storage: PrayerTimeStorage? = prayerTimeService.loadStorage()
-
-        for attempt in 1...10 {
-            storage = prayerTimeService.loadStorage()
-            if storage != nil {
-                break
-            }
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-        }
-
-        guard let prayerStorage = storage else {
-            return
-        }
-
-        // 7. Schedule the rolling window
-        DeviceActivityService.shared.scheduleRollingWindow(
-            from: prayerStorage,
-            duration: duration,
-            selectedPrayers: selectedPrayers,
-            prePrayerBuffer: prePrayerBuffer
-        )
-
     }
 
     private func updateAuthenticatedUserName(name: String) async {

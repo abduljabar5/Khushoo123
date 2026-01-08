@@ -162,6 +162,10 @@ struct MainTabView: View {
         }
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
+                SchedulingProgressBanner(selectedTab: $selectedTab)
+                    .padding(.horizontal, 16)
+                    .zIndex(102)
+
                 VoiceConfirmationBanner(selectedTab: $selectedTab)
                     .padding(.horizontal, 16)
                     .zIndex(101)

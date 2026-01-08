@@ -758,7 +758,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -794,7 +794,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -827,7 +827,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
@@ -846,7 +846,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
@@ -864,7 +864,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
@@ -881,7 +881,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0.0;
@@ -902,7 +902,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrtrackerExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Dhikrtracker/Info.plist;
@@ -933,7 +933,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrtrackerExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Dhikrtracker/Info.plist;
@@ -962,7 +962,7 @@
 				CODE_SIGN_ENTITLEMENTS = PrayerBlockerMonitor/PrayerBlockerMonitor.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PrayerBlockerMonitor/Info.plist;
@@ -990,7 +990,7 @@
 				CODE_SIGN_ENTITLEMENTS = PrayerBlockerMonitor/PrayerBlockerMonitor.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PrayerBlockerMonitor/Info.plist;
@@ -1018,7 +1018,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrShieldAction/DhikrShieldAction.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DhikrShieldAction/Info.plist;
@@ -1046,7 +1046,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrShieldAction/DhikrShieldAction.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DhikrShieldAction/Info.plist;

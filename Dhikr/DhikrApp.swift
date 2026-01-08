@@ -84,6 +84,10 @@ struct DhikrApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
                     handleMemoryPressure()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OnboardingCompleted"))) { _ in
+                    print("📬 [DhikrApp] Received OnboardingCompleted notification - starting prayer time fetch")
+                    fetch6MonthPrayerTimesOnLaunch()
+                }
         }
     }
     
@@ -285,6 +289,16 @@ struct DhikrApp: App {
             object: nil,
             queue: .main
         ) { _ in
+            print("⚠️ [DhikrApp] UserLostPremium notification received")
+
+            // FIX: Double-check that user is actually not premium before clearing settings
+            // This is a safety guard in case the notification was sent incorrectly
+            guard !self.subscriptionService.isPremium else {
+                print("⚠️ [DhikrApp] UserLostPremium received but isPremium is true - ignoring")
+                return
+            }
+
+            print("🔴 [DhikrApp] Confirmed user lost premium - stopping blocking and clearing settings")
 
             // Stop all app blocking schedules
             DeviceActivityService.shared.stopAllMonitoring()
@@ -384,31 +398,38 @@ struct DhikrApp: App {
     // MARK: - 6-Month Prayer Time Fetch
 
     private func fetch6MonthPrayerTimesOnLaunch() {
+        print("🚀 [DhikrApp] fetch6MonthPrayerTimesOnLaunch() called")
 
         // Check if onboarding is complete before auto-requesting location
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        print("   hasCompletedOnboarding: \(hasCompletedOnboarding)")
 
         // Check if user is premium
         let isPremium = subscriptionService.isPremium
+        print("   isPremium: \(isPremium)")
 
         Task {
             let prayerTimeService = PrayerTimeService()
 
             // Check if storage exists and is valid
             if let storage = prayerTimeService.loadStorage() {
+                print("📦 [DhikrApp] Existing storage found with \(storage.prayerTimes.count) days, shouldRefresh: \(storage.shouldRefresh)")
                 if storage.shouldRefresh {
+                    print("🔄 [DhikrApp] Storage needs refresh - fetching new data")
                     if isPremium {
                         await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 180)
                     } else {
                         await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 3)
                     }
                 } else {
+                    print("✅ [DhikrApp] Storage is valid - checking rolling window")
                     // Check if rolling window needs update (only for premium users with app blocking)
                     if isPremium {
                         await checkAndUpdateRollingWindow(storage: storage)
                     }
                 }
             } else {
+                print("📭 [DhikrApp] No existing storage - fetching fresh data")
                 if isPremium {
                     await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 180)
                 } else {
@@ -419,25 +440,34 @@ struct DhikrApp: App {
     }
 
     private func fetchPrayerTimesWithLocation(prayerTimeService: PrayerTimeService, skipPermissionRequest: Bool = false, daysToFetch: Int = 180) async {
+        print("📍 [DhikrApp] fetchPrayerTimesWithLocation - skipPermissionRequest: \(skipPermissionRequest), daysToFetch: \(daysToFetch)")
+        print("   Location status: \(locationService.authorizationStatus.rawValue)")
+
         // Check location permission
         switch locationService.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             // Has permission - get location
+            print("✅ [DhikrApp] Location authorized - requesting location")
             locationService.requestLocation()
 
             // Wait for location
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
             if let location = locationService.location {
+                print("📍 [DhikrApp] Got location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
                 await fetch6Months(prayerTimeService: prayerTimeService, location: location, daysToFetch: daysToFetch)
             } else {
+                print("❌ [DhikrApp] Failed to get location after waiting")
             }
 
         case .notDetermined:
+            print("❓ [DhikrApp] Location not determined")
             if skipPermissionRequest {
+                print("⏭️ [DhikrApp] Skipping permission request (onboarding not complete)")
                 return
             }
 
+            print("🔔 [DhikrApp] Requesting location permission")
             locationService.requestLocationPermission()
 
             // Wait for permission response
@@ -445,28 +475,133 @@ struct DhikrApp: App {
 
             if locationService.authorizationStatus == .authorizedWhenInUse ||
                locationService.authorizationStatus == .authorizedAlways {
+                print("✅ [DhikrApp] Permission granted - requesting location")
                 locationService.requestLocation()
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
 
                 if let location = locationService.location {
+                    print("📍 [DhikrApp] Got location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
                     await fetch6Months(prayerTimeService: prayerTimeService, location: location, daysToFetch: daysToFetch)
+                } else {
+                    print("❌ [DhikrApp] Failed to get location after permission granted")
                 }
             } else {
+                print("❌ [DhikrApp] Permission not granted")
             }
 
         case .denied, .restricted:
+            print("🚫 [DhikrApp] Location denied/restricted")
             break
         @unknown default:
+            print("❓ [DhikrApp] Unknown location status")
             break
         }
     }
 
     private func fetch6Months(prayerTimeService: PrayerTimeService, location: CLLocation, daysToFetch: Int = 180) async {
-        do {
+        // For premium users fetching 6 months, use split fetch approach:
+        // 1. Fetch first month quickly
+        // 2. Schedule blocking immediately
+        // 3. Fetch remaining 5 months in background
 
+        let isPremiumFetch = daysToFetch >= 30 && subscriptionService.isPremium
+        print("📍 [DhikrApp] fetch6Months called - isPremium: \(subscriptionService.isPremium), daysToFetch: \(daysToFetch), usingSplitApproach: \(isPremiumFetch)")
+
+        if isPremiumFetch {
+            print("🔀 [DhikrApp] Using SPLIT fetch approach (premium user)")
+            await fetchWithSplitApproach(prayerTimeService: prayerTimeService, location: location)
+        } else {
+            // Non-premium or short fetch - do it all at once
+            print("🔄 [DhikrApp] Using single fetch approach (non-premium or short fetch)")
+            await fetchAllAtOnce(prayerTimeService: prayerTimeService, location: location, daysToFetch: daysToFetch)
+        }
+    }
+
+    /// Split fetch: First month → Schedule → Remaining months in background
+    private func fetchWithSplitApproach(prayerTimeService: PrayerTimeService, location: CLLocation) async {
+        print("🚀 [DhikrApp] Starting split fetch approach (1 month first, then remaining)")
+
+        // PHASE 1: Fetch first month (35 days to be safe for rolling window)
+        do {
+            print("📅 [DhikrApp] Phase 1: Fetching first 35 days...")
+            let initialStorage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location, daysToFetch: 35)
+            prayerTimeService.saveStorage(initialStorage)
+            print("✅ [DhikrApp] Phase 1 complete - saved \(initialStorage.prayerTimes.count) days")
+
+            // Schedule blocking immediately with first month data
+            if subscriptionService.isPremium {
+                print("⏰ [DhikrApp] Scheduling blocking with initial data...")
+                await scheduleRollingWindow(storage: initialStorage)
+            }
+
+            // Also try initial scheduling for post-onboarding scenario
+            await scheduleBlockingIfConditionsMet(storage: initialStorage)
+
+            // Mark scheduling as complete and trigger success banner
+            await MainActor.run {
+                if BlockingStateService.shared.isSchedulingBlocking {
+                    print("✅ [DhikrApp] Background scheduling complete - updating state")
+                    BlockingStateService.shared.isSchedulingBlocking = false
+                    BlockingStateService.shared.schedulingDidComplete = true
+
+                    // Reset the completion flag after a delay (for banner to show and dismiss)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                        BlockingStateService.shared.schedulingDidComplete = false
+                    }
+                }
+            }
+
+            // PHASE 2: Fetch remaining 5 months in background
+            print("📅 [DhikrApp] Phase 2: Starting background fetch of remaining 145 days...")
+            Task.detached(priority: .utility) {
+                await self.fetchRemainingMonthsInBackground(
+                    prayerTimeService: prayerTimeService,
+                    location: location,
+                    existingStorage: initialStorage
+                )
+            }
+
+        } catch {
+            print("❌ [DhikrApp] Phase 1 fetch failed: \(error.localizedDescription)")
+            // Fall back to single fetch if split fails
+            await fetchAllAtOnce(prayerTimeService: prayerTimeService, location: location, daysToFetch: 180)
+        }
+    }
+
+    /// Background fetch of remaining months (Phase 2)
+    private func fetchRemainingMonthsInBackground(prayerTimeService: PrayerTimeService, location: CLLocation, existingStorage: PrayerTimeStorage) async {
+        do {
+            // Calculate start date for remaining fetch (day after existing storage ends)
+            let calendar = Calendar.current
+            guard let remainingStartDate = calendar.date(byAdding: .day, value: 1, to: existingStorage.endDate) else {
+                print("❌ [DhikrApp] Failed to calculate remaining start date")
+                return
+            }
+
+            // Fetch remaining ~145 days (35 + 145 = 180 total)
+            let remainingStorage = try await prayerTimeService.fetch6MonthPrayerTimes(
+                for: location,
+                startingFrom: remainingStartDate,
+                daysToFetch: 145
+            )
+
+            // Merge with existing storage
+            let mergedStorage = prayerTimeService.extendStorage(existingStorage: existingStorage, with: remainingStorage)
+            prayerTimeService.saveStorage(mergedStorage)
+
+            print("✅ [DhikrApp] Phase 2 complete - total \(mergedStorage.prayerTimes.count) days stored")
+
+        } catch {
+            print("⚠️ [DhikrApp] Background fetch failed: \(error.localizedDescription) - but initial data is still valid")
+            // Don't propagate error - initial data is still valid and blocking is working
+        }
+    }
+
+    /// Single fetch (for non-premium or fallback)
+    private func fetchAllAtOnce(prayerTimeService: PrayerTimeService, location: CLLocation, daysToFetch: Int) async {
+        do {
             let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location, daysToFetch: daysToFetch)
             prayerTimeService.saveStorage(storage)
-
 
             // Schedule rolling window (only for premium users with app blocking)
             if subscriptionService.isPremium {
@@ -474,10 +609,10 @@ struct DhikrApp: App {
             }
 
             // Also try initial scheduling for post-onboarding scenario
-            // This handles the case where onboarding completed but prayer times weren't available yet
             await scheduleBlockingIfConditionsMet(storage: storage)
 
         } catch {
+            print("❌ [DhikrApp] Fetch failed: \(error.localizedDescription)")
         }
     }
 
@@ -629,6 +764,13 @@ struct MainContentView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         showOnboarding = true
                     }
+                }
+            }
+            .onChange(of: hasCompletedOnboarding) { completed in
+                if completed {
+                    print("🎉 [DhikrApp] Onboarding completed - triggering prayer time fetch")
+                    // Trigger prayer time fetch now that onboarding is complete
+                    NotificationCenter.default.post(name: Notification.Name("OnboardingCompleted"), object: nil)
                 }
             }
     }

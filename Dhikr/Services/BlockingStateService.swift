@@ -53,7 +53,13 @@ class BlockingStateService: ObservableObject {
     @Published var appsActuallyBlocked: Bool = false
     // Early-unlock availability moment (5 minutes after prayer start)
     @Published var earlyUnlockAvailableAt: Date?
-    
+
+    // MARK: - Background Scheduling State
+    /// Whether app blocking is being scheduled in the background (post-onboarding)
+    @Published var isSchedulingBlocking: Bool = false
+    /// Set to true briefly when scheduling completes successfully
+    @Published var schedulingDidComplete: Bool = false
+
     /// Whether strict mode can be toggled safely (not during active blocking)
     var canToggleStrictMode: Bool {
         return !isCurrentlyBlocking && !appsActuallyBlocked && !isWaitingForVoiceConfirmation
@@ -384,6 +390,7 @@ class BlockingStateService: ObservableObject {
                     if now < earlyUnlockedUntil {
                         isInActiveScheduleWindow = true
                         isEarlyUnlockedActive = true
+                        appsActuallyBlocked = false  // Ensure this is false during early unlock
                         // Do NOT force strict mode off; UI disables toggle separately
                         // Not blocking during early unlock
                         updateBlockingState(isBlocking: false, prayerName: aName, endTime: aEnd)

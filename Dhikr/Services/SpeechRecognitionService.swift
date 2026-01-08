@@ -29,27 +29,51 @@ class SpeechRecognitionService: ObservableObject {
         hasPermissions = isAuthorized && micStatus == .granted
     }
 
+    /// Returns true if either permission was previously denied (user must go to Settings)
+    var isPermissionDenied: Bool {
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        let micStatus = AVAudioSession.sharedInstance().recordPermission
+        return speechStatus == .denied || micStatus == .denied
+    }
+
+    /// Returns true if permissions haven't been requested yet
+    var isPermissionNotDetermined: Bool {
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        let micStatus = AVAudioSession.sharedInstance().recordPermission
+        return speechStatus == .notDetermined || micStatus == .undetermined
+    }
+
     func requestPermissions() {
+        requestPermissions(completion: nil)
+    }
+
+    func requestPermissions(completion: ((Bool) -> Void)?) {
         // Request speech recognition permission
         SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in
             DispatchQueue.main.async {
                 switch authStatus {
                 case .authorized:
                     self?.isAuthorized = true
-                    self?.requestMicrophonePermission()
+                    self?.requestMicrophonePermission(completion: completion)
                 case .denied, .restricted, .notDetermined:
                     self?.isAuthorized = false
+                    self?.hasPermissions = false
+                    completion?(false)
                 @unknown default:
                     self?.isAuthorized = false
+                    self?.hasPermissions = false
+                    completion?(false)
                 }
             }
         }
     }
-    
-    private func requestMicrophonePermission() {
+
+    private func requestMicrophonePermission(completion: ((Bool) -> Void)?) {
         AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
-                self?.hasPermissions = granted && (self?.isAuthorized ?? false)
+                let hasPerms = granted && (self?.isAuthorized ?? false)
+                self?.hasPermissions = hasPerms
+                completion?(hasPerms)
             }
         }
     }

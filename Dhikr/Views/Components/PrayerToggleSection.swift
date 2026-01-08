@@ -17,9 +17,9 @@ struct PrayerToggleSection: View {
 
     private var theme: AppTheme { themeManager.theme }
 
-    /// Whether settings should be disabled (during active blocking)
+    /// Whether settings should be disabled (during active blocking, but not during early unlock)
     private var isDisabled: Bool {
-        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+        (blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked) && !blockingState.isEarlyUnlockedActive
     }
 
     private var containerBackground: some View {

@@ -62,11 +62,22 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
             let now = Date()
 
-            // Check if early unlock is available
-            if now >= earlyUnlockTime {
+            // Check if we're in the pre-prayer buffer period (before prayer time)
+            if now < prayerTime {
+                // In buffer period - prayer time hasn't arrived yet
+                let timeUntilPrayer = Int(prayerTime.timeIntervalSince(now) / 60) + 1
+                if timeUntilPrayer == 1 {
+                    subtitleText = "Prayer time in less than 1 min"
+                } else {
+                    subtitleText = "Prayer time in \(timeUntilPrayer) min"
+                }
+                earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
+            } else if now >= earlyUnlockTime {
+                // Early unlock is now available
                 subtitleText = "Early unlock is now available"
                 earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
             } else {
+                // After prayer time but before early unlock
                 let timeUntilEarly = Int(earlyUnlockTime.timeIntervalSince(now) / 60) + 1
                 subtitleText = "Early unlock in \(timeUntilEarly) min"
                 earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"

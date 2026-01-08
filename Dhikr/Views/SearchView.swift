@@ -127,6 +127,32 @@ struct SearchView: View {
 
                     // Main Content with separate containers
                     VStack(spacing: 20) {
+                        // Show setup progress when scheduling is happening in background (post-onboarding)
+                        if blockingStateService.isSchedulingBlocking {
+                            VStack(spacing: 12) {
+                                HStack(spacing: 12) {
+                                    ProgressView()
+                                        .scaleEffect(0.9)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Setting Up Prayer Blocking")
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(theme.primaryText)
+                                        Text("Fetching prayer times and scheduling...")
+                                            .font(.caption)
+                                            .foregroundColor(theme.secondaryText)
+                                    }
+                                    Spacer()
+                                }
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(theme.cardBackground)
+                                )
+                            }
+                            .padding(.bottom, 8)
+                            .transition(.opacity)
+                        }
+
                         // Show loading overlay when updating schedule
                         if focusManager.isUpdating {
                             HStack {
@@ -140,8 +166,8 @@ struct SearchView: View {
                             .transition(.opacity)
                         }
 
-                        // Show banner when settings are locked during active blocking
-                        if blockingStateService.isCurrentlyBlocking || blockingStateService.appsActuallyBlocked {
+                        // Show banner when settings are locked during active blocking (but not during early unlock)
+                        if (blockingStateService.isCurrentlyBlocking || blockingStateService.appsActuallyBlocked) && !blockingStateService.isEarlyUnlockedActive {
                             HStack(spacing: 12) {
                                 Image(systemName: "lock.fill")
                                     .foregroundColor(.orange)
@@ -904,7 +930,7 @@ private struct BlockingDurationView: View {
 
     /// Whether settings should be disabled (during active blocking)
     private var isDisabled: Bool {
-        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+        (blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked) && !blockingState.isEarlyUnlockedActive
     }
 
     private var backgroundShape: some View {
@@ -1055,7 +1081,7 @@ private struct PrePrayerBufferView: View {
 
     /// Whether settings should be disabled (during active blocking)
     private var isDisabled: Bool {
-        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+        (blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked) && !blockingState.isEarlyUnlockedActive
     }
 
     private var backgroundShape: some View {
@@ -1158,7 +1184,7 @@ private struct SelectAppsToBlockView: View {
 
     /// Whether settings should be disabled (during active blocking)
     private var isDisabled: Bool {
-        blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked
+        (blockingState.isCurrentlyBlocking || blockingState.appsActuallyBlocked) && !blockingState.isEarlyUnlockedActive
     }
 
     private var backgroundShape: some View {
@@ -1276,14 +1302,16 @@ private struct AdditionalSettingsView: View {
     @Binding var prePrayerNotification: Bool
     @Binding var showingConfirmationSheet: Bool
     let theme: AppTheme
+    @EnvironmentObject var speechService: SpeechRecognitionService
     @StateObject private var blocking = BlockingStateService.shared
     @StateObject private var notificationService = PrayerNotificationService.shared
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var focusManager = FocusSettingsManager.shared
+    @State private var showingPermissionDeniedAlert = false
 
     /// Whether settings should be disabled (during active blocking)
     private var isDisabled: Bool {
-        blocking.isCurrentlyBlocking || blocking.appsActuallyBlocked
+        (blocking.isCurrentlyBlocking || blocking.appsActuallyBlocked) && !blocking.isEarlyUnlockedActive
     }
 
     private var backgroundShape: some View {
@@ -1318,7 +1346,27 @@ private struct AdditionalSettingsView: View {
                         get: { strictMode },
                         set: { newValue in
                             if blocking.canToggleStrictMode && !isDisabled {
-                                strictMode = newValue
+                                if newValue {
+                                    // Check if permissions were previously denied
+                                    if speechService.isPermissionDenied {
+                                        showingPermissionDeniedAlert = true
+                                        return
+                                    }
+                                    // Request mic/speech permissions when enabling strict mode
+                                    if !speechService.hasPermissions {
+                                        strictMode = true // Optimistically enable
+                                        speechService.requestPermissions { granted in
+                                            if !granted {
+                                                // User denied permissions, turn off strict mode
+                                                strictMode = false
+                                            }
+                                        }
+                                    } else {
+                                        strictMode = true
+                                    }
+                                } else {
+                                    strictMode = false
+                                }
                             }
                         }
                     ))
@@ -1391,6 +1439,16 @@ private struct AdditionalSettingsView: View {
                 .opacity(isDisabled ? 0.5 : 1.0)
             }
             .background(backgroundShape)
+            .alert("Microphone Permission Required", isPresented: $showingPermissionDeniedAlert) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Strict mode requires microphone and speech recognition permissions. Please enable them in Settings.")
+            }
         }
     }
 }

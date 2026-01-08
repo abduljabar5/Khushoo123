@@ -192,6 +192,37 @@ class PrayerTimeService {
         return storage
     }
 
+    // MARK: - Extend Existing Storage (for background fetch of remaining months)
+    func extendStorage(existingStorage: PrayerTimeStorage, with newStorage: PrayerTimeStorage) -> PrayerTimeStorage {
+        // Merge prayer times, avoiding duplicates
+        var allPrayerTimes = existingStorage.prayerTimes
+        let existingDates = Set(existingStorage.prayerTimes.map { Calendar.current.startOfDay(for: $0.date) })
+
+        for newPrayerTime in newStorage.prayerTimes {
+            let newDate = Calendar.current.startOfDay(for: newPrayerTime.date)
+            if !existingDates.contains(newDate) {
+                allPrayerTimes.append(newPrayerTime)
+            }
+        }
+
+        // Sort by date
+        allPrayerTimes.sort { $0.date < $1.date }
+
+        // Calculate new date range
+        let newStartDate = min(existingStorage.startDate, newStorage.startDate)
+        let newEndDate = max(existingStorage.endDate, newStorage.endDate)
+
+        return PrayerTimeStorage(
+            startDate: newStartDate,
+            endDate: newEndDate,
+            latitude: newStorage.latitude,
+            longitude: newStorage.longitude,
+            method: newStorage.method,
+            prayerTimes: allPrayerTimes,
+            fetchedAt: Date()
+        )
+    }
+
     // MARK: - Storage Operations
     func saveStorage(_ storage: PrayerTimeStorage) {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
