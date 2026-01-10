@@ -48,7 +48,7 @@ struct OnboardingFocusSetupView: View {
     }
 
     private var allStepsComplete: Bool {
-        true // Allow skipping focus setup
+        hasSelectedPrayer && hasSelectedDuration && hasSelectedApps
     }
 
     var body: some View {

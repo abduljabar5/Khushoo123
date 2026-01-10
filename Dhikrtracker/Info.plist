@@ -7,14 +7,6 @@
         <key>NSExtensionPointIdentifier</key>
         <string>com.apple.widgetkit-extension</string>
     </dict>
-    
-    <!-- The key you already had -->
-    <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>Connect to nearby Zikr rings to sync your tasbih count.</string>
-    
-    <!-- THE NEW, CRITICAL KEY -->
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>This app needs to connect to your Zikr Ring to keep your count updated.</string>
-    
+
 </dict>
 </plist>

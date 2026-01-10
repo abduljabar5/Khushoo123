@@ -40,6 +40,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     /// Handles early stop when app is about to terminate
     func applicationWillTerminate(_ application: UIApplication) {
+        // Save last played info before termination
+        AudioPlayerService.shared.saveLastPlayed()
+
         // Perform final early stop check when app is about to close
         Task { @MainActor in
             BlockingStateService.shared.forceCheck()

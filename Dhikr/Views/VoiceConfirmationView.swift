@@ -102,7 +102,19 @@ struct VoiceConfirmationView: View {
                     .disabled(timeRemaining > 0)
                         
                     if timeRemaining > 0 {
-                        Text("When the timer ends, press the button above to unlock your apps.")
+                        Text("Say \"Wallahi I prayed\" when timer ends")
+                            .font(.system(size: 14))
+                            .foregroundColor(theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    } else if speechService.isRecording {
+                        Text("Say: \"Wallahi I prayed\"")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(theme.primaryAccent)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    } else if speechService.transcript.isEmpty {
+                        Text("Tap the button and say \"Wallahi I prayed\"")
                             .font(.system(size: 14))
                             .foregroundColor(theme.secondaryText)
                             .multilineTextAlignment(.center)

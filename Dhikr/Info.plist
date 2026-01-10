@@ -2,16 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>fm.mrc.Dhikr.prayerTimeRefresh</string>
+	</array>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We need your location to provide you with accurate prayer times based on your current city.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>We need access to your microphone for voice confirmation when unlocking apps in strict mode after prayer time blocking.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>We need speech recognition to verify your voice confirmation when unlocking apps in strict mode after prayer time blocking.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>We use Bluetooth to connect to your iQibla Zikr ring for counting dhikr automatically.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Khodijah Free.ttf</string>
@@ -19,20 +15,8 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
-		<string>bluetooth-central</string>
 		<string>processing</string>
 		<string>remote-notification</string>
-	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>fm.mrc.Dhikr.prayerTimeRefresh</string>
-	</array>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 </dict>
 </plist>

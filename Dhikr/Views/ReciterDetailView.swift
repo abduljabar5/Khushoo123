@@ -13,8 +13,13 @@ struct ReciterDetailView: View {
     @EnvironmentObject var quranAPIService: QuranAPIService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @ObservedObject private var recentsManager = RecentsManager.shared
+    @ObservedObject private var favoritesManager = FavoritesManager.shared
     @State private var surahs: [Surah] = []
     @State private var isLoading = true
+
+    private var isFavorite: Bool {
+        favoritesManager.isFavorite(reciter: reciter)
+    }
     
     var body: some View {
         ScrollView {
@@ -40,11 +45,11 @@ struct ReciterDetailView: View {
             ReciterArtworkImage(
                 artworkURL: reciter.artworkURL,
                 reciterName: reciter.name,
-                size: 120
+                size: 160
             )
             .shadow(radius: 8)
             .padding(.top)
-            
+
             VStack(spacing: 4) {
                 Text(reciter.englishName)
                     .font(.title2)
@@ -54,8 +59,60 @@ struct ReciterDetailView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
+
+            // Action Buttons Row
+            HStack(spacing: 16) {
+                // Shuffle Play Button (Spotify-style)
+                Button(action: {
+                    HapticManager.shared.impact(.medium)
+                    playShuffledSurah()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "shuffle")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Shuffle Play")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor)
+                    )
+                }
+
+                // Save/Bookmark Button
+                Button(action: {
+                    HapticManager.shared.impact(.light)
+                    toggleFavorite()
+                }) {
+                    Image(systemName: isFavorite ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(isFavorite ? Color(red: 0.85, green: 0.65, blue: 0.2) : .secondary)
+                        .frame(width: 50, height: 50)
+                        .background(
+                            Circle()
+                                .fill(Color(.systemGray6))
+                        )
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
         }
         .padding()
+    }
+
+    // MARK: - Toggle Favorite
+    private func toggleFavorite() {
+        favoritesManager.toggleFavorite(reciter: reciter)
+    }
+
+    // MARK: - Shuffle Play
+    private func playShuffledSurah() {
+        guard !surahs.isEmpty else { return }
+        let randomSurah = surahs.randomElement()!
+        audioPlayerService.load(surah: randomSurah, reciter: reciter)
     }
 
     // MARK: - Reciter Statistics Section

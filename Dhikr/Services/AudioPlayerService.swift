@@ -560,6 +560,8 @@ class AudioPlayerService: NSObject, ObservableObject {
         }
     }
     
+    private var lastSaveTime: TimeInterval = 0
+
     private func setupTimeObserver() {
         // Use main queue to ensure thread safety with @Published properties
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
@@ -580,6 +582,12 @@ class AudioPlayerService: NSObject, ObservableObject {
                     }
                 }
                 self.lastRecordedTime = currentPlaybackTime
+
+                // Periodic save every 30 seconds (for crash/force-quit protection)
+                if newTime - self.lastSaveTime >= 30 {
+                    self.saveLastPlayed()
+                    self.lastSaveTime = newTime
+                }
             }
 
             // Throttle UI updates - only update if time changed significantly
@@ -921,17 +929,30 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Save Last Played
     func saveLastPlayed() {
         guard let surah = currentSurah, let reciter = currentReciter else { return }
-        
+        guard currentTime > 1.0 else { return }
+
         do {
             let surahData = try JSONEncoder().encode(surah)
             let reciterData = try JSONEncoder().encode(reciter)
-            
+
             UserDefaults.standard.set(surahData, forKey: lastPlayedSurahKey)
             UserDefaults.standard.set(reciterData, forKey: lastPlayedReciterKey)
             UserDefaults.standard.set(currentTime, forKey: lastPlayedTimeKey)
-            
-        } catch {
-        }
+            UserDefaults.standard.synchronize()
+        } catch { }
+    }
+
+    /// Force save with specific surah/reciter (used when loading new audio)
+    func saveLastPlayedTrack(surah: Surah, reciter: Reciter, time: TimeInterval = 0) {
+        do {
+            let surahData = try JSONEncoder().encode(surah)
+            let reciterData = try JSONEncoder().encode(reciter)
+
+            UserDefaults.standard.set(surahData, forKey: lastPlayedSurahKey)
+            UserDefaults.standard.set(reciterData, forKey: lastPlayedReciterKey)
+            UserDefaults.standard.set(time, forKey: lastPlayedTimeKey)
+            UserDefaults.standard.synchronize()
+        } catch { }
     }
     
     // MARK: - Sleep Timer
@@ -972,7 +993,7 @@ class AudioPlayerService: NSObject, ObservableObject {
               let lastReciter = try? JSONDecoder().decode(Reciter.self, from: lastReciterData) else {
             return nil
         }
-        
+
         let lastTime = UserDefaults.standard.double(forKey: lastPlayedTimeKey)
         return (lastSurah, lastReciter, lastTime)
     }
@@ -1110,6 +1131,9 @@ class AudioPlayerService: NSObject, ObservableObject {
         
         // Log the track to the recents manager
         RecentsManager.shared.addTrack(surah: surah, reciter: reciter)
+
+        // Save immediately so "Continue Listening" works even if app is killed
+        saveLastPlayedTrack(surah: surah, reciter: reciter, time: startTime ?? 0)
 
         // Fetch surah cover image (only for authenticated users)
         await fetchSurahCoverArtwork(for: surah)

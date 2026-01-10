@@ -9,8 +9,14 @@ import SwiftUI
 
 struct MiniPlayerView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
+    @ObservedObject private var favoritesManager = FavoritesManager.shared
     @Binding var expanded: Bool
     var animationNamespace: Namespace.ID
+
+    private var isCurrentReciterFavorite: Bool {
+        guard let reciter = audioPlayerService.currentReciter else { return false }
+        return favoritesManager.isFavorite(reciter: reciter)
+    }
 
     var body: some View {
         HStack(spacing: 15) {
@@ -25,6 +31,20 @@ struct MiniPlayerView: View {
                     .scaleEffect(0.9)
                     .padding(.trailing, 10)
             } else {
+                // Save/Bookmark button
+                Button {
+                    HapticManager.shared.impact(.light)
+                    if let reciter = audioPlayerService.currentReciter {
+                        favoritesManager.toggleFavorite(reciter: reciter)
+                    }
+                } label: {
+                    Image(systemName: isCurrentReciterFavorite ? "bookmark.fill" : "bookmark")
+                        .font(.body)
+                        .foregroundStyle(isCurrentReciterFavorite ? Color(red: 0.85, green: 0.65, blue: 0.2) : Color.gray)
+                        .contentShape(.rect)
+                }
+                .padding(.trailing, 5)
+
                 Button {
                     audioPlayerService.togglePlayPause()
                 } label: {

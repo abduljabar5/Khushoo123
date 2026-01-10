@@ -258,7 +258,12 @@ class BlockingStateService: ObservableObject {
         let strictModeGroup = groupDefaults.bool(forKey: "focusStrictMode")
         let strictMode = strictModeStandard || strictModeGroup // Use OR to be safe
         isStrictModeEnabled = strictMode
-        appsActuallyBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")
+
+        // Only read appsActuallyBlocked from UserDefaults if early unlock is NOT active
+        // This prevents the periodic check from overwriting the early unlock state
+        if !isEarlyUnlockedActive {
+            appsActuallyBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")
+        }
 
         // If extension says apps are actually blocked and we don't have a start time yet, set it now
         if appsActuallyBlocked && blockingStartTime == nil {
@@ -422,7 +427,8 @@ class BlockingStateService: ObservableObject {
         }
 
         // If we already have a known active interval, keep it active until its end
-        if let end = blockingEndTime, Date() <= end {
+        // BUT skip this if early unlock is active - user has already unlocked
+        if !isEarlyUnlockedActive, let end = blockingEndTime, Date() <= end {
             // Ensure we keep reporting as blocking until end (unless strict mode requires confirmation)
             // If strict mode ON while actively blocked, do not allow early-unlock banner; state remains blocking
             updateBlockingState(isBlocking: true, prayerName: currentPrayerName, endTime: end)
@@ -451,8 +457,16 @@ class BlockingStateService: ObservableObject {
             let effectiveEndTime = prayerTime.addingTimeInterval(duration)
 
             // Check if we're currently in the blocking period (using buffer-adjusted times)
+            // Skip this block if early unlock is active - user has already unlocked for this period
             if now >= blockingStartTime && now <= effectiveEndTime {
                 isInActiveScheduleWindow = true
+
+                // If early unlock is active for this period, don't reset blocking state
+                if isEarlyUnlockedActive && currentEarlyUnlockedUntil != nil && now < (currentEarlyUnlockedUntil ?? now) {
+                    // Keep early unlock active, don't set blocking to true
+                    return
+                }
+
                 // If we're in an active window but not in an early unlock path, ensure flag is false
                 if currentEarlyUnlockedUntil == nil || now >= (currentEarlyUnlockedUntil ?? now) {
                     isEarlyUnlockedActive = false
@@ -652,6 +666,9 @@ class BlockingStateService: ObservableObject {
             groupDefaults.set(false, forKey: "appsActuallyBlocked")
             groupDefaults.removeObject(forKey: "blockingStartTime")
 
+            // Sync immediately so checkBlockingStatus() sees the changes right away
+            groupDefaults.synchronize()
+
             // Keep the prayer tracking info for validation
             // Don't remove earlyUnlockPrayerName and earlyUnlockPrayerStart
             // They will be cleared when the interval ends or a new prayer starts
@@ -659,10 +676,11 @@ class BlockingStateService: ObservableObject {
             currentEarlyUnlockedUntil = endTime
             isEarlyUnlockedActive = true
             appsActuallyBlocked = false
+            isCurrentlyBlocking = false
         }
 
-        // Update local state
-        updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
+        // Update local state - keep the end time so early unlock validation works
+        updateBlockingState(isBlocking: false, prayerName: currentPrayerName, endTime: endTime)
     }
 
     private func markCurrentPrayerAsCompleted() {

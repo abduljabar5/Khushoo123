@@ -92,8 +92,8 @@ struct DhikrWidgetView: View {
                 // Stats row (Day Streak, This Week, All Time)
                 statsRow()
 
-                // Zikr Ring Active
-                zikrRingStatus()
+                // Zikr Ring Status - Hidden until Bluetooth feature is ready
+                // zikrRingStatus()
 
                 // Today's Practice section
                 todaysPracticeSection()
@@ -129,9 +129,9 @@ struct DhikrWidgetView: View {
         let allTimeTotal = dhikrService.getAllTimeTotal()
 
         return HStack(spacing: 12) {
-            DhikrStatCard(value: "\(stats.streak) 🔥", label: "DAY STREAK")
-            DhikrStatCard(value: formatNumber(thisWeekTotal), label: "THIS WEEK")
-            DhikrStatCard(value: formatNumber(allTimeTotal), label: "ALL TIME")
+            DhikrStatCard(value: "\(stats.streak)", label: "Day Streak", icon: "flame.fill", iconColor: .orange)
+            DhikrStatCard(value: formatNumber(thisWeekTotal), label: "This Week", icon: "calendar", iconColor: theme.primaryAccent)
+            DhikrStatCard(value: formatNumber(allTimeTotal), label: "All Time", icon: "infinity", iconColor: theme.accentGreen)
         }
         .padding(.horizontal, 20)
     }
@@ -169,6 +169,7 @@ struct DhikrWidgetView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
         .background(cardBackground)
+        .shadow(color: theme.primaryAccent.opacity(0.08), radius: 6, x: 0, y: 3)
         .padding(.horizontal, 20)
     }
 
@@ -193,9 +194,9 @@ struct DhikrWidgetView: View {
         let stats = dhikrService.getTodayStats()
 
         return VStack(alignment: .leading, spacing: 20) {
-            Text("TODAY'S PRACTICE")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(theme.secondaryText)
+            Text("Today's Practice")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(theme.primaryText)
                 .padding(.horizontal, 20)
 
             VStack(spacing: 16) {
@@ -277,8 +278,15 @@ struct DhikrWidgetView: View {
         return VStack(alignment: .leading, spacing: 20) {
             // Header
             HStack {
-                Text("🏆")
-                    .font(.system(size: 28))
+                ZStack {
+                    Circle()
+                        .fill(theme.accentGold.opacity(0.15))
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(theme.accentGold)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("All-Time Stats")
@@ -366,7 +374,7 @@ struct DhikrWidgetView: View {
                 VStack(spacing: 12) {
                     // SubhanAllah - cyan/teal
                     dhikrBreakdownRow(
-                        emoji: "💙",
+                        icon: "sparkles",
                         name: "Subhan'Allah",
                         subtitle: "Glory be to Allah",
                         percentage: allTimeTotal > 0 ? Int((Double(totalSubhanAllah) / Double(allTimeTotal)) * 100) : 0,
@@ -376,7 +384,7 @@ struct DhikrWidgetView: View {
 
                     // Alhamdulillah - green
                     dhikrBreakdownRow(
-                        emoji: "💚",
+                        icon: "hands.clap.fill",
                         name: "Alhamdulillah",
                         subtitle: "All praise to Allah",
                         percentage: allTimeTotal > 0 ? Int((Double(totalAlhamdulillah) / Double(allTimeTotal)) * 100) : 0,
@@ -386,7 +394,7 @@ struct DhikrWidgetView: View {
 
                     // Astaghfirullah - purple
                     dhikrBreakdownRow(
-                        emoji: "💜",
+                        icon: "heart.fill",
                         name: "Astaghfirullah",
                         subtitle: "I seek forgiveness",
                         percentage: allTimeTotal > 0 ? Int((Double(totalAstaghfirullah) / Double(allTimeTotal)) * 100) : 0,
@@ -400,20 +408,18 @@ struct DhikrWidgetView: View {
     }
 
     // Helper for breakdown rows
-    private func dhikrBreakdownRow(emoji: String, name: String, subtitle: String, percentage: Int, count: Int, color: Color) -> some View {
-        let emojiBackground: Color = themeManager.effectiveTheme == .dark
-            ? Color(red: 0.15, green: 0.17, blue: 0.20)
-            : theme.cardBackground
+    private func dhikrBreakdownRow(icon: String, name: String, subtitle: String, percentage: Int, count: Int, color: Color) -> some View {
+        HStack(spacing: 16) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(color.opacity(0.15))
+                    .frame(width: 56, height: 56)
 
-        return HStack(spacing: 16) {
-            // Emoji icon
-            Text(emoji)
-                .font(.system(size: 32))
-                .frame(width: 56, height: 56)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(emojiBackground)
-                )
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundColor(color)
+            }
 
             // Name and subtitle
             VStack(alignment: .leading, spacing: 4) {
@@ -450,6 +456,7 @@ struct DhikrWidgetView: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(themeManager.effectiveTheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : theme.cardBackground)
         )
+        .shadow(color: color.opacity(0.1), radius: 6, x: 0, y: 3)
     }
 }
 
@@ -457,6 +464,8 @@ struct DhikrWidgetView: View {
 struct DhikrStatCard: View {
     let value: String
     let label: String
+    var icon: String? = nil
+    var iconColor: Color? = nil
     @StateObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
@@ -474,9 +483,15 @@ struct DhikrStatCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(iconColor ?? theme.primaryAccent)
+            }
+
             Text(value)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 22, weight: .bold))
                 .foregroundColor(theme.primaryAccent)
 
             Text(label)
@@ -484,8 +499,9 @@ struct DhikrStatCard: View {
                 .foregroundColor(theme.secondaryText)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(.vertical, 14)
         .background(cardBackground)
+        .shadow(color: theme.primaryAccent.opacity(0.1), radius: 6, x: 0, y: 3)
     }
 }
 
@@ -563,8 +579,15 @@ struct DhikrCard: View {
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(color)
+                        .fill(
+                            LinearGradient(
+                                colors: [color, color.opacity(0.7)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(width: geometry.size.width * progress, height: 8)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: progress)
                 }
             }
             .frame(height: 8)
@@ -602,6 +625,7 @@ struct DhikrCard: View {
         }
         .padding(20)
         .background(cardBackground)
+        .shadow(color: color.opacity(0.12), radius: 8, x: 0, y: 4)
         .sheet(isPresented: $showingInputSheet) {
             DhikrInputSheet(
                 currentCount: count,
@@ -634,7 +658,10 @@ struct IncrementButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            HapticManager.shared.impact(.light)
+            action()
+        }) {
             Text(label)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(color)
@@ -642,7 +669,11 @@ struct IncrementButton: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(color.opacity(0.3), lineWidth: 1.5)
+                        .fill(color.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(color.opacity(0.3), lineWidth: 1)
                 )
         }
     }
@@ -656,7 +687,10 @@ struct ResetButton: View {
     private var theme: AppTheme { themeManager.theme }
 
     var body: some View {
-        Button(action: onReset) {
+        Button(action: {
+            HapticManager.shared.impact(.medium)
+            onReset()
+        }) {
             Text("Reset")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(theme.secondaryText)
@@ -664,7 +698,11 @@ struct ResetButton: View {
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(theme.secondaryText.opacity(0.3), lineWidth: 1.5)
+                        .fill(theme.secondaryText.opacity(0.05))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(theme.secondaryText.opacity(0.2), lineWidth: 1)
                 )
         }
     }
@@ -843,8 +881,15 @@ struct MonthlyActivityContainer: View {
             HStack(spacing: 16) {
                 // Best Day Card
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("⭐")
-                        .font(.system(size: 32))
+                    ZStack {
+                        Circle()
+                            .fill(theme.accentGold.opacity(0.15))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(theme.accentGold)
+                    }
 
                     Text("\(monthStats.bestDay.count)")
                         .font(.system(size: 32, weight: .bold))
@@ -861,12 +906,19 @@ struct MonthlyActivityContainer: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .background(smallCardBackground)
+                .shadow(color: theme.accentGold.opacity(0.1), radius: 6, x: 0, y: 3)
 
                 // Goals Met Card
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("✓")
-                        .font(.system(size: 32))
-                        .foregroundColor(theme.primaryAccent)
+                    ZStack {
+                        Circle()
+                            .fill(theme.primaryAccent.opacity(0.15))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(theme.primaryAccent)
+                    }
 
                     Text("\(monthStats.goalsMetPercentage)%")
                         .font(.system(size: 32, weight: .bold))
@@ -879,6 +931,7 @@ struct MonthlyActivityContainer: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .background(smallCardBackground)
+                .shadow(color: theme.primaryAccent.opacity(0.1), radius: 6, x: 0, y: 3)
             }
 
             // Distribution

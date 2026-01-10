@@ -94,10 +94,10 @@ struct ProfileView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
 
-                // Zikr Ring
-                zikrRingSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                // Zikr Ring - Hidden until Bluetooth feature is ready
+                // zikrRingSection
+                //     .padding(.horizontal, 20)
+                //     .padding(.bottom, 32)
 
                 // Dhikr Goals
                 dhikrGoalsSection

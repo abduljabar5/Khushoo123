@@ -20,10 +20,7 @@ struct HomeView: View {
     @EnvironmentObject var prayerViewModel: PrayerTimeViewModel
     @State private var earlyUnlockTickHome = 0
     
-    @State private var featuredReciter: Reciter?
-    @State private var topReciter: Reciter?
-    @State private var secondReciter: Reciter?
-    @State private var thirdReciter: Reciter?
+    @State private var spotlightReciter: Reciter?
     @State private var popularReciters: [Reciter] = []
     @State private var soothingReciters: [Reciter] = []
     @State private var recentSurahs: [Surah] = []
@@ -32,13 +29,12 @@ struct HomeView: View {
     @State private var showingAllPopular = false
     @State private var showingAllSoothing = false
     @State private var showingProfile = false
+    @State private var selectedReciter: Reciter?
     @State private var verseOfTheDay: (arabic: String, translation: String, reference: String)?
     // Early-unlock countdown tick to drive UI updates
     @State private var earlyUnlockTick = 0
     // Statistics slideshow current page
-    @State private var currentStatPage = 3 // Start at middle position for infinite scroll
-    // Timer for auto-switching slideshow
-    @State private var slideshowTimer: Timer?
+    @State private var currentStatPage = 0
     
     // Static lists of reciter names (English names as they appear in the API)
     private let popularReciterNames = [
@@ -89,8 +85,11 @@ struct HomeView: View {
                         // Prayer Time Card
                         prayerTimeCard
 
-                        // Featured Reciter
-                        featuredReciterCard
+                        // Your Favorites (personalized content first)
+                        favoriteRecitersSection
+
+                        // Reciter Spotlight
+                        spotlightSection
 
                         // Quick Actions
                         quickActionsRow
@@ -123,7 +122,7 @@ struct HomeView: View {
             }
             .onReceive(quranAPIService.$reciters) { reciters in
                 // Update when global reciters are loaded
-                if !reciters.isEmpty && (featuredReciter == nil || popularReciters.isEmpty || soothingReciters.isEmpty) {
+                if !reciters.isEmpty && (spotlightReciter == nil || popularReciters.isEmpty || soothingReciters.isEmpty) {
                     processReciters(reciters)
                 }
             }
@@ -144,6 +143,13 @@ struct HomeView: View {
         .sheet(isPresented: $showingProfile) {
             NavigationView {
                 ProfileView()
+                    .environmentObject(audioPlayerService)
+                    .environmentObject(quranAPIService)
+            }
+        }
+        .sheet(item: $selectedReciter) { reciter in
+            NavigationView {
+                ReciterDetailView(reciter: reciter)
                     .environmentObject(audioPlayerService)
                     .environmentObject(quranAPIService)
             }
@@ -226,69 +232,125 @@ struct HomeView: View {
     // MARK: - Continue Listening Card
     @ViewBuilder
     private var continueListeningCard: some View {
-        if let lastPlayed = audioPlayerService.getLastPlayedInfo(),
-           lastPlayed.time > 15.0 { // Only show if played more than 15 seconds
-            Button(action: {
-                audioPlayerService.continueLastPlayed()
-            }) {
-                HStack(spacing: 16) {
-                    // Play icon
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 56, height: 56)
-
-                        Image(systemName: "play.fill")
-                            .font(.title3)
-                            .foregroundColor(.white)
+        // Check for currently playing OR last played from storage
+        if let currentSurah = audioPlayerService.currentSurah,
+           let currentReciter = audioPlayerService.currentReciter {
+            // Show current playing info
+            let displayTime = audioPlayerService.currentTime
+            continueListeningContent(
+                surahName: currentSurah.englishName,
+                reciterName: currentReciter.englishName,
+                time: displayTime,
+                action: {
+                    HapticManager.shared.impact(.medium)
+                    if !audioPlayerService.isPlaying {
+                        audioPlayerService.play()
                     }
+                }
+            )
+        } else if let lastPlayed = audioPlayerService.getLastPlayedInfo() {
+            continueListeningContent(
+                surahName: lastPlayed.surah.englishName,
+                reciterName: lastPlayed.reciter.englishName,
+                time: lastPlayed.time,
+                action: {
+                    HapticManager.shared.impact(.medium)
+                    _ = audioPlayerService.continueLastPlayed()
+                }
+            )
+        } else {
+            // Empty state - encourage user to start listening
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(themeManager.theme.tertiaryBackground)
+                        .frame(width: 56, height: 56)
 
-                    // Surah info
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Continue Listening")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(themeManager.theme.secondaryText)
-                            .textCase(.uppercase)
-
-                        Text(lastPlayed.surah.englishName)
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(themeManager.theme.primaryText)
-
-                        HStack(spacing: 8) {
-                            Text(lastPlayed.reciter.englishName)
-                                .font(.subheadline)
-                                .foregroundColor(themeManager.theme.secondaryText)
-
-                            Text("•")
-                                .foregroundColor(themeManager.theme.secondaryText.opacity(0.5))
-
-                            Text(formatTime(lastPlayed.time))
-                                .font(.subheadline)
-                                .foregroundColor(themeManager.theme.primaryAccent)
-                        }
-                    }
-
-                    Spacer()
-
-                    // Chevron
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
+                    Image(systemName: "headphones")
+                        .font(.title3)
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
-                .padding(16)
-                .background(themeManager.theme.cardBackground)
-                .cornerRadius(16)
-                .shadow(color: themeManager.theme.primaryAccent.opacity(0.15), radius: 8, x: 0, y: 4)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Start Your Journey")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("Choose a reciter below to begin listening")
+                        .font(.subheadline)
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+
+                Spacer()
             }
-            .buttonStyle(PlainButtonStyle())
+            .padding(16)
+            .background(themeManager.theme.cardBackground)
+            .cornerRadius(16)
+        }
+    }
+
+    // MARK: - Continue Listening Content Helper
+    private func continueListeningContent(surahName: String, reciterName: String, time: TimeInterval, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 16) {
+            // Play icon
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+
+                Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.title3)
+                    .foregroundColor(.white)
+            }
+
+            // Surah info
+            VStack(alignment: .leading, spacing: 6) {
+                Text(audioPlayerService.isPlaying ? "Now Playing" : "Continue Listening")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(themeManager.theme.secondaryText)
+                    .textCase(.uppercase)
+
+                Text(surahName)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                HStack(spacing: 8) {
+                    Text(reciterName)
+                        .font(.subheadline)
+                        .foregroundColor(themeManager.theme.secondaryText)
+
+                    Text("•")
+                        .foregroundColor(themeManager.theme.secondaryText.opacity(0.5))
+
+                    Text(formatTime(time))
+                        .font(.subheadline)
+                        .foregroundColor(themeManager.theme.primaryAccent)
+                }
+            }
+
+            Spacer()
+
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(themeManager.theme.secondaryText)
+        }
+        .padding(16)
+        .background(themeManager.theme.cardBackground)
+        .cornerRadius(16)
+        .shadow(color: themeManager.theme.primaryAccent.opacity(0.15), radius: 8, x: 0, y: 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            action()
         }
     }
 
@@ -296,67 +358,67 @@ struct HomeView: View {
     private var prayerTimeCard: some View {
         Group {
             if let nextPrayer = prayerViewModel.nextPrayer {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Header with title and location
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header with prayer name and location
                     HStack {
-                        Text("Next Prayer")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Next Prayer")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                            Text(getPrayerNameInArabic(nextPrayer.name) + " - " + nextPrayer.name)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
 
                         Spacer()
 
                         HStack(spacing: 4) {
                             Image(systemName: "location.fill")
-                                .font(.system(size: 12))
+                                .font(.system(size: 10))
                             Text(prayerViewModel.locationName)
-                                .font(.system(size: 14))
+                                .font(.system(size: 12))
                         }
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(.white.opacity(0.8))
                     }
 
-                    // Prayer name in Arabic and English
-                    Text(getPrayerNameInArabic(nextPrayer.name) + " - " + nextPrayer.name)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.9))
+                    // Time and countdown row
+                    HStack(alignment: .bottom, spacing: 8) {
+                        Text(nextPrayer.time)
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundColor(.white)
 
-                    // Large time display
-                    Text(nextPrayer.time)
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(.white)
-
-                    // Countdown
-                    Text("in " + prayerViewModel.timeUntilNextPrayer)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.9))
+                        Text("in " + prayerViewModel.timeUntilNextPrayer)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.bottom, 6)
+                    }
 
                     // Prayer time progress bar
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Text(getCurrentPrayerLabel())
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.white)
 
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
-                                // Background track
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: 3)
                                     .fill(Color.white.opacity(0.3))
-                                    .frame(height: 6)
+                                    .frame(height: 5)
 
-                                // Progress indicator based on current prayer time
-                                RoundedRectangle(cornerRadius: 4)
+                                RoundedRectangle(cornerRadius: 3)
                                     .fill(Color.white)
-                                    .frame(width: geometry.size.width * getCurrentPrayerProgress(), height: 6)
+                                    .frame(width: geometry.size.width * getCurrentPrayerProgress(), height: 5)
                                     .animation(.easeInOut, value: prayerViewModel.currentPrayer?.name)
                             }
                         }
-                        .frame(height: 6)
+                        .frame(height: 5)
 
                         Text("of the day")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.9))
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.8))
                     }
                 }
-                .padding(24)
+                .padding(18)
                 .background(
                     Group {
                         if themeManager.theme.hasGlassEffect {
@@ -440,368 +502,148 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - Featured Reciter Card
-    private var featuredReciterCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    // MARK: - Spotlight Section
+    private var spotlightSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             // Section Header
             HStack {
                 Rectangle()
                     .fill(themeManager.theme.primaryAccent)
                     .frame(width: 4, height: 24)
 
-                Text("Featured")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(themeManager.theme.primaryText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Reciter Spotlight")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("Updated weekly")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
 
                 Spacer()
             }
 
-            // Main Featured Card
-            if let reciter = featuredReciter {
-                featuredMainCard(reciter: reciter)
+            // Spotlight Card
+            if let reciter = spotlightReciter {
+                spotlightCard(reciter: reciter)
             } else {
-                featuredMainCardPlaceholder
-            }
-
-            // Bottom Two Cards
-            HStack(spacing: 12) {
-                if let reciter = secondReciter {
-                    featuredSmallCard(reciter: reciter, rank: 2)
-                } else {
-                    featuredSmallCardPlaceholder
-                }
-
-                if let reciter = thirdReciter {
-                    featuredSmallCard(reciter: reciter, rank: 3)
-                } else {
-                    featuredSmallCardPlaceholder
-                }
+                spotlightCardPlaceholder
             }
         }
     }
 
-    // MARK: - Featured Main Card
-    private func featuredMainCard(reciter: Reciter) -> some View {
-        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
+    // MARK: - Spotlight Card
+    private func spotlightCard(reciter: Reciter) -> some View {
+        HStack(spacing: 16) {
+            // Reciter Image
+            KFImage(reciter.artworkURL)
+                .placeholder {
+                    ReciterPlaceholder(iconSize: 40)
+                }
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 100, height: 100)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
-        return ZStack(alignment: .bottomLeading) {
-            // Reciter Image Background
-            GeometryReader { geo in
-                KFImage(reciter.artworkURL)
-                    .placeholder {
-                        ReciterPlaceholder(iconSize: 80)
-                    }
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: geo.size.width, height: 280)
-                    .clipped()
-            }
-            .frame(height: 280)
-            .overlay(
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.1),
-                        Color.black.opacity(0.8)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            // Info
+            VStack(alignment: .leading, spacing: 8) {
+                Text(reciter.englishName)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primaryText)
+                    .lineLimit(1)
 
-            // Bottom Info
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(reciter.englishName)
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-
-                    if let country = reciter.country {
-                        HStack(spacing: 4) {
-                            Text(countryFlag(for: country))
-                                .font(.system(size: 12))
-                            Text(country)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                    }
-
-                    HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "person.2.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(themeManager.theme.primaryAccent)
-                            Text("5.8M")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.black.opacity(0.4)))
-
-                        HStack(spacing: 4) {
-                            Image(systemName: "music.note")
-                                .font(.system(size: 10))
-                                .foregroundColor(themeManager.theme.primaryAccent)
-                            Text("114")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.black.opacity(0.4)))
+                if let country = reciter.country {
+                    HStack(spacing: 4) {
+                        Text(countryFlag(for: country))
+                            .font(.system(size: 12))
+                        Text(country)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(themeManager.theme.secondaryText)
                     }
                 }
 
-                Spacer()
-
-                // Play button - only show on iPhone
-                if !isIPad {
-                    Circle()
-                        .fill(themeManager.theme.primaryAccent)
-                        .frame(width: 50, height: 50)
-                        .overlay(
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .offset(x: 2)
-                        )
+                HStack(spacing: 4) {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 11))
+                        .foregroundColor(themeManager.theme.primaryAccent)
+                    Text("\(reciter.hasCompleteQuran ? "Complete Quran" : "\(reciter.availableSurahs.count) Surahs")")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(themeManager.theme.secondaryText)
                 }
             }
-            .padding(16)
+
+            Spacer()
+
+            // Play Button
+            Button(action: {
+                HapticManager.shared.impact(.medium)
+                Task {
+                    await playRandomSurah(for: reciter)
+                }
+            }) {
+                Circle()
+                    .fill(themeManager.theme.primaryAccent)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .offset(x: 1)
+                    )
+            }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 280)
+        .padding(16)
+        .background(themeManager.theme.cardBackground)
         .cornerRadius(16)
+        .shadow(color: themeManager.theme.primaryAccent.opacity(0.15), radius: 8, x: 0, y: 4)
         .contentShape(Rectangle())
         .onTapGesture {
-            Task {
-                await playRandomSurah(for: reciter)
-            }
-        }
-        // Top badges
-        .overlay(alignment: .topLeading) {
-            HStack(spacing: 4) {
-                Text("👑")
-                    .font(.system(size: 12))
-                Text("#1")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(Color.black.opacity(0.7)))
-            .padding(12)
+            HapticManager.shared.impact(.light)
+            selectedReciter = reciter
         }
     }
 
-    // MARK: - Featured Main Card Placeholder
-    private var featuredMainCardPlaceholder: some View {
-        ZStack(alignment: .bottomLeading) {
-                                                    Rectangle()
+    // MARK: - Spotlight Card Placeholder
+    private var spotlightCardPlaceholder: some View {
+        HStack(spacing: 16) {
+            RoundedRectangle(cornerRadius: 12)
                 .fill(themeManager.theme.tertiaryBackground)
-                .frame(maxWidth: .infinity)
-                .frame(height: 280)
+                .frame(width: 100, height: 100)
                 .shimmer()
 
             VStack(alignment: .leading, spacing: 8) {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.white.opacity(0.3))
-                    .frame(width: 150, height: 22)
+                    .fill(themeManager.theme.tertiaryBackground)
+                    .frame(width: 120, height: 17)
                     .shimmer()
 
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.white.opacity(0.3))
-                    .frame(width: 100, height: 12)
+                    .fill(themeManager.theme.tertiaryBackground)
+                    .frame(width: 80, height: 13)
                     .shimmer()
 
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.3))
-                        .frame(width: 60, height: 24)
-                        .shimmer()
-
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.3))
-                        .frame(width: 50, height: 24)
-                        .shimmer()
-                }
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(themeManager.theme.tertiaryBackground)
+                    .frame(width: 100, height: 12)
+                    .shimmer()
             }
-            .padding(16)
+
+            Spacer()
+
+            Circle()
+                .fill(themeManager.theme.tertiaryBackground)
+                .frame(width: 44, height: 44)
+                .shimmer()
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 280)
+        .padding(16)
+        .background(themeManager.theme.cardBackground)
         .cornerRadius(16)
     }
 
-    // MARK: - Featured Small Card
-    private func featuredSmallCard(reciter: Reciter, rank: Int) -> some View {
-        let isIPad = UIDevice.current.userInterfaceIdiom == .pad
-
-        return ZStack(alignment: .bottomLeading) {
-            // Reciter Image Background
-            GeometryReader { geo in
-                KFImage(reciter.artworkURL)
-                    .placeholder {
-                        ReciterPlaceholder(iconSize: 60)
-                    }
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: geo.size.width, height: 180)
-                    .clipped()
-            }
-            .frame(height: 180)
-            .overlay(
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.1),
-                        Color.black.opacity(0.8)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-
-            // Rank Badge (Top-left)
-            VStack {
-                HStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.7))
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Text("#\(rank)")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        )
-
-                    Spacer()
-                }
-                .padding(10)
-
-                Spacer()
-            }
-
-            // Bottom Info with Stats and Play Button
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(reciter.englishName)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-
-                    if let country = reciter.country {
-                        HStack(spacing: 3) {
-                            Text(countryFlag(for: country))
-                                .font(.system(size: 9))
-                            Text(country)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
-                                .lineLimit(1)
-                        }
-                    }
-
-                    // Stats
-                    HStack(spacing: 8) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "person.2.fill")
-                                .font(.system(size: 8))
-                                .foregroundColor(themeManager.theme.primaryAccent)
-                            Text(getConsistentListenerCount(for: reciter))
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.black.opacity(0.4)))
-
-                        HStack(spacing: 3) {
-                            Image(systemName: "music.note")
-                                .font(.system(size: 8))
-                                .foregroundColor(themeManager.theme.primaryAccent)
-                            Text("114")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.black.opacity(0.4)))
-                    }
-                }
-
-                Spacer()
-
-                // Play Button - only show on iPhone
-                if !isIPad {
-                    Circle()
-                        .fill(themeManager.theme.primaryAccent)
-                        .frame(width: 36, height: 36)
-                        .overlay(
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                                .offset(x: 1)
-                        )
-                }
-            }
-            .padding(12)
-        }
-        .frame(height: 180)
-        .cornerRadius(14)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            Task {
-                await playRandomSurah(for: reciter)
-            }
-        }
-    }
-
-    // MARK: - Featured Small Card Placeholder
-    private var featuredSmallCardPlaceholder: some View {
-        ZStack(alignment: .bottomLeading) {
-            Rectangle()
-                .fill(themeManager.theme.tertiaryBackground)
-                .frame(height: 180)
-                .shimmer()
-
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.3))
-                        .frame(width: 90, height: 13)
-                        .shimmer()
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.3))
-                        .frame(width: 70, height: 10)
-                        .shimmer()
-
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.white.opacity(0.3))
-                            .frame(width: 45, height: 18)
-                            .shimmer()
-
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.white.opacity(0.3))
-                            .frame(width: 40, height: 18)
-                            .shimmer()
-                    }
-                }
-
-                Spacer()
-
-                Circle()
-                    .fill(Color.white.opacity(0.3))
-                    .frame(width: 36, height: 36)
-                    .shimmer()
-            }
-            .padding(12)
-        }
-        .frame(height: 180)
-        .cornerRadius(14)
-    }
-    
     // MARK: - Quick Actions Row
+    @State private var showingQiblaCompass = false
+
     private var quickActionsRow: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -809,85 +651,114 @@ struct HomeView: View {
                     .fill(themeManager.theme.primaryAccent)
                     .frame(width: 4, height: 24)
 
-            Text("Quick Actions")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(themeManager.theme.primaryText)
+                Text("Quick Actions")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primaryText)
 
                 Spacer()
             }
 
-            HStack(spacing: 12) {
-                // Qibla Compass
-                CompassView()
-
-                // Continue
-                Button(action: {
-                    _ = audioPlayerService.continueLastPlayed()
-                }) {
-                    VStack(spacing: 12) {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                Image(systemName: "play.circle.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.white)
-                            )
-                        Text("Continue")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primaryText)
+            // Modern 2x2 pill-shaped grid
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    // Recent
+                    Button(action: {
+                        HapticManager.shared.impact(.light)
+                        showingRecents = true
+                    }) {
+                        quickActionPill(
+                            icon: "clock.fill",
+                            label: "Recent",
+                            colors: [Color.purple, Color.indigo]
+                        )
                     }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PlainButtonStyle())
+                    .buttonStyle(.plain)
 
-                // Liked
-                NavigationLink(destination: LikedSurahsView()) {
-                    VStack(spacing: 12) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                Image(systemName: "heart.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.white)
-                            )
-                        Text("Liked")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primaryText)
+                    // Liked
+                    NavigationLink(destination: LikedSurahsView()) {
+                        quickActionPill(
+                            icon: "heart.fill",
+                            label: "Liked",
+                            colors: [Color.red, Color.pink]
+                        )
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        HapticManager.shared.impact(.light)
+                    })
                 }
-                .buttonStyle(PlainButtonStyle())
 
-                // Recent
-                Button(action: {
-                    showingRecents = true
-                }) {
-                    VStack(spacing: 12) {
-                        Circle()
-                            .fill(Color.purple)
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                Image(systemName: "clock.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.white)
-                            )
-                        Text("Recent")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(themeManager.theme.primaryText)
+                HStack(spacing: 12) {
+                    // Discover - Random reciter + surah
+                    Button(action: {
+                        HapticManager.shared.impact(.medium)
+                        Task {
+                            await playDiscoverTrack()
+                        }
+                    }) {
+                        quickActionPill(
+                            icon: "safari",
+                            label: "Discover",
+                            colors: [Color.cyan, Color.blue]
+                        )
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
+
+                    // Qibla
+                    Button(action: {
+                        HapticManager.shared.impact(.light)
+                        showingQiblaCompass = true
+                    }) {
+                        quickActionPill(
+                            icon: "location.north.fill",
+                            label: "Qibla",
+                            colors: [themeManager.theme.accentGreen, themeManager.theme.primaryAccent]
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .sheet(isPresented: $showingQiblaCompass) {
+                        QiblaCompassModal()
+                            .presentationDetents([.large])
+                            .presentationDragIndicator(.visible)
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
             }
         }
+    }
+
+    // MARK: - Quick Action Pill
+    private func quickActionPill(icon: String, label: String, colors: [Color]) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: colors,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+
+            Text(label)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(themeManager.theme.primaryText)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(themeManager.theme.secondaryText)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(themeManager.theme.cardBackground)
+        .cornerRadius(14)
+        .contentShape(Rectangle())
     }
     
     // MARK: - Reciter Sections
@@ -896,7 +767,6 @@ struct HomeView: View {
             mostListenedSection
             peacefulRecitationsSection
             verseOfTheDaySection
-            favoriteRecitersSection
         }
     }
 
@@ -933,11 +803,24 @@ struct HomeView: View {
                 }
             }
 
-            VStack(spacing: 12) {
-                ForEach(Array(popularReciters.prefix(4).enumerated()), id: \.element.identifier) { index, reciter in
-                    reciterListCard(reciter: reciter, rank: index + 1, showStyle: true)
+            // Spotify-style horizontal scroll
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    if popularReciters.isEmpty {
+                        // Skeleton loading
+                        ForEach(0..<4, id: \.self) { _ in
+                            reciterSkeletonCard
+                        }
+                    } else {
+                        ForEach(Array(popularReciters.prefix(8).enumerated()), id: \.element.identifier) { index, reciter in
+                            spotifyReciterCard(reciter: reciter, rank: index + 1)
+                        }
+                    }
                 }
+                .padding(.horizontal, 4)
             }
+            .padding(.horizontal, -20)
+            .padding(.leading, 20)
         }
     }
 
@@ -974,11 +857,104 @@ struct HomeView: View {
                 }
             }
 
-            VStack(spacing: 12) {
-                ForEach(Array(soothingReciters.prefix(4).enumerated()), id: \.element.identifier) { index, reciter in
-                    reciterListCard(reciter: reciter, rank: index + 1, showStyle: true)
+            // Spotify-style horizontal scroll
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    if soothingReciters.isEmpty {
+                        // Skeleton loading
+                        ForEach(0..<4, id: \.self) { _ in
+                            reciterSkeletonCard
+                        }
+                    } else {
+                        ForEach(Array(soothingReciters.prefix(8).enumerated()), id: \.element.identifier) { index, reciter in
+                            spotifyReciterCard(reciter: reciter, rank: index + 1)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            .padding(.horizontal, -20)
+            .padding(.leading, 20)
+        }
+    }
+
+    // MARK: - Reciter Skeleton Card
+    private var reciterSkeletonCard: some View {
+        VStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(themeManager.theme.tertiaryBackground)
+                .frame(width: 140, height: 140)
+                .shimmer()
+
+            VStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(themeManager.theme.tertiaryBackground)
+                    .frame(width: 100, height: 14)
+                    .shimmer()
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(themeManager.theme.tertiaryBackground)
+                    .frame(width: 60, height: 12)
+                    .shimmer()
+            }
+        }
+        .frame(width: 140)
+    }
+
+    // MARK: - Spotify-style Reciter Card
+    private func spotifyReciterCard(reciter: Reciter, rank: Int) -> some View {
+        VStack(spacing: 10) {
+            // Circular image with play button overlay
+            ZStack(alignment: .bottomTrailing) {
+                KFImage(reciter.artworkURL)
+                    .placeholder {
+                        ReciterPlaceholder(size: 140, iconSize: 50)
+                    }
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 140, height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                // Shuffle play button
+                Button(action: {
+                    HapticManager.shared.impact(.medium)
+                    Task {
+                        await playRandomSurah(for: reciter)
+                    }
+                }) {
+                    Circle()
+                        .fill(themeManager.theme.primaryAccent)
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "shuffle")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                        )
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                }
+                .offset(x: -8, y: -8)
+            }
+
+            // Name and country
+            VStack(spacing: 4) {
+                Text(reciter.englishName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(themeManager.theme.primaryText)
+                    .lineLimit(1)
+
+                if let country = reciter.country {
+                    Text(country)
+                        .font(.system(size: 12))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                        .lineLimit(1)
                 }
             }
+            .frame(width: 140)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            HapticManager.shared.impact(.light)
+            selectedReciter = reciter
         }
     }
 
@@ -1104,34 +1080,64 @@ struct HomeView: View {
     // MARK: - Favorite Reciters Section
     @ViewBuilder
     private var favoriteRecitersSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Rectangle()
+                    .fill(themeManager.theme.primaryAccent)
+                    .frame(width: 4, height: 24)
+
+                Text("Your Favorite Reciters")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                Spacer()
+            }
+
             if !favoritesManager.favoriteReciters.isEmpty {
                 let sortedFavoriteIdentifiers = favoritesManager.favoriteReciters
                     .sorted { $0.dateAdded > $1.dateAdded }
                     .map { $0.identifier }
                 let reciterDict = Dictionary(uniqueKeysWithValues: quranAPIService.reciters.map { ($0.identifier, $0) })
                 let favoriteReciters = sortedFavoriteIdentifiers.compactMap { reciterDict[$0] }
-                
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Rectangle()
-                        .fill(themeManager.theme.primaryAccent)
-                        .frame(width: 4, height: 24)
-
-                    Text("Your Favorite Reciters")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(themeManager.theme.primaryText)
-
-                    Spacer()
-                }
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(Array(favoriteReciters.prefix(5)), id: \.identifier) { reciter in
-                            reciterCardView(reciter: reciter, showBadge: false)
+                        ForEach(Array(favoriteReciters.prefix(8)), id: \.identifier) { reciter in
+                            spotifyReciterCard(reciter: reciter, rank: 0)
                         }
                     }
                     .padding(.horizontal, 4)
                 }
+                .padding(.horizontal, -20)
+                .padding(.leading, 20)
+            } else {
+                // Empty state
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(themeManager.theme.tertiaryBackground)
+                            .frame(width: 48, height: 48)
+
+                        Image(systemName: "bookmark")
+                            .font(.system(size: 20))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("No favorites yet")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        Text("Tap the bookmark icon on any reciter to save them here")
+                            .font(.system(size: 13))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
+
+                    Spacer()
+                }
+                .padding(16)
+                .background(themeManager.theme.cardBackground)
+                .cornerRadius(14)
             }
         }
     }
@@ -1302,30 +1308,22 @@ struct HomeView: View {
                         .foregroundColor(themeManager.theme.primaryAccent)
                 }
 
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 10))
-                        Text(getConsistentListenerCount(for: reciter))
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(themeManager.theme.secondaryText)
-
-                    HStack(spacing: 4) {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 10))
-                        Text("114 Surahs")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(themeManager.theme.secondaryText)
+                // Real stats - surahs available
+                HStack(spacing: 4) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 10))
+                    Text("\(reciter.hasCompleteQuran ? "114" : "\(reciter.availableSurahs.count)") Surahs")
+                        .font(.system(size: 12, weight: .semibold))
                 }
+                .foregroundColor(themeManager.theme.secondaryText)
             }
             .padding(.horizontal, 12)
 
             Spacer()
 
-            // Play Button
+            // Play Button - shuffle play
             Button(action: {
+                HapticManager.shared.impact(.medium)
                 Task {
                     await playRandomSurah(for: reciter)
                 }
@@ -1334,10 +1332,9 @@ struct HomeView: View {
                     .fill(themeManager.theme.primaryAccent)
                     .frame(width: 44, height: 44)
                     .overlay(
-                        Image(systemName: "play.fill")
+                        Image(systemName: "shuffle")
                             .font(.system(size: 16))
                             .foregroundColor(.white)
-                            .offset(x: 2)
                     )
             }
             .padding(.trailing, 12)
@@ -1356,6 +1353,11 @@ struct HomeView: View {
             }
         )
         .cornerRadius(14)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            HapticManager.shared.impact(.light)
+            selectedReciter = reciter
+        }
     }
 
     // MARK: - Get Reciter Style
@@ -1383,79 +1385,36 @@ struct HomeView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(themeManager.theme.primaryText)
                 Spacer()
-                
+
                 // Page indicators
                 HStack(spacing: 6) {
                     ForEach(0..<3) { index in
                         Circle()
-                            .fill(getActualPageIndex() == index ? themeManager.theme.primaryAccent : themeManager.theme.tertiaryBackground)
+                            .fill(currentStatPage == index ? themeManager.theme.primaryAccent : themeManager.theme.tertiaryBackground)
                             .frame(width: 6, height: 6)
-                            .animation(.easeInOut(duration: 0.3), value: currentStatPage)
+                            .animation(.easeInOut(duration: 0.2), value: currentStatPage)
                     }
                 }
             }
-            
+
             TabView(selection: $currentStatPage) {
-                // Duplicate slides for infinite scrolling
-                // End slides (duplicates)
-                mostListenedToBanner
+                listeningTimeBanner
                     .tag(0)
                     .padding(.horizontal, 4)
                     .frame(height: 120)
 
-                listeningTimeBanner
+                surahsProgressBanner
                     .tag(1)
                     .padding(.horizontal, 4)
                     .frame(height: 120)
 
-                surahsProgressBanner
+                mostListenedToBanner
                     .tag(2)
-                    .padding(.horizontal, 4)
-                    .frame(height: 120)
-
-                // Main slides
-                listeningTimeBanner
-                    .tag(3)
-                    .padding(.horizontal, 4)
-                    .frame(height: 120)
-
-                surahsProgressBanner
-                    .tag(4)
-                    .padding(.horizontal, 4)
-                    .frame(height: 120)
-
-                mostListenedToBanner
-                    .tag(5)
-                    .padding(.horizontal, 4)
-                    .frame(height: 120)
-
-                // Beginning slides (duplicates)
-                listeningTimeBanner
-                    .tag(6)
-                    .padding(.horizontal, 4)
-                    .frame(height: 120)
-
-                surahsProgressBanner
-                    .tag(7)
-                    .padding(.horizontal, 4)
-                    .frame(height: 120)
-
-                mostListenedToBanner
-                    .tag(8)
                     .padding(.horizontal, 4)
                     .frame(height: 120)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .frame(height: 140)
-            .onChange(of: currentStatPage) { newPage in
-                handlePageChange(newPage)
-            }
-            .onAppear {
-                startSlideshowTimer()
-            }
-            .onDisappear {
-                stopSlideshowTimer()
-            }
         }
     }
     
@@ -2064,56 +2023,6 @@ struct HomeView: View {
         return String(format: "%d:%02d", minutes, secs)
     }
 
-    // MARK: - Slideshow Timer Functions
-    private func startSlideshowTimer() {
-        slideshowTimer?.invalidate()
-        slideshowTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true) { _ in
-            withAnimation(.easeInOut(duration: 0.3)) {
-                advanceToNextSlide()
-            }
-        }
-    }
-    
-    private func stopSlideshowTimer() {
-        slideshowTimer?.invalidate()
-        slideshowTimer = nil
-    }
-    
-    // MARK: - Infinite Scroll Helper Functions
-    private func advanceToNextSlide() {
-        if currentStatPage >= 5 { // At last main slide, jump to first main slide
-            currentStatPage = 3
-        } else {
-            currentStatPage += 1
-        }
-    }
-    
-    private func handlePageChange(_ newPage: Int) {
-        // Reset timer only for manual changes
-        if abs(newPage - currentStatPage) != 1 {
-            startSlideshowTimer()
-        }
-        
-        // Handle infinite scroll wraparound for manual swipes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            if newPage <= 2 { // Swiped to beginning duplicates, jump to end of main section
-                self.currentStatPage = newPage + 3
-            } else if newPage >= 6 { // Swiped to end duplicates, jump to beginning of main section
-                self.currentStatPage = newPage - 3
-            }
-        }
-    }
-    
-    private func getActualPageIndex() -> Int {
-        // Map the current page to the actual page index (0, 1, 2)
-        switch currentStatPage {
-        case 0, 3, 6: return 0 // Listening Time
-        case 1, 4, 7: return 1 // Surahs Progress
-        case 2, 5, 8: return 2 // Most Listened To
-        default: return 0
-        }
-    }
-    
     // MARK: - Most Listened To Functions
     private func getMostListenedReciter() -> Reciter? {
         let reciterCounts = Dictionary(grouping: RecentsManager.shared.recentItems, by: { $0.reciter.identifier })
@@ -2257,7 +2166,7 @@ struct HomeView: View {
     // MARK: - Hero Banner (keeping for compatibility)
     private var heroBanner: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let reciter = featuredReciter {
+            if let reciter = spotlightReciter {
                 ZStack(alignment: .bottomLeading) {
                     // Background Image
                     KFImage(reciter.artworkURL)
@@ -2494,18 +2403,53 @@ struct HomeView: View {
     }
     
     private func processReciters(_ reciters: [Reciter]) {
-                
         // Filter reciters by English name
-                        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
-                        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
+        self.popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
+        self.soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
 
-        // Randomly select featured reciters from popular list
-        let shuffledPopular = self.popularReciters.shuffled()
-        self.featuredReciter = shuffledPopular.first ?? reciters.randomElement()
-        self.secondReciter = shuffledPopular.dropFirst().first ?? reciters.randomElement()
-        self.thirdReciter = shuffledPopular.dropFirst(2).first ?? reciters.randomElement()
-                    
-                    self.isLoading = false
+        // Load spotlight reciter with weekly persistence
+        self.spotlightReciter = getWeeklySpotlightReciter(from: popularReciters, fallback: reciters)
+
+        self.isLoading = false
+    }
+
+    /// Returns a spotlight reciter that persists for one week
+    private func getWeeklySpotlightReciter(from popularReciters: [Reciter], fallback reciters: [Reciter]) -> Reciter? {
+        let defaults = UserDefaults.standard
+        let spotlightKey = "weeklySpotlightReciterID"
+        let spotlightDateKey = "weeklySpotlightDate"
+
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Check if we have a saved spotlight that's still valid (within the same week)
+        if let savedID = defaults.string(forKey: spotlightKey),
+           let savedDate = defaults.object(forKey: spotlightDateKey) as? Date {
+            // Check if we're in the same week
+            let savedWeek = calendar.component(.weekOfYear, from: savedDate)
+            let currentWeek = calendar.component(.weekOfYear, from: now)
+            let savedYear = calendar.component(.year, from: savedDate)
+            let currentYear = calendar.component(.year, from: now)
+
+            if savedWeek == currentWeek && savedYear == currentYear {
+                // Try to find the saved reciter
+                if let reciter = popularReciters.first(where: { $0.identifier == savedID }) ??
+                                 reciters.first(where: { $0.identifier == savedID }) {
+                    return reciter
+                }
+            }
+        }
+
+        // Select a new spotlight reciter for this week
+        let newSpotlight = popularReciters.randomElement() ?? reciters.randomElement()
+
+        // Save the selection
+        if let spotlight = newSpotlight {
+            defaults.set(spotlight.identifier, forKey: spotlightKey)
+            defaults.set(now, forKey: spotlightDateKey)
+        }
+
+        return newSpotlight
     }
 
     private func loadVerseOfTheDay() {
@@ -2574,6 +2518,32 @@ struct HomeView: View {
                 }
             } catch {
             }
+        }
+    }
+
+    /// Discover: Pick a random reciter and random surah from their catalog
+    private func playDiscoverTrack() async {
+        do {
+            // Get all reciters and surahs
+            let allReciters = quranAPIService.reciters
+            let allSurahs = try await quranAPIService.fetchSurahs()
+
+            guard !allReciters.isEmpty, !allSurahs.isEmpty else { return }
+
+            // Pick a random reciter
+            guard let randomReciter = allReciters.randomElement() else { return }
+
+            // Filter surahs to ones this reciter has
+            let availableSurahs = allSurahs.filter { randomReciter.hasSurah($0.number) }
+
+            // Pick a random surah from their catalog
+            guard let randomSurah = availableSurahs.randomElement() else { return }
+
+            // Play it
+            await MainActor.run {
+                audioPlayerService.load(surah: randomSurah, reciter: randomReciter)
+            }
+        } catch {
         }
     }
     

@@ -148,11 +148,21 @@ struct PaywallView: View {
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundColor(theme.secondaryText)
 
-                        Text("Cancel anytime. Auto-renews until cancelled.")
+                        Text("Auto-renews. Cancel anytime.")
                             .font(.system(size: 12, weight: .regular, design: .rounded))
                             .foregroundColor(theme.tertiaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
+
+                        // Legal Links (Required by App Store)
+                        HStack(spacing: 16) {
+                            Link("Privacy Policy", destination: URL(string: "https://abduljabar5.github.io/Khushoo_site/#/privacy")!)
+
+                            Text("•")
+                                .foregroundColor(theme.tertiaryText)
+
+                            Link("Terms of Use", destination: URL(string: "https://abduljabar5.github.io/Khushoo_site/#/terms")!)
+                        }
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.secondaryText)
                     }
                     .padding(.bottom, 40)
                 }

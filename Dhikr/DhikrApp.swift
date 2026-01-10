@@ -154,9 +154,12 @@ struct DhikrApp: App {
             }
             
         case .inactive:
+            // Save last played info when app becomes inactive (catch swipe-away gesture)
+            audioPlayerService.saveLastPlayed()
+
             // Check blocking state when app becomes inactive (user switching away)
             BlockingStateService.shared.forceCheck()
-            
+
             // Prepare for potential memory pressure
             ImageCacheManager.shared.clearMemoryCache()
             
