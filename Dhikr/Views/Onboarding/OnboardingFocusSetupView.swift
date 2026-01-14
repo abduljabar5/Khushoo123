@@ -14,6 +14,7 @@ struct OnboardingFocusSetupView: View {
     // Use shared FocusSettingsManager for all settings
     @StateObject private var focusManager = FocusSettingsManager.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
 
     private var theme: AppTheme { themeManager.theme }
 
@@ -21,6 +22,7 @@ struct OnboardingFocusSetupView: View {
     @State private var showAppPicker = false
     @State private var selection = FamilyActivitySelection()
     @State private var showIncompleteAlert = false
+    @State private var isRequestingScreenTime = false
 
     private let durationOptions: [Double] = [15, 30, 45, 60]
 
@@ -181,7 +183,21 @@ struct OnboardingFocusSetupView: View {
                         .padding(.horizontal, 24)
 
                         Button(action: {
-                            showAppPicker = true
+                            // Request Screen Time authorization before showing app picker
+                            if screenTimeAuth.isAuthorized {
+                                showAppPicker = true
+                            } else {
+                                isRequestingScreenTime = true
+                                Task {
+                                    let success = await screenTimeAuth.requestAuthorizationWithErrorHandling()
+                                    await MainActor.run {
+                                        isRequestingScreenTime = false
+                                        if success {
+                                            showAppPicker = true
+                                        }
+                                    }
+                                }
+                            }
                         }) {
                             HStack(spacing: 16) {
                                 Image(systemName: "app.badge")
@@ -200,9 +216,14 @@ struct OnboardingFocusSetupView: View {
 
                                 Spacer()
 
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(theme.tertiaryText)
+                                if isRequestingScreenTime {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: theme.primaryAccent))
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(theme.tertiaryText)
+                                }
                             }
                             .padding(16)
                             .background(
@@ -210,6 +231,7 @@ struct OnboardingFocusSetupView: View {
                                     .fill(theme.cardBackground)
                             )
                         }
+                        .disabled(isRequestingScreenTime)
                         .padding(.horizontal, 24)
                     }
 
@@ -365,6 +387,17 @@ struct OnboardingFocusSetupView: View {
                 Text("Please select a blocking duration.")
             } else if !hasSelectedApps {
                 Text("Please select at least one app to block during prayer times.")
+            }
+        }
+        .alert("Screen Time Error", isPresented: $screenTimeAuth.showErrorAlert) {
+            Button("OK", role: .cancel) {
+                screenTimeAuth.clearError()
+            }
+        } message: {
+            if let error = screenTimeAuth.lastError {
+                Text("\(error.errorDescription ?? "An error occurred.")\n\n\(error.recoverySuggestion)")
+            } else {
+                Text("Screen Time permission is required to select apps for blocking. Please try again.")
             }
         }
     }
