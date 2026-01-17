@@ -242,7 +242,7 @@ struct OnboardingPremiumView: View {
         isPurchasing = false
 
         // Check if purchase succeeded - complete onboarding immediately
-        if subscriptionService.isPremium {
+        if subscriptionService.hasPremiumAccess {
             onStartTrial()
         }
     }

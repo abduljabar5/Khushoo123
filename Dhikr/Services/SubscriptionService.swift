@@ -22,9 +22,15 @@ class SubscriptionService: ObservableObject {
     static let shared = SubscriptionService()
 
     @Published private(set) var isPremium: Bool = false
+    @Published private(set) var hasGrantedAccess: Bool = false  // Manually granted access (influencers, gifts, etc.)
     @Published private(set) var subscriptionStatus: Product.SubscriptionInfo.Status?
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var purchaseState: PurchaseState = .idle
+
+    /// Combined check: user has premium access if they have a subscription OR granted access
+    var hasPremiumAccess: Bool {
+        return isPremium || hasGrantedAccess
+    }
 
     private var updateListenerTask: Task<Void, Error>?
     private let db = Firestore.firestore()
@@ -60,6 +66,13 @@ class SubscriptionService: ObservableObject {
             if cachedPremium {
                 self.isPremium = true
                 print("✅ [SubscriptionService] Loaded cached premium status: true")
+            }
+
+            // Load cached granted access status
+            let cachedGrantedAccess = groupDefaults.bool(forKey: "hasGrantedAccess")
+            if cachedGrantedAccess {
+                self.hasGrantedAccess = true
+                print("✅ [SubscriptionService] Loaded cached granted access: true")
             }
         }
 
@@ -191,6 +204,9 @@ class SubscriptionService: ObservableObject {
 
         // STEP 2: Sync to Firebase if user is signed in (optional)
         if let userId = currentUserId {
+            // Always fetch granted access status (influencers, gifts, etc.)
+            await fetchGrantedAccessFromFirebase(userId: userId)
+
             if isPremiumActive, let transaction = latestTransaction {
                 // Active subscription from StoreKit - sync to Firebase
                 await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
@@ -210,6 +226,14 @@ class SubscriptionService: ObservableObject {
                     }
                 }
             }
+        } else {
+            // User signed out - clear granted access (it's tied to their account)
+            self.hasGrantedAccess = false
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                groupDefaults.set(false, forKey: "hasGrantedAccess")
+                groupDefaults.synchronize()
+            }
+            print("ℹ️ [SubscriptionService] User signed out - cleared granted access")
         }
 
         let wasPremium = self.isPremium
@@ -260,7 +284,7 @@ class SubscriptionService: ObservableObject {
             isInitialSync = false
         }
 
-        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium)")
+        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium), hasGrantedAccess: \(self.hasGrantedAccess), hasPremiumAccess: \(self.hasPremiumAccess)")
     }
 
     // MARK: - Firebase Sync Methods
@@ -343,6 +367,39 @@ class SubscriptionService: ObservableObject {
                 ])
             }
         } catch {
+        }
+    }
+
+    /// Fetch granted access status from Firebase (for influencers, gifts, etc.)
+    /// This is separate from subscription status and is manually managed
+    private func fetchGrantedAccessFromFirebase(userId: String) async {
+        do {
+            let document = try await db.collection("users").document(userId).getDocument()
+
+            if let data = document.data(),
+               let grantedAccess = data["hasGrantedAccess"] as? Bool {
+                self.hasGrantedAccess = grantedAccess
+
+                // Cache the granted access status
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(grantedAccess, forKey: "hasGrantedAccess")
+                    groupDefaults.synchronize()
+                }
+
+                if grantedAccess {
+                    let reason = data["grantReason"] as? String ?? "unknown"
+                    print("✅ [SubscriptionService] User has granted access (reason: \(reason))")
+                }
+            } else {
+                // No granted access field found - default to false
+                self.hasGrantedAccess = false
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(false, forKey: "hasGrantedAccess")
+                    groupDefaults.synchronize()
+                }
+            }
+        } catch {
+            print("❌ [SubscriptionService] Error fetching granted access: \(error)")
         }
     }
 
@@ -448,9 +505,8 @@ enum StoreError: Error {
 // MARK: - Convenience Extensions
 extension SubscriptionService {
     var hasPremium: Bool {
-        // Premium is based on StoreKit verification (tied to Apple ID)
-        // Works regardless of Firebase auth status
-        return isPremium
+        // Combined check: subscription OR granted access (influencers, gifts, etc.)
+        return hasPremiumAccess
     }
 
     var monthlyProduct: Product? {

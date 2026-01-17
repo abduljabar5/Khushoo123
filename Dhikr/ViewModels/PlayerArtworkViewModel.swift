@@ -23,7 +23,7 @@ class PlayerArtworkViewModel: ObservableObject {
 
     /// Check if user can access premium cover art
     private var canAccessPremiumCovers: Bool {
-        return subscriptionService.isPremium
+        return subscriptionService.hasPremiumAccess
     }
 
     init(audioPlayerService: AudioPlayerService) {

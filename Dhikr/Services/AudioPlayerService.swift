@@ -1072,7 +1072,7 @@ class AudioPlayerService: NSObject, ObservableObject {
 
     private func fetchSurahCoverArtwork(for surah: Surah) async {
         // Check if user can access premium covers (premium OR authenticated)
-        let isPremium = await MainActor.run { SubscriptionService.shared.isPremium }
+        let isPremium = await MainActor.run { SubscriptionService.shared.hasPremiumAccess }
         let isAuthenticated = Auth.auth().currentUser != nil
 
         guard isPremium || isAuthenticated else {

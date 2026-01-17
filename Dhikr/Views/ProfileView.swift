@@ -425,9 +425,9 @@ struct ProfileView: View {
     // MARK: - Subscription Section
     private var subscriptionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: subscriptionService.isPremium ? "Premium" : "Upgrade", icon: "crown.fill")
+            sectionHeader(title: subscriptionService.hasPremiumAccess ? "Premium" : "Upgrade", icon: "crown.fill")
 
-            if subscriptionService.isPremium {
+            if subscriptionService.hasPremiumAccess {
                 // Premium user - show status and manage
                 VStack(spacing: 0) {
                     settingsRow(

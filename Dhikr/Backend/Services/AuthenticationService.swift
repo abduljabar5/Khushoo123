@@ -97,7 +97,9 @@ class AuthenticationService: ObservableObject {
                 email: email,
                 displayName: capitalizedName,
                 joinDate: Date(),
-                isPremium: false
+                isPremium: false,
+                hasGrantedAccess: false,
+                grantReason: ""
             )
 
             try await saveUserToFirestore(user: newUser)
@@ -296,7 +298,9 @@ class AuthenticationService: ObservableObject {
                     email: result.user.email ?? "No email provided",
                     displayName: finalName,
                     joinDate: Date(),
-                    isPremium: false
+                    isPremium: false,
+                    hasGrantedAccess: false,
+                    grantReason: ""
                 )
 
                 try await saveUserToFirestore(user: newUser)
@@ -362,7 +366,9 @@ class AuthenticationService: ObservableObject {
                 email: email,
                 displayName: capitalizedName,
                 joinDate: Date(),
-                isPremium: false
+                isPremium: false,
+                hasGrantedAccess: false,
+                grantReason: ""
             )
 
             try await saveUserToFirestore(user: newUser)

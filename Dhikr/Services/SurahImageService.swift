@@ -13,7 +13,7 @@ class SurahImageService {
     /// Check if user can access premium cover art
     @MainActor
     private func canAccessPremiumCovers() -> Bool {
-        return SubscriptionService.shared.isPremium
+        return SubscriptionService.shared.hasPremiumAccess
     }
 
     /// Ensure user has a valid Firebase Auth session for Storage access
@@ -25,7 +25,7 @@ class SurahImageService {
         }
 
         // Check if user is premium (needs to be on MainActor)
-        let isPremium = await MainActor.run { SubscriptionService.shared.isPremium }
+        let isPremium = await MainActor.run { SubscriptionService.shared.hasPremiumAccess }
 
         // If premium but not authenticated, sign in anonymously
         if isPremium {

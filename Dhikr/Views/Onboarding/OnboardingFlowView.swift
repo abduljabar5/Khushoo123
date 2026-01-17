@@ -81,7 +81,7 @@ struct OnboardingFlowView: View {
                 case 3:
                     // Screen 4: Permissions
                     OnboardingPermissionsView(onContinue: {
-                        if subscriptionService.isPremium {
+                        if subscriptionService.hasPremiumAccess {
                             // Skip premium screen if already subscribed
                             print("📱 [Onboarding] Page 3 → Complete (Permissions → Skip Premium, already subscribed)")
                             completeOnboarding()
@@ -145,7 +145,7 @@ struct OnboardingFlowView: View {
         print("🔍 [Onboarding] Checking if should schedule blocking...")
 
         // Quick check: premium + prayers selected + apps selected + screen time permission
-        guard subscriptionService.isPremium else {
+        guard subscriptionService.hasPremiumAccess else {
             print("   ❌ Not premium")
             return false
         }

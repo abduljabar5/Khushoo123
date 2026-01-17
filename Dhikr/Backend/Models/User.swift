@@ -17,12 +17,16 @@ struct User: Codable, Identifiable {
     var isPremium: Bool
     var subscription: SubscriptionData?
 
+    // Granted access (for influencers, gifts, etc.) - manually managed
+    var hasGrantedAccess: Bool
+    var grantReason: String?  // "influencer", "gift", "promotional", etc.
+
     // User preferences
     var selectedAppsToBlock: [String]?
     var prayerSettings: PrayerSettings?
     var locationData: LocationData?
 
-    init(id: String? = nil, email: String, displayName: String, photoURL: String? = nil, joinDate: Date = Date(), isPremium: Bool = false, subscription: SubscriptionData? = nil) {
+    init(id: String? = nil, email: String, displayName: String, photoURL: String? = nil, joinDate: Date = Date(), isPremium: Bool = false, subscription: SubscriptionData? = nil, hasGrantedAccess: Bool = false, grantReason: String? = nil) {
         self.id = id
         self.email = email
         self.displayName = displayName
@@ -30,6 +34,8 @@ struct User: Codable, Identifiable {
         self.joinDate = joinDate
         self.isPremium = isPremium
         self.subscription = subscription
+        self.hasGrantedAccess = hasGrantedAccess
+        self.grantReason = grantReason
     }
 }
 

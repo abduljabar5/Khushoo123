@@ -681,6 +681,10 @@ class BlockingStateService: ObservableObject {
 
         // Update local state - keep the end time so early unlock validation works
         updateBlockingState(isBlocking: false, prayerName: currentPrayerName, endTime: endTime)
+
+        // Force a state check to ensure all UI components update correctly
+        // This mirrors what happens when notification/widget triggers unlock
+        checkBlockingStatus()
     }
 
     private func markCurrentPrayerAsCompleted() {

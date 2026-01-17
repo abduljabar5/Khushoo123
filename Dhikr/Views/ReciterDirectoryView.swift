@@ -91,10 +91,10 @@ struct ReciterDirectoryView: View {
                     }
                 }
             }
-            .blur(radius: subscriptionService.isPremium ? 0 : 10)
+            .blur(radius: subscriptionService.hasPremiumAccess ? 0 : 10)
 
             // Premium lock overlay
-            if !subscriptionService.isPremium {
+            if !subscriptionService.hasPremiumAccess {
                 PremiumLockedView(feature: .reciterSearch)
             }
         }
@@ -154,7 +154,7 @@ struct ReciterDirectoryView: View {
 
     private func loadData() {
         // Skip loading if not premium (they can't see the content anyway)
-        guard subscriptionService.isPremium else {
+        guard subscriptionService.hasPremiumAccess else {
             isLoading = false
             return
         }

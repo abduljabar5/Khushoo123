@@ -421,13 +421,13 @@ struct PrayerTimeView: View {
                         viewModel.toggleReminder(for: prayer.name)
                     },
                     onToggleComplete: {
-                        if subscriptionService.isPremium {
+                        if subscriptionService.hasPremiumAccess {
                             viewModel.togglePrayerCompletion(for: prayer.name)
                         } else {
                             showingPaywall = true
                         }
                     },
-                    isPremium: subscriptionService.isPremium
+                    isPremium: subscriptionService.hasPremiumAccess
                 )
             }
         }

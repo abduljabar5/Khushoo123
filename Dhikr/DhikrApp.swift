@@ -244,7 +244,7 @@ struct DhikrApp: App {
 
     private func cleanupAppBlockingForFreeUsers() {
         // Only run cleanup if user is not premium
-        guard !subscriptionService.isPremium else {
+        guard !subscriptionService.hasPremiumAccess else {
             return
         }
 
@@ -296,7 +296,7 @@ struct DhikrApp: App {
 
             // FIX: Double-check that user is actually not premium before clearing settings
             // This is a safety guard in case the notification was sent incorrectly
-            guard !self.subscriptionService.isPremium else {
+            guard !self.subscriptionService.hasPremiumAccess else {
                 print("⚠️ [DhikrApp] UserLostPremium received but isPremium is true - ignoring")
                 return
             }
@@ -408,7 +408,7 @@ struct DhikrApp: App {
         print("   hasCompletedOnboarding: \(hasCompletedOnboarding)")
 
         // Check if user is premium
-        let isPremium = subscriptionService.isPremium
+        let isPremium = subscriptionService.hasPremiumAccess
         print("   isPremium: \(isPremium)")
 
         Task {
@@ -507,8 +507,8 @@ struct DhikrApp: App {
         // 2. Schedule blocking immediately
         // 3. Fetch remaining 5 months in background
 
-        let isPremiumFetch = daysToFetch >= 30 && subscriptionService.isPremium
-        print("📍 [DhikrApp] fetch6Months called - isPremium: \(subscriptionService.isPremium), daysToFetch: \(daysToFetch), usingSplitApproach: \(isPremiumFetch)")
+        let isPremiumFetch = daysToFetch >= 30 && subscriptionService.hasPremiumAccess
+        print("📍 [DhikrApp] fetch6Months called - isPremium: \(subscriptionService.hasPremiumAccess), daysToFetch: \(daysToFetch), usingSplitApproach: \(isPremiumFetch)")
 
         if isPremiumFetch {
             print("🔀 [DhikrApp] Using SPLIT fetch approach (premium user)")
@@ -532,7 +532,7 @@ struct DhikrApp: App {
             print("✅ [DhikrApp] Phase 1 complete - saved \(initialStorage.prayerTimes.count) days")
 
             // Schedule blocking immediately with first month data
-            if subscriptionService.isPremium {
+            if subscriptionService.hasPremiumAccess {
                 print("⏰ [DhikrApp] Scheduling blocking with initial data...")
                 await scheduleRollingWindow(storage: initialStorage)
             }
@@ -607,7 +607,7 @@ struct DhikrApp: App {
             prayerTimeService.saveStorage(storage)
 
             // Schedule rolling window (only for premium users with app blocking)
-            if subscriptionService.isPremium {
+            if subscriptionService.hasPremiumAccess {
                 await scheduleRollingWindow(storage: storage)
             }
 
@@ -630,7 +630,7 @@ struct DhikrApp: App {
         }
 
         // Check premium status
-        guard subscriptionService.isPremium else {
+        guard subscriptionService.hasPremiumAccess else {
             print("ℹ️ [DhikrApp] User not premium - skipping initial schedule")
             return
         }

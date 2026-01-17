@@ -172,7 +172,13 @@ struct HomeView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         ForEach(Array(reciters.enumerated()), id: \.element.identifier) { index, reciter in
-                            reciterListCard(reciter: reciter, rank: index + 1, showStyle: true)
+                            NavigationLink(destination: ReciterDetailView(reciter: reciter)
+                                .environmentObject(audioPlayerService)
+                                .environmentObject(quranAPIService)
+                            ) {
+                                reciterListCardForSheet(reciter: reciter, rank: index + 1, showStyle: true)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                     .padding()
@@ -196,6 +202,105 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Reciter List Card for Sheet (NavigationLink version without tap gesture)
+    private func reciterListCardForSheet(reciter: Reciter, rank: Int, showStyle: Bool) -> some View {
+        HStack(spacing: 0) {
+            // Rank Badge + Image (fills to edges)
+            ZStack(alignment: .topLeading) {
+                KFImage(reciter.artworkURL)
+                    .placeholder {
+                        ReciterPlaceholder(size: 120, iconSize: 40)
+                    }
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 120, height: 120)
+                    .clipped()
+
+                // Rank Badge
+                Text("#\(rank)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.7))
+                    )
+                    .offset(x: 8, y: 8)
+            }
+            .frame(width: 120, height: 120)
+
+            // Info Section
+            VStack(alignment: .leading, spacing: 6) {
+                Text(reciter.englishName)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(themeManager.theme.primaryText)
+                    .lineLimit(1)
+
+                if let country = reciter.country {
+                    HStack(spacing: 4) {
+                        Text(countryFlag(for: country))
+                            .font(.system(size: 12))
+                        Text(country)
+                            .font(.system(size: 13))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
+                }
+
+                if showStyle {
+                    Text(getReciterStyle(reciter.englishName))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(themeManager.theme.primaryAccent)
+                }
+
+                // Real stats - surahs available
+                HStack(spacing: 4) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 10))
+                    Text("\(reciter.hasCompleteQuran ? "114" : "\(reciter.availableSurahs.count)") Surahs")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(themeManager.theme.secondaryText)
+            }
+            .padding(.horizontal, 12)
+
+            Spacer()
+
+            // Play Button - shuffle play
+            Button(action: {
+                HapticManager.shared.impact(.medium)
+                Task {
+                    await playRandomSurah(for: reciter)
+                }
+            }) {
+                Circle()
+                    .fill(themeManager.theme.primaryAccent)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(systemName: "shuffle")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                    )
+            }
+            .padding(.trailing, 12)
+        }
+        .frame(height: 120)
+        .background(
+            ZStack {
+                themeManager.theme.cardBackground
+
+                // Darkness gradient overlay (right side darker)
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.1)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+        )
+        .cornerRadius(14)
+        .contentShape(Rectangle())
     }
     
     // MARK: - Greeting Section

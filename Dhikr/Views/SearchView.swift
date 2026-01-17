@@ -53,15 +53,15 @@ struct SearchView: View {
 
             // Main content (always show for blur effect)
             mainContent
-                .blur(radius: subscriptionService.isPremium && screenTimeAuth.isAuthorized ? 0 : 10)
+                .blur(radius: subscriptionService.hasPremiumAccess && screenTimeAuth.isAuthorized ? 0 : 10)
 
             // Premium lock overlay
-            if !subscriptionService.isPremium {
+            if !subscriptionService.hasPremiumAccess {
                 PremiumLockedView(feature: .focus)
             }
 
             // Screen Time permission overlay (shown only if premium but not authorized)
-            if subscriptionService.isPremium && !screenTimeAuth.isAuthorized {
+            if subscriptionService.hasPremiumAccess && !screenTimeAuth.isAuthorized {
                 ScreenTimePermissionOverlay(screenTimeAuth: screenTimeAuth)
             }
         }
@@ -89,7 +89,7 @@ struct SearchView: View {
         }
         .onAppear {
             // Skip if not premium - app blocking is premium only
-            guard subscriptionService.isPremium else {
+            guard subscriptionService.hasPremiumAccess else {
                 return
             }
 
@@ -102,6 +102,12 @@ struct SearchView: View {
             // Ensure initial scheduling happens if conditions are met
             // This handles the post-onboarding scenario where scheduling may have failed
             focusManager.ensureInitialSchedulingIfNeeded()
+        }
+        .onChange(of: subscriptionService.hasPremiumAccess) { isPremium in
+            // When user becomes premium, refresh Screen Time status before showing overlay
+            if isPremium {
+                screenTimeAuth.updateAuthorizationStatus()
+            }
         }
         .alert("Screen Time Error", isPresented: $screenTimeAuth.showErrorAlert) {
             Button("OK", role: .cancel) {
@@ -210,6 +216,7 @@ struct SearchView: View {
                         MockupTodayScheduleSection(
                             prayerTimes: prayerTimes,
                             duration: focusManager.blockingDuration,
+                            prePrayerBuffer: focusManager.prePrayerBuffer,
                             selectedPrayers: focusManager.getSelectedPrayers(),
                             isLoading: isLoadingPrayerTimes,
                             error: prayerTimesError
@@ -642,13 +649,7 @@ private struct EarlyUnlockInlineSection: View {
                             .font(.caption)
                             .foregroundColor(theme.secondaryText)
                         Button(action: {
-                            // SIMPLIFIED: Clear restrictions and update flag directly
-                            let store = ManagedSettingsStore()
-                            store.clearAllSettings()
-                            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                                groupDefaults.set(false, forKey: "appsActuallyBlocked")
-                            }
-                            // Silenced manual unlock log
+                            blocking.earlyUnlockCurrentInterval()
                         }) {
                             HStack {
                                 Image(systemName: "checkmark.seal.fill")
@@ -1550,12 +1551,24 @@ private struct SpeechConfirmationView: View {
 private struct MockupTodayScheduleSection: View {
     let prayerTimes: [PrayerTime]
     let duration: Double
+    let prePrayerBuffer: Double
     let selectedPrayers: Set<String>
     let isLoading: Bool
     let error: String?
 
     @StateObject private var themeManager = ThemeManager.shared
     private var theme: AppTheme { themeManager.theme }
+
+    private let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+
+    private func blockingStartTime(for prayerDate: Date) -> String {
+        let blockingStart = prayerDate.addingTimeInterval(-prePrayerBuffer * 60)
+        return timeFormatter.string(from: blockingStart)
+    }
 
     private var backgroundShape: some View {
         Group {
@@ -1637,12 +1650,12 @@ private struct MockupTodayScheduleSection: View {
                         }
                     }
                 } else {
-                    // Show actual prayer times
+                    // Show actual prayer times with blocking start time (prayer time - buffer)
                     let prayersToShow = Array(todayPrayers.prefix(5))
                     ForEach(Array(prayersToShow.enumerated()), id: \.element.id) { index, prayer in
                         MockupPrayerRow(
                             prayerName: prayer.name,
-                            time: prayer.timeString,
+                            time: blockingStartTime(for: prayer.date),
                             duration: duration,
                             isEnabled: selectedPrayers.contains(prayer.name)
                         )

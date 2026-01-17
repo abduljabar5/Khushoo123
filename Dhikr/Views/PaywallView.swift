@@ -138,7 +138,7 @@ struct PaywallView: View {
                             Task {
                                 await subscriptionService.restorePurchases()
                                 // FIX: Auto-dismiss if premium was restored successfully
-                                if subscriptionService.isPremium {
+                                if subscriptionService.hasPremiumAccess {
                                     dismiss()
                                 } else {
                                     showingRestoreAlert = true
@@ -191,7 +191,7 @@ struct PaywallView: View {
         .alert("Restore Complete", isPresented: $showingRestoreAlert) {
             Button("OK", role: .cancel) { }
         } message: {
-            if subscriptionService.isPremium {
+            if subscriptionService.hasPremiumAccess {
                 Text("Your premium subscription has been restored!")
             } else {
                 Text("No active subscriptions found.")

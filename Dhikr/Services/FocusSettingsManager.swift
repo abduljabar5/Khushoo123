@@ -12,6 +12,7 @@ class FocusSettingsManager: ObservableObject {
     @Published var blockingDuration: Double {
         didSet {
             dirtySchedule = true
+            dirtyNotifications = true
             subject.send()
         }
     }
@@ -20,6 +21,7 @@ class FocusSettingsManager: ObservableObject {
     @Published var prePrayerBuffer: Double {
         didSet {
             dirtySchedule = true
+            dirtyNotifications = true
             subject.send()
         }
     }

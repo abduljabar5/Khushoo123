@@ -975,14 +975,39 @@ struct MonthlyActivityContainer: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(theme.primaryText)
 
-                VStack(alignment: .leading, spacing: 16) {
-                    timeSlotRow(label: "Morning", percentage: monthStats.timeBreakdown.morning)
-                    timeSlotRow(label: "Afternoon", percentage: monthStats.timeBreakdown.afternoon)
-                    timeSlotRow(label: "Evening", percentage: monthStats.timeBreakdown.evening)
-                    timeSlotRow(label: "Night", percentage: monthStats.timeBreakdown.night)
+                let hasTimeData = monthStats.timeBreakdown.morning > 0 ||
+                                  monthStats.timeBreakdown.afternoon > 0 ||
+                                  monthStats.timeBreakdown.evening > 0 ||
+                                  monthStats.timeBreakdown.night > 0
+
+                if hasTimeData {
+                    VStack(alignment: .leading, spacing: 16) {
+                        timeSlotRow(label: "Morning", percentage: monthStats.timeBreakdown.morning)
+                        timeSlotRow(label: "Afternoon", percentage: monthStats.timeBreakdown.afternoon)
+                        timeSlotRow(label: "Evening", percentage: monthStats.timeBreakdown.evening)
+                        timeSlotRow(label: "Night", percentage: monthStats.timeBreakdown.night)
+                    }
+                    .padding(20)
+                    .background(smallCardBackground)
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 32))
+                            .foregroundColor(theme.secondaryText)
+
+                        Text("Start tracking dhikr")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(theme.primaryText)
+
+                        Text("Time breakdown will appear as you do dhikr throughout the day")
+                            .font(.system(size: 14))
+                            .foregroundColor(theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(24)
+                    .background(smallCardBackground)
                 }
-                .padding(20)
-                .background(smallCardBackground)
             }
         }
         .padding(.horizontal, 20)
