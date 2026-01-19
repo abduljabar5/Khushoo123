@@ -1,5 +1,9 @@
 import SwiftUI
 
+// Sacred colors
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
+
 /// Banner that shows scheduling progress and completion status
 /// Displays while app blocking is being set up in the background after onboarding
 struct SchedulingProgressBanner: View {
@@ -9,27 +13,31 @@ struct SchedulingProgressBanner: View {
     @State private var isDismissed = false
     @Binding var selectedTab: Int
 
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var subtleText: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(white: 0.5)
+            : Color(white: 0.45)
+    }
+
     var body: some View {
         // Show when scheduling is in progress OR just completed (not dismissed)
         if !isDismissed && (blocking.isSchedulingBlocking || blocking.schedulingDidComplete) {
             HStack(spacing: 12) {
                 // App Icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(
-                            LinearGradient(
-                                colors: blocking.schedulingDidComplete
-                                    ? [Color.green, Color.green.opacity(0.8)]
-                                    : [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 40, height: 40)
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(blocking.schedulingDidComplete ? softGreen : sacredGold)
+                        .frame(width: 44, height: 44)
 
                     if blocking.schedulingDidComplete {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 20))
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18, weight: .medium))
                             .foregroundColor(.white)
                     } else {
                         ProgressView()
@@ -39,42 +47,31 @@ struct SchedulingProgressBanner: View {
                 }
 
                 // Notification Content
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text("DHIKR")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(themeManager.theme.secondaryText)
-
-                        Text("•")
-                            .font(.system(size: 11))
-                            .foregroundColor(themeManager.theme.secondaryText.opacity(0.5))
-
-                        Text("now")
-                            .font(.system(size: 11))
-                            .foregroundColor(themeManager.theme.secondaryText)
-
-                        Spacer()
-                    }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("DHIKR")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(subtleText)
 
                     if blocking.schedulingDidComplete {
                         Text("Prayer Blocking Ready")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundColor(themeManager.theme.primaryText)
                             .lineLimit(1)
 
                         Text("Your apps will be blocked during prayers")
-                            .font(.system(size: 13))
-                            .foregroundColor(themeManager.theme.secondaryText)
+                            .font(.system(size: 12))
+                            .foregroundColor(subtleText)
                             .lineLimit(1)
                     } else {
                         Text("Setting Up Prayer Blocking")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundColor(themeManager.theme.primaryText)
                             .lineLimit(1)
 
                         Text("Fetching prayer times...")
-                            .font(.system(size: 13))
-                            .foregroundColor(themeManager.theme.secondaryText)
+                            .font(.system(size: 12))
+                            .foregroundColor(subtleText)
                             .lineLimit(1)
                     }
                 }
@@ -84,40 +81,18 @@ struct SchedulingProgressBanner: View {
                 // Chevron for tap action (only when complete)
                 if blocking.schedulingDidComplete {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(themeManager.theme.secondaryText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(subtleText)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(
-                Group {
-                    if themeManager.theme.hasGlassEffect {
-                        // Enhanced liquid glass effect for iOS 26+
-                        if #available(iOS 26.0, *) {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .glassEffect(.clear, in: .rect(cornerRadius: 16))
-                                .shadow(color: themeManager.theme.shadowColor, radius: 12, x: 0, y: 4)
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.ultraThinMaterial)
-                                .shadow(color: themeManager.theme.shadowColor, radius: 12, x: 0, y: 4)
-                        }
-                    } else {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(themeManager.theme.cardBackground)
-                            .shadow(color: themeManager.theme.shadowColor, radius: 12, x: 0, y: 4)
-                    }
-                }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        themeManager.theme.hasGlassEffect ?
-                        Color.white.opacity(0.2) :
-                        Color.clear,
-                        lineWidth: 1
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
                     )
             )
             .offset(y: offset)

@@ -1,12 +1,13 @@
 //
 //  DhikrWidgetView.swift
-//  QariVerse
+//  Dhikr
 //
-//  Created by Abduljabar Nur on 6/21/25.
+//  Sacred Minimalism redesign - contemplative, refined, spiritually appropriate
 //
 
 import SwiftUI
 
+// MARK: - Statistics Models
 struct TimeBreakdown {
     let morning: Int
     let afternoon: Int
@@ -25,6 +26,7 @@ struct MonthlyStats {
     let timeBreakdown: TimeBreakdown
 }
 
+// MARK: - Main View
 struct DhikrWidgetView: View {
     @EnvironmentObject var dhikrService: DhikrService
     @EnvironmentObject var bluetoothService: BluetoothService
@@ -33,217 +35,441 @@ struct DhikrWidgetView: View {
 
     private var theme: AppTheme { themeManager.theme }
 
-    // MARK: - Consistent Background Helpers
-    private var cardBackground: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-            } else {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.cardBackground)
-            }
-        }
+    // Sacred color palette - muted, grounded
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46) // #C4A574
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55) // Muted sage green
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.35, green: 0.35, blue: 0.38)
+            : Color(red: 0.65, green: 0.63, blue: 0.60)
+    }
+
+    private var forgivenessPurple: Color {
+        Color(red: 0.55, green: 0.45, blue: 0.65) // Muted, dignified purple
     }
 
     private var pageBackground: Color {
         themeManager.effectiveTheme == .dark
-            ? Color(red: 0.11, green: 0.13, blue: 0.16)
-            : theme.primaryBackground
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
     }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    // Animation states
+    @State private var sectionAppeared: [Bool] = Array(repeating: false, count: 6)
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Title
-                HStack {
-                    Text("Today's Dhikr")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(theme.primaryText)
-                    Spacer()
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                // Header
+                headerSection
+                    .opacity(sectionAppeared[0] ? 1 : 0)
+                    .offset(y: sectionAppeared[0] ? 0 : 20)
 
-                    // Goals button
-                    NavigationLink(destination: DhikrGoalsView()
-                        .environmentObject(dhikrService)
-                        .environmentObject(audioPlayerService)
-                        .environmentObject(bluetoothService)
-                    ) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "target")
-                                .font(.system(size: 16))
-                            Text("Goals")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .foregroundColor(theme.primaryAccent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(theme.primaryAccent.opacity(0.15))
-                        )
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+                // Today's count - subtle, not dominant
+                todayCountSection
+                    .padding(.top, 32)
+                    .opacity(sectionAppeared[1] ? 1 : 0)
+                    .offset(y: sectionAppeared[1] ? 0 : 20)
 
-                // Main count display
-                mainCountDisplay()
+                // Journey stats - refined
+                journeyStatsSection
+                    .padding(.top, 40)
+                    .opacity(sectionAppeared[2] ? 1 : 0)
+                    .offset(y: sectionAppeared[2] ? 0 : 20)
 
-                // Stats row (Day Streak, This Week, All Time)
-                statsRow()
+                // Dhikr cards - emphasis on Arabic
+                dhikrCardsSection
+                    .padding(.top, 48)
+                    .opacity(sectionAppeared[3] ? 1 : 0)
+                    .offset(y: sectionAppeared[3] ? 0 : 20)
 
-                // Zikr Ring Status - Hidden until Bluetooth feature is ready
-                // zikrRingStatus()
+                // Monthly reflection
+                monthlySection
+                    .padding(.top, 48)
+                    .opacity(sectionAppeared[4] ? 1 : 0)
+                    .offset(y: sectionAppeared[4] ? 0 : 20)
 
-                // Today's Practice section
-                todaysPracticeSection()
-
-                // Monthly Activity section
-                monthlyActivitySection()
-
-                // Lifetime Statistics section
-                lifetimeStatisticsSection()
+                // Lifetime journey
+                lifetimeSection
+                    .padding(.top, 48)
+                    .opacity(sectionAppeared[5] ? 1 : 0)
+                    .offset(y: sectionAppeared[5] ? 0 : 20)
             }
-            .padding(.bottom, 100)
+            .padding(.bottom, 120)
         }
         .background(pageBackground.ignoresSafeArea())
-        .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
+        .onAppear {
+            animateEntrance()
+        }
     }
 
-    // MARK: - Main Count Display
-    private func mainCountDisplay() -> some View {
+    // MARK: - Animations
+    private func animateEntrance() {
+        for index in 0..<sectionAppeared.count {
+            withAnimation(.easeOut(duration: 0.5).delay(Double(index) * 0.1)) {
+                sectionAppeared[index] = true
+            }
+        }
+    }
+
+    // MARK: - Header Section
+    private var headerSection: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DHIKR")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(3)
+                    .foregroundColor(theme.secondaryText)
+
+                Text("Today's Practice")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundColor(theme.primaryText)
+            }
+
+            Spacer()
+
+            NavigationLink(destination: DhikrGoalsView()
+                .environmentObject(dhikrService)
+                .environmentObject(audioPlayerService)
+                .environmentObject(bluetoothService)
+            ) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(sacredGold.opacity(0.2))
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 13))
+                                .foregroundColor(sacredGold)
+                        )
+                }
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+    }
+
+    // MARK: - Today Count Section
+    private var todayCountSection: some View {
         let stats = dhikrService.getTodayStats()
 
-        return Text("\(stats.total)")
-            .font(.system(size: 72, weight: .bold))
-            .foregroundColor(theme.primaryAccent)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
+        return VStack(spacing: 8) {
+            Text("\(stats.total)")
+                .font(.system(size: 56, weight: .ultraLight))
+                .foregroundColor(theme.primaryText)
+
+            Text("remembrances today")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(theme.secondaryText)
+                .tracking(0.5)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 
-    // MARK: - Stats Row
-    private func statsRow() -> some View {
+    // MARK: - Journey Stats Section
+    private var journeyStatsSection: some View {
         let stats = dhikrService.getTodayStats()
         let weeklyStats = dhikrService.getWeeklyStats()
         let thisWeekTotal = weeklyStats.reduce(0) { $0 + $1.total }
         let allTimeTotal = dhikrService.getAllTimeTotal()
 
-        return HStack(spacing: 12) {
-            DhikrStatCard(value: "\(stats.streak)", label: "Day Streak", icon: "flame.fill", iconColor: .orange)
-            DhikrStatCard(value: formatNumber(thisWeekTotal), label: "This Week", icon: "calendar", iconColor: theme.primaryAccent)
-            DhikrStatCard(value: formatNumber(allTimeTotal), label: "All Time", icon: "infinity", iconColor: theme.accentGreen)
+        return HStack(spacing: 0) {
+            // Streak
+            statItem(
+                value: "\(stats.streak)",
+                label: "STREAK",
+                sublabel: "days"
+            )
+
+            divider
+
+            // This Week
+            statItem(
+                value: formatNumber(thisWeekTotal),
+                label: "WEEK",
+                sublabel: nil
+            )
+
+            divider
+
+            // All Time
+            statItem(
+                value: formatNumber(allTimeTotal),
+                label: "LIFETIME",
+                sublabel: nil
+            )
         }
-        .padding(.horizontal, 20)
+        .padding(.vertical, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(theme.secondaryText.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 24)
     }
 
-    // MARK: - Zikr Ring Status
-    private func zikrRingStatus() -> some View {
-        let isConnected = bluetoothService.isConnected
-        // TODO: Add batteryLevel to BluetoothService when hardware supports it
-        let batteryLevel = 78 // Placeholder until battery reporting is implemented
+    private func statItem(value: String, label: String, sublabel: String?) -> some View {
+        VStack(spacing: 6) {
+            Text(value)
+                .font(.system(size: 28, weight: .light))
+                .foregroundColor(theme.primaryText)
 
-        return HStack(spacing: 12) {
-            // Status indicator circle
-            Circle()
-                .fill(isConnected ? theme.accentGreen : theme.tertiaryText)
-                .frame(width: 10, height: 10)
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(theme.secondaryText)
 
-            Text(isConnected ? "Zikr Ring Active" : "Zikr Ring Disconnected")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(isConnected ? theme.accentGreen : theme.tertiaryText)
-
-            Spacer()
-
-            // Battery icon and percentage (only show when connected)
-            if isConnected {
-                HStack(spacing: 6) {
-                    Image(systemName: batteryIcon(for: batteryLevel))
-                        .font(.system(size: 16))
-                        .foregroundColor(theme.secondaryText)
-                    Text("\(batteryLevel)%")
-                        .font(.system(size: 14))
-                        .foregroundColor(theme.secondaryText)
-                }
+            if let sublabel = sublabel {
+                Text(sublabel)
+                    .font(.system(size: 11))
+                    .foregroundColor(theme.secondaryText.opacity(0.6))
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(cardBackground)
-        .shadow(color: theme.primaryAccent.opacity(0.08), radius: 6, x: 0, y: 3)
-        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Helper for Battery Icon
-    private func batteryIcon(for level: Int) -> String {
-        switch level {
-        case 76...100:
-            return "battery.100"
-        case 51...75:
-            return "battery.75"
-        case 26...50:
-            return "battery.50"
-        case 1...25:
-            return "battery.25"
-        default:
-            return "battery.0"
-        }
+    private var divider: some View {
+        Rectangle()
+            .fill(theme.secondaryText.opacity(0.15))
+            .frame(width: 1, height: 50)
     }
 
-    // MARK: - Today's Practice Section
-    private func todaysPracticeSection() -> some View {
+    // MARK: - Dhikr Cards Section
+    private var dhikrCardsSection: some View {
         let stats = dhikrService.getTodayStats()
 
-        return VStack(alignment: .leading, spacing: 20) {
-            Text("Today's Practice")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(theme.primaryText)
-                .padding(.horizontal, 20)
+        return VStack(alignment: .leading, spacing: 24) {
+            Text("PRACTICE")
+                .font(.system(size: 11, weight: .medium))
+                .tracking(2)
+                .foregroundColor(theme.secondaryText)
+                .padding(.horizontal, 24)
 
             VStack(spacing: 16) {
-                DhikrCard(
+                // Astaghfirullah first (seeking forgiveness)
+                SacredDhikrCard(
                     type: .astaghfirullah,
                     count: stats.astaghfirullah,
                     goal: dhikrService.goal.astaghfirullah,
-                    color: .purple,
-                    onIncrement: { amount in
-                        dhikrService.incrementDhikr(.astaghfirullah, by: amount)
-                    },
-                    onReset: {
-                        dhikrService.setDhikrCount(.astaghfirullah, count: 0)
-                    }
+                    accentColor: forgivenessPurple,
+                    onIncrement: { dhikrService.incrementDhikr(.astaghfirullah, by: $0) },
+                    onReset: { dhikrService.setDhikrCount(.astaghfirullah, count: 0) }
                 )
 
-                DhikrCard(
+                // Alhamdulillah (gratitude)
+                SacredDhikrCard(
                     type: .alhamdulillah,
                     count: stats.alhamdulillah,
                     goal: dhikrService.goal.alhamdulillah,
-                    color: .green,
-                    onIncrement: { amount in
-                        dhikrService.incrementDhikr(.alhamdulillah, by: amount)
-                    },
-                    onReset: {
-                        dhikrService.setDhikrCount(.alhamdulillah, count: 0)
-                    }
+                    accentColor: softGreen,
+                    onIncrement: { dhikrService.incrementDhikr(.alhamdulillah, by: $0) },
+                    onReset: { dhikrService.setDhikrCount(.alhamdulillah, count: 0) }
                 )
 
-                DhikrCard(
+                // SubhanAllah (glorification)
+                SacredDhikrCard(
                     type: .subhanAllah,
                     count: stats.subhanAllah,
                     goal: dhikrService.goal.subhanAllah,
-                    color: .cyan,
-                    onIncrement: { amount in
-                        dhikrService.incrementDhikr(.subhanAllah, by: amount)
-                    },
-                    onReset: {
-                        dhikrService.setDhikrCount(.subhanAllah, count: 0)
-                    }
+                    accentColor: sacredGold,
+                    onIncrement: { dhikrService.incrementDhikr(.subhanAllah, by: $0) },
+                    onReset: { dhikrService.setDhikrCount(.subhanAllah, count: 0) }
                 )
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
         }
     }
 
-    // MARK: - Helper Methods
+    // MARK: - Monthly Section
+    private var monthlySection: some View {
+        MonthlyActivityContainerRedesigned(
+            dhikrService: dhikrService,
+            sacredGold: sacredGold,
+            softGreen: softGreen,
+            forgivenessPurple: forgivenessPurple
+        )
+    }
+
+    // MARK: - Lifetime Section
+    private var lifetimeSection: some View {
+        let allTimeTotal = dhikrService.getAllTimeTotal()
+        let allStats = dhikrService.getAllDhikrStats()
+        let activeDays = allStats.filter { $0.total > 0 }.count
+        let dailyAverage = activeDays > 0 ? allTimeTotal / activeDays : 0
+        let bestDay = allStats.max(by: { $0.total < $1.total })?.total ?? 0
+
+        // Calculate totals by type
+        let totalSubhanAllah = allStats.reduce(0) { $0 + $1.subhanAllah }
+        let totalAlhamdulillah = allStats.reduce(0) { $0 + $1.alhamdulillah }
+        let totalAstaghfirullah = allStats.reduce(0) { $0 + $1.astaghfirullah }
+
+        return VStack(alignment: .leading, spacing: 24) {
+            Text("LIFETIME JOURNEY")
+                .font(.system(size: 11, weight: .medium))
+                .tracking(2)
+                .foregroundColor(theme.secondaryText)
+                .padding(.horizontal, 24)
+
+            VStack(alignment: .leading, spacing: 32) {
+                // Total with elegant presentation
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(allTimeTotal.formatted())")
+                        .font(.system(size: 48, weight: .ultraLight))
+                        .foregroundColor(sacredGold)
+
+                    Text("total remembrances")
+                        .font(.system(size: 14))
+                        .foregroundColor(theme.secondaryText)
+                }
+
+                // Subtle divider
+                Rectangle()
+                    .fill(sacredGold.opacity(0.3))
+                    .frame(width: 40, height: 1)
+
+                // Stats row
+                HStack(spacing: 32) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(activeDays)")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(theme.primaryText)
+                        Text("days")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.secondaryText)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(dailyAverage)")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(theme.primaryText)
+                        Text("daily avg")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.secondaryText)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(bestDay)")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(theme.primaryText)
+                        Text("best day")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.secondaryText)
+                    }
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(sacredGold.opacity(0.2), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 24)
+
+            // Breakdown by Type
+            VStack(alignment: .leading, spacing: 16) {
+                Text("BY TYPE")
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundColor(theme.secondaryText)
+                    .padding(.horizontal, 24)
+
+                VStack(spacing: 12) {
+                    lifetimeBreakdownRow(
+                        arabicText: "أستغفر الله",
+                        name: "Astaghfirullah",
+                        meaning: "I seek forgiveness",
+                        count: totalAstaghfirullah,
+                        total: allTimeTotal,
+                        color: forgivenessPurple
+                    )
+
+                    lifetimeBreakdownRow(
+                        arabicText: "الحمد لله",
+                        name: "Alhamdulillah",
+                        meaning: "Praise be to Allah",
+                        count: totalAlhamdulillah,
+                        total: allTimeTotal,
+                        color: softGreen
+                    )
+
+                    lifetimeBreakdownRow(
+                        arabicText: "سبحان الله",
+                        name: "SubhanAllah",
+                        meaning: "Glory be to Allah",
+                        count: totalSubhanAllah,
+                        total: allTimeTotal,
+                        color: sacredGold
+                    )
+                }
+                .padding(.horizontal, 24)
+            }
+        }
+    }
+
+    private func lifetimeBreakdownRow(arabicText: String, name: String, meaning: String, count: Int, total: Int, color: Color) -> some View {
+        let percentage = total > 0 ? Int((Double(count) / Double(total)) * 100) : 0
+
+        return HStack(spacing: 16) {
+            // Arabic text
+            Text(arabicText)
+                .font(.system(size: 20, weight: .regular, design: .serif))
+                .foregroundColor(theme.primaryText)
+                .frame(width: 100, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(name)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(theme.primaryText)
+
+                    Text("• \(percentage)%")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.secondaryText)
+                }
+
+                Text(meaning)
+                    .font(.system(size: 11))
+                    .foregroundColor(theme.secondaryText)
+            }
+
+            Spacer()
+
+            Text("\(count.formatted())")
+                .font(.system(size: 20, weight: .light))
+                .foregroundColor(color)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Helpers
     private func formatNumber(_ number: Int) -> String {
         if number >= 1_000_000 {
             return String(format: "%.1fM", Double(number) / 1_000_000.0)
@@ -252,393 +478,151 @@ struct DhikrWidgetView: View {
         }
         return "\(number)"
     }
-
-    // MARK: - Monthly Activity Section
-    private func monthlyActivitySection() -> some View {
-        MonthlyActivityContainer(dhikrService: dhikrService)
-    }
-
-    // MARK: - Lifetime Statistics Section
-    private func lifetimeStatisticsSection() -> some View {
-        let allTimeTotal = dhikrService.getAllTimeTotal()
-        let allStats = dhikrService.getAllDhikrStats()
-        let activeDays = allStats.filter { $0.total > 0 }.count
-
-        // Calculate totals by type
-        let totalSubhanAllah = allStats.reduce(0) { $0 + $1.subhanAllah }
-        let totalAlhamdulillah = allStats.reduce(0) { $0 + $1.alhamdulillah }
-        let totalAstaghfirullah = allStats.reduce(0) { $0 + $1.astaghfirullah }
-
-        // Calculate daily average
-        let dailyAverage = activeDays > 0 ? allTimeTotal / activeDays : 0
-
-        // Find best day
-        let bestDay = allStats.max(by: { $0.total < $1.total })?.total ?? 0
-
-        return VStack(alignment: .leading, spacing: 20) {
-            // Header
-            HStack {
-                ZStack {
-                    Circle()
-                        .fill(theme.accentGold.opacity(0.15))
-                        .frame(width: 44, height: 44)
-
-                    Image(systemName: "trophy.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(theme.accentGold)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("All-Time Stats")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(theme.primaryText)
-
-                    Text("Lifetime achievements")
-                        .font(.system(size: 13))
-                        .foregroundColor(theme.secondaryText)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-
-            // Main stats card
-            VStack(alignment: .leading, spacing: 20) {
-                // TOTAL badge
-                HStack(spacing: 6) {
-                    Text("TOTAL")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(theme.accentGreen)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(theme.accentGreen.opacity(0.3), lineWidth: 1.5)
-                )
-
-                // Total count
-                Text("\(allTimeTotal.formatted())")
-                    .font(.system(size: 56, weight: .bold))
-                    .foregroundColor(theme.accentGreen)
-
-                Text("Total Dhikr Count")
-                    .font(.system(size: 14))
-                    .foregroundColor(theme.primaryText)
-
-                // Bottom stats row
-                HStack(spacing: 40) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(activeDays)")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(theme.primaryText)
-
-                        Text("DAYS")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(theme.secondaryText)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(dailyAverage)")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(theme.primaryText)
-
-                        Text("DAILY AVG")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(theme.secondaryText)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(bestDay)")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(theme.primaryText)
-
-                        Text("BEST DAY")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(theme.secondaryText)
-                    }
-                }
-                .padding(.top, 8)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
-            .background(cardBackground)
-            .padding(.horizontal, 20)
-
-            // Breakdown by Type section
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Breakdown by Type")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(theme.primaryText)
-
-                VStack(spacing: 12) {
-                    // SubhanAllah - cyan/teal
-                    dhikrBreakdownRow(
-                        icon: "sparkles",
-                        name: "Subhan'Allah",
-                        subtitle: "Glory be to Allah",
-                        percentage: allTimeTotal > 0 ? Int((Double(totalSubhanAllah) / Double(allTimeTotal)) * 100) : 0,
-                        count: totalSubhanAllah,
-                        color: theme.primaryAccent
-                    )
-
-                    // Alhamdulillah - green
-                    dhikrBreakdownRow(
-                        icon: "hands.clap.fill",
-                        name: "Alhamdulillah",
-                        subtitle: "All praise to Allah",
-                        percentage: allTimeTotal > 0 ? Int((Double(totalAlhamdulillah) / Double(allTimeTotal)) * 100) : 0,
-                        count: totalAlhamdulillah,
-                        color: theme.accentGreen
-                    )
-
-                    // Astaghfirullah - purple
-                    dhikrBreakdownRow(
-                        icon: "heart.fill",
-                        name: "Astaghfirullah",
-                        subtitle: "I seek forgiveness",
-                        percentage: allTimeTotal > 0 ? Int((Double(totalAstaghfirullah) / Double(allTimeTotal)) * 100) : 0,
-                        count: totalAstaghfirullah,
-                        color: Color(red: 0.6, green: 0.4, blue: 1.0)
-                    )
-                }
-            }
-            .padding(.horizontal, 20)
-        }
-    }
-
-    // Helper for breakdown rows
-    private func dhikrBreakdownRow(icon: String, name: String, subtitle: String, percentage: Int, count: Int, color: Color) -> some View {
-        HStack(spacing: 16) {
-            // Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.15))
-                    .frame(width: 56, height: 56)
-
-                Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(color)
-            }
-
-            // Name and subtitle
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(name)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(theme.primaryText)
-
-                    Text("• \(percentage)%")
-                        .font(.system(size: 14))
-                        .foregroundColor(theme.secondaryText)
-                }
-
-                Text(subtitle)
-                    .font(.system(size: 13))
-                    .foregroundColor(theme.secondaryText)
-            }
-
-            Spacer()
-
-            // Count
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(count.formatted())")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(color)
-
-                Text("times")
-                    .font(.system(size: 11))
-                    .foregroundColor(theme.secondaryText)
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(themeManager.effectiveTheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : theme.cardBackground)
-        )
-        .shadow(color: color.opacity(0.1), radius: 6, x: 0, y: 3)
-    }
 }
 
-// MARK: - Dhikr Stat Card
-struct DhikrStatCard: View {
-    let value: String
-    let label: String
-    var icon: String? = nil
-    var iconColor: Color? = nil
-    @StateObject private var themeManager = ThemeManager.shared
-
-    private var theme: AppTheme { themeManager.theme }
-
-    private var cardBackground: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(theme.cardBackground)
-            }
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 6) {
-            if let icon = icon {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(iconColor ?? theme.primaryAccent)
-            }
-
-            Text(value)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(theme.primaryAccent)
-
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(theme.secondaryText)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(cardBackground)
-        .shadow(color: theme.primaryAccent.opacity(0.1), radius: 6, x: 0, y: 3)
-    }
-}
-
-// MARK: - Dhikr Card
-struct DhikrCard: View {
+// MARK: - Sacred Dhikr Card
+struct SacredDhikrCard: View {
     let type: DhikrType
     let count: Int
     let goal: Int
-    let color: Color
+    let accentColor: Color
     let onIncrement: (Int) -> Void
     let onReset: () -> Void
+
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showingInputSheet = false
-    @State private var inputText = ""
 
     private var theme: AppTheme { themeManager.theme }
-
-    private var cardBackground: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-            } else {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(theme.cardBackground)
-            }
-        }
-    }
 
     private var progress: Double {
         guard goal > 0 else { return 0 }
         return min(Double(count) / Double(goal), 1.0)
     }
 
-    private var extraCount: Int {
-        return max(0, count - goal)
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with Arabic text and count
-            HStack(alignment: .top) {
+        VStack(spacing: 0) {
+            // Main content area
+            VStack(alignment: .leading, spacing: 20) {
+                // Arabic text - PROMINENT
                 Text(type.arabicText)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 32, weight: .regular, design: .serif))
                     .foregroundColor(theme.primaryText)
 
-                Spacer()
+                // English transliteration
+                Text(type.rawValue)
+                    .font(.system(size: 13, weight: .medium))
+                    .tracking(1)
+                    .foregroundColor(theme.secondaryText)
 
-                VStack(alignment: .trailing, spacing: 0) {
+                // Count and goal
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Button(action: {
-                        inputText = "\(count)"
                         showingInputSheet = true
                     }) {
                         Text("\(count)")
-                            .font(.system(size: 48, weight: .bold))
-                            .foregroundColor(color)
+                            .font(.system(size: 40, weight: .light))
+                            .foregroundColor(accentColor)
                     }
 
-                    Text("of \(goal)")
-                        .font(.system(size: 14))
+                    Text("/ \(goal)")
+                        .font(.system(size: 16, weight: .light))
                         .foregroundColor(theme.secondaryText)
+
+                    Spacer()
+
+                    // Circular progress indicator
+                    ZStack {
+                        Circle()
+                            .stroke(accentColor.opacity(0.15), lineWidth: 3)
+                            .frame(width: 44, height: 44)
+
+                        Circle()
+                            .trim(from: 0, to: progress)
+                            .stroke(accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                            .frame(width: 44, height: 44)
+                            .rotationEffect(.degrees(-90))
+
+                        Text("\(Int(progress * 100))")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(accentColor)
+                    }
                 }
-            }
 
-            // English name
-            Text(type.rawValue)
-                .font(.system(size: 14))
-                .foregroundColor(theme.secondaryText)
+                // Thin progress line
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(accentColor.opacity(0.15))
+                            .frame(height: 2)
 
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(theme.tertiaryBackground)
-                        .frame(height: 8)
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(
-                            LinearGradient(
-                                colors: [color, color.opacity(0.7)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geometry.size.width * progress, height: 8)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: progress)
+                        Rectangle()
+                            .fill(accentColor)
+                            .frame(width: geometry.size.width * progress, height: 2)
+                            .animation(.easeOut(duration: 0.4), value: progress)
+                    }
                 }
+                .frame(height: 2)
             }
-            .frame(height: 8)
+            .padding(24)
 
-            // Progress percentage and extra count
-            HStack {
-                Text("\(Int(progress * 100))%")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(color)
-
-                Spacer()
-
-                Text(extraCount > 0 ? "+\(extraCount) extra" : "")
-                    .font(.system(size: 14))
-                    .foregroundColor(theme.secondaryText)
-                    .frame(minWidth: 60, alignment: .trailing)
-            }
-
-            // Action buttons
+            // Action buttons - subtle, refined
             HStack(spacing: 12) {
-                IncrementButton(label: "+1", color: color) {
+                SacredIncrementButton(label: "+1", color: accentColor) {
                     onIncrement(1)
                 }
 
-                IncrementButton(label: "+10", color: color) {
+                SacredIncrementButton(label: "+10", color: accentColor) {
                     onIncrement(10)
                 }
 
-                IncrementButton(label: "+33", color: color) {
+                SacredIncrementButton(label: "+33", color: accentColor) {
                     onIncrement(33)
                 }
 
-                ResetButton(onReset: onReset)
+                Spacer()
+
+                Button(action: {
+                    HapticManager.shared.impact(.light)
+                    onReset()
+                }) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 14))
+                        .foregroundColor(theme.secondaryText)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(theme.secondaryText.opacity(0.08))
+                        )
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
         }
-        .padding(20)
-        .background(cardBackground)
-        .shadow(color: color.opacity(0.12), radius: 8, x: 0, y: 4)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                )
+        )
         .sheet(isPresented: $showingInputSheet) {
             DhikrInputSheet(
                 currentCount: count,
-                color: color,
+                color: accentColor,
                 dhikrType: type,
                 onSave: { newValue in
                     if newValue >= 0 {
-                        // Calculate difference and increment by that amount
                         let difference = newValue - count
                         if difference > 0 {
                             onIncrement(difference)
                         } else if difference < 0 {
-                            // If user wants to decrease, we can reset and add the new value
                             onReset()
                             if newValue > 0 {
                                 onIncrement(newValue)
@@ -651,8 +635,8 @@ struct DhikrCard: View {
     }
 }
 
-// MARK: - Increment Button
-struct IncrementButton: View {
+// MARK: - Sacred Increment Button
+struct SacredIncrementButton: View {
     let label: String
     let color: Color
     let action: () -> Void
@@ -663,427 +647,417 @@ struct IncrementButton: View {
             action()
         }) {
             Text(label)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(color)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .frame(width: 56, height: 44)
                 .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(color.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(color.opacity(0.3), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(color.opacity(0.1))
                 )
         }
+        .buttonStyle(SacredButtonStyle())
     }
 }
 
-// MARK: - Reset Button
-struct ResetButton: View {
-    let onReset: () -> Void
-    @StateObject private var themeManager = ThemeManager.shared
-
-    private var theme: AppTheme { themeManager.theme }
-
-    var body: some View {
-        Button(action: {
-            HapticManager.shared.impact(.medium)
-            onReset()
-        }) {
-            Text("Reset")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(theme.secondaryText)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(theme.secondaryText.opacity(0.05))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(theme.secondaryText.opacity(0.2), lineWidth: 1)
-                )
-        }
+// MARK: - Sacred Button Style
+struct SacredButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
-// MARK: - Monthly Activity Container
-struct MonthlyActivityContainer: View {
+// MARK: - Monthly Activity Container Redesigned
+struct MonthlyActivityContainerRedesigned: View {
     @ObservedObject var dhikrService: DhikrService
+    let sacredGold: Color
+    let softGreen: Color
+    let forgivenessPurple: Color
+
     @State private var selectedMonth = Date()
     @State private var selectedDayStats: DailyDhikrStats?
     @StateObject private var themeManager = ThemeManager.shared
 
     private var theme: AppTheme { themeManager.theme }
 
-    private var cardBackground: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-            } else {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(theme.cardBackground)
-            }
-        }
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
     }
 
-    private var smallCardBackground: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-            } else {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.cardBackground)
-            }
-        }
+    private var monthYearString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: selectedMonth)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Monthly Activity")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(theme.primaryText)
-                .padding(.horizontal, 20)
+        VStack(alignment: .leading, spacing: 24) {
+            Text("MONTHLY REFLECTION")
+                .font(.system(size: 11, weight: .medium))
+                .tracking(2)
+                .foregroundColor(theme.secondaryText)
+                .padding(.horizontal, 24)
 
-            VStack(spacing: 20) {
+            VStack(spacing: 24) {
                 // Month navigation
                 HStack {
                     Button(action: { changeMonth(by: -1) }) {
                         Image(systemName: "chevron.left")
-                            .foregroundColor(theme.primaryText)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(theme.secondaryText)
                     }
 
                     Spacer()
 
                     Text(monthYearString)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(theme.primaryText)
 
                     Spacer()
 
                     Button(action: { changeMonth(by: 1) }) {
                         Image(systemName: "chevron.right")
-                            .foregroundColor(theme.primaryText)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(theme.secondaryText)
                     }
                 }
-                .padding(.horizontal, 20)
 
                 // Calendar grid
-                MonthlyCalendarView(
+                SacredCalendarView(
                     month: selectedMonth,
                     dhikrService: dhikrService,
                     onDayTapped: { stats in
                         selectedDayStats = stats
-                    }
+                    },
+                    accentColor: sacredGold
                 )
 
-                // Legend
-                HStack(spacing: 8) {
+                // Legend - more subtle
+                HStack(spacing: 6) {
                     Text("Less")
-                        .font(.system(size: 12))
+                        .font(.system(size: 10))
                         .foregroundColor(theme.secondaryText)
 
                     ForEach(0..<5) { index in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(theme.accentGreen.opacity(0.2 + Double(index) * 0.2))
-                            .frame(width: 20, height: 20)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(sacredGold.opacity(0.15 + Double(index) * 0.2))
+                            .frame(width: 16, height: 16)
                     }
 
                     Text("More")
-                        .font(.system(size: 12))
+                        .font(.system(size: 10))
                         .foregroundColor(theme.secondaryText)
-                }
-                .padding(.horizontal, 20)
-            }
-            .padding(.vertical, 20)
-            .background(cardBackground)
-            .padding(.horizontal, 20)
-
-            // Monthly Statistics Section
-            monthlyStatisticsView()
-        }
-        .sheet(item: $selectedDayStats) { stats in
-            DayDetailSheet(stats: stats)
-        }
-    }
-
-    private func monthlyStatisticsView() -> some View {
-        let monthStats = getMonthStats()
-        let lastMonthStats = getLastMonthStats()
-        let percentageChange = calculatePercentageChange(current: monthStats.total, previous: lastMonthStats.total)
-
-        return VStack(spacing: 16) {
-            // Main stats card
-            VStack(alignment: .leading, spacing: 16) {
-                Text(monthYearString)
-                    .font(.system(size: 14))
-                    .foregroundColor(theme.secondaryText)
-
-                Text("Total Dhikr")
-                    .font(.system(size: 13))
-                    .foregroundColor(theme.secondaryText)
-
-                Text(formatNumber(monthStats.total))
-                    .font(.system(size: 56, weight: .bold))
-                    .foregroundColor(theme.primaryText)
-
-                Rectangle()
-                    .fill(theme.accentGreen)
-                    .frame(height: 2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(width: 60)
-                    .padding(.top, 8)
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(monthStats.dailyAverage)")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(theme.primaryText)
-
-                        Text("Daily Avg")
-                            .font(.system(size: 12))
-                            .foregroundColor(theme.secondaryText)
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        HStack(spacing: 4) {
-                            Text(percentageChange >= 0 ? "+\(Int(percentageChange))%" : "\(Int(percentageChange))%")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(percentageChange >= 0 ? theme.accentGreen : Color(red: 1.0, green: 0.4, blue: 0.4))
-
-                            Image(systemName: percentageChange >= 0 ? "arrow.up" : "arrow.down")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(percentageChange >= 0 ? theme.accentGreen : Color(red: 1.0, green: 0.4, blue: 0.4))
-                        }
-
-                        Text("vs Last Mo")
-                            .font(.system(size: 12))
-                            .foregroundColor(theme.secondaryText)
-                    }
                 }
             }
             .padding(24)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(themeManager.effectiveTheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : theme.cardBackground)
+                    .fill(cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
-                            .stroke(theme.accentGreen.opacity(0.3), lineWidth: 1)
+                            .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
                     )
             )
+            .padding(.horizontal, 24)
 
-            // Best Day and Goals Met cards
-            HStack(spacing: 16) {
-                // Best Day Card
-                VStack(alignment: .leading, spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(theme.accentGold.opacity(0.15))
-                            .frame(width: 40, height: 40)
+            // Monthly Statistics
+            monthlyStatisticsView()
+        }
+        .sheet(item: $selectedDayStats) { stats in
+            SacredDayDetailSheet(
+                stats: stats,
+                sacredGold: sacredGold,
+                softGreen: softGreen,
+                forgivenessPurple: forgivenessPurple
+            )
+        }
+    }
 
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(theme.accentGold)
+    private func changeMonth(by value: Int) {
+        if let newMonth = Calendar.current.date(byAdding: .month, value: value, to: selectedMonth) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedMonth = newMonth
+            }
+        }
+    }
+
+    // MARK: - Monthly Statistics
+    private func monthlyStatisticsView() -> some View {
+        let monthStats = getMonthStats()
+        let lastMonthStats = getLastMonthStats()
+        let percentageChange = calculatePercentageChange(current: monthStats.total, previous: lastMonthStats.total)
+
+        return VStack(spacing: 20) {
+            // Main stats card
+            VStack(alignment: .leading, spacing: 20) {
+                Text(monthYearString.uppercased())
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundColor(theme.secondaryText)
+
+                Text("\(formatNumber(monthStats.total))")
+                    .font(.system(size: 48, weight: .ultraLight))
+                    .foregroundColor(theme.primaryText)
+
+                Text("total remembrances")
+                    .font(.system(size: 13))
+                    .foregroundColor(theme.secondaryText)
+
+                Rectangle()
+                    .fill(sacredGold.opacity(0.4))
+                    .frame(width: 40, height: 1)
+
+                HStack(spacing: 32) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(monthStats.dailyAverage)")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(theme.primaryText)
+                        Text("daily avg")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.secondaryText)
                     }
 
-                    Text("\(monthStats.bestDay.count)")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(theme.accentGold)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Text(percentageChange >= 0 ? "+\(Int(percentageChange))%" : "\(Int(percentageChange))%")
+                                .font(.system(size: 24, weight: .light))
+                                .foregroundColor(percentageChange >= 0 ? softGreen : Color(red: 0.8, green: 0.4, blue: 0.4))
 
-                    Text("Best Day")
-                        .font(.system(size: 13))
+                            Image(systemName: percentageChange >= 0 ? "arrow.up.right" : "arrow.down.right")
+                                .font(.system(size: 12))
+                                .foregroundColor(percentageChange >= 0 ? softGreen : Color(red: 0.8, green: 0.4, blue: 0.4))
+                        }
+                        Text("vs last month")
+                            .font(.system(size: 11))
+                            .foregroundColor(theme.secondaryText)
+                    }
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(sacredGold.opacity(0.15), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 24)
+
+            // Best Day & Goals Met
+            HStack(spacing: 16) {
+                // Best Day
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("\(monthStats.bestDay.count)")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundColor(sacredGold)
+
+                    Text("best day")
+                        .font(.system(size: 12))
                         .foregroundColor(theme.secondaryText)
 
                     Text(monthStats.bestDay.dateString)
                         .font(.system(size: 11))
-                        .foregroundColor(theme.secondaryText)
+                        .foregroundColor(theme.secondaryText.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
-                .background(smallCardBackground)
-                .shadow(color: theme.accentGold.opacity(0.1), radius: 6, x: 0, y: 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                        )
+                )
 
-                // Goals Met Card
+                // Goals Met
                 VStack(alignment: .leading, spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(theme.primaryAccent.opacity(0.15))
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(theme.primaryAccent)
-                    }
-
                     Text("\(monthStats.goalsMetPercentage)%")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(theme.primaryAccent)
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundColor(softGreen)
 
-                    Text("Goals Met")
-                        .font(.system(size: 13))
+                    Text("goals met")
+                        .font(.system(size: 12))
                         .foregroundColor(theme.secondaryText)
+
+                    Text("of active days")
+                        .font(.system(size: 11))
+                        .foregroundColor(theme.secondaryText.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
-                .background(smallCardBackground)
-                .shadow(color: theme.primaryAccent.opacity(0.1), radius: 6, x: 0, y: 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                        )
+                )
             }
+            .padding(.horizontal, 24)
 
-            // Distribution
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Distribution")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(theme.primaryText)
+            // Distribution by Type
+            VStack(alignment: .leading, spacing: 16) {
+                Text("DISTRIBUTION")
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundColor(theme.secondaryText)
 
-                HStack(spacing: 16) {
-                    // SubhanAllah - cyan/teal
-                    distributionCard(
-                        name: "SubhanAllah",
-                        count: monthStats.subhanAllah,
-                        total: monthStats.total,
-                        color: theme.primaryAccent
-                    )
-
-                    // Alhamdulillah - green
-                    distributionCard(
-                        name: "Alhamdulillah",
-                        count: monthStats.alhamdulillah,
-                        total: monthStats.total,
-                        color: theme.accentGreen
-                    )
-
-                    // Astaghfirullah - purple
-                    distributionCard(
+                HStack(spacing: 12) {
+                    distributionItem(
                         name: "Astaghfirullah",
                         count: monthStats.astaghfirullah,
                         total: monthStats.total,
-                        color: Color(red: 0.6, green: 0.4, blue: 1.0)
+                        color: forgivenessPurple
+                    )
+                    distributionItem(
+                        name: "Alhamdulillah",
+                        count: monthStats.alhamdulillah,
+                        total: monthStats.total,
+                        color: softGreen
+                    )
+                    distributionItem(
+                        name: "SubhanAllah",
+                        count: monthStats.subhanAllah,
+                        total: monthStats.total,
+                        color: sacredGold
                     )
                 }
             }
-
-            Spacer().frame(height: 32)
+            .padding(.horizontal, 24)
 
             // Most Active Times
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Most Active Times")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(theme.primaryText)
-
-                let hasTimeData = monthStats.timeBreakdown.morning > 0 ||
-                                  monthStats.timeBreakdown.afternoon > 0 ||
-                                  monthStats.timeBreakdown.evening > 0 ||
-                                  monthStats.timeBreakdown.night > 0
-
-                if hasTimeData {
-                    VStack(alignment: .leading, spacing: 16) {
-                        timeSlotRow(label: "Morning", percentage: monthStats.timeBreakdown.morning)
-                        timeSlotRow(label: "Afternoon", percentage: monthStats.timeBreakdown.afternoon)
-                        timeSlotRow(label: "Evening", percentage: monthStats.timeBreakdown.evening)
-                        timeSlotRow(label: "Night", percentage: monthStats.timeBreakdown.night)
-                    }
-                    .padding(20)
-                    .background(smallCardBackground)
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 32))
-                            .foregroundColor(theme.secondaryText)
-
-                        Text("Start tracking dhikr")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(theme.primaryText)
-
-                        Text("Time breakdown will appear as you do dhikr throughout the day")
-                            .font(.system(size: 14))
-                            .foregroundColor(theme.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(24)
-                    .background(smallCardBackground)
-                }
-            }
+            mostActiveTimesView(timeBreakdown: monthStats.timeBreakdown)
         }
-        .padding(.horizontal, 20)
     }
 
-    private func distributionCard(name: String, count: Int, total: Int, color: Color) -> some View {
+    private func distributionItem(name: String, count: Int, total: Int, color: Color) -> some View {
         let percentage = total > 0 ? Double(count) / Double(total) : 0
 
-        return VStack(spacing: 16) {
+        return VStack(spacing: 12) {
             ZStack {
-                // Background circle
                 Circle()
-                    .stroke(theme.tertiaryBackground, lineWidth: 8)
-                    .frame(width: 80, height: 80)
+                    .stroke(color.opacity(0.15), lineWidth: 4)
+                    .frame(width: 60, height: 60)
 
-                // Progress circle
                 Circle()
                     .trim(from: 0, to: percentage)
-                    .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .frame(width: 80, height: 80)
+                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 60, height: 60)
                     .rotationEffect(.degrees(-90))
 
-                // Percentage text
                 Text("\(Int(percentage * 100))%")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(color)
             }
 
-            VStack(spacing: 4) {
-                Text(name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(theme.primaryText)
-
-                Text("\(formatNumber(count)) total")
-                    .font(.system(size: 12))
-                    .foregroundColor(theme.secondaryText)
-            }
+            Text(name.prefix(6) + "...")
+                .font(.system(size: 10))
+                .foregroundColor(theme.secondaryText)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .background(smallCardBackground)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 
-    private func timeSlotRow(label: String, percentage: Int) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(.system(size: 14))
+    private func mostActiveTimesView(timeBreakdown: TimeBreakdown) -> some View {
+        let hasTimeData = timeBreakdown.morning > 0 || timeBreakdown.afternoon > 0 ||
+                          timeBreakdown.evening > 0 || timeBreakdown.night > 0
+
+        return VStack(alignment: .leading, spacing: 16) {
+            Text("ACTIVE TIMES")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(1.5)
                 .foregroundColor(theme.secondaryText)
-                .frame(width: 140, alignment: .leading)
+
+            if hasTimeData {
+                VStack(spacing: 12) {
+                    timeSlotRow(label: "Morning", time: "6am-12pm", percentage: timeBreakdown.morning)
+                    timeSlotRow(label: "Afternoon", time: "12pm-6pm", percentage: timeBreakdown.afternoon)
+                    timeSlotRow(label: "Evening", time: "6pm-10pm", percentage: timeBreakdown.evening)
+                    timeSlotRow(label: "Night", time: "10pm-6am", percentage: timeBreakdown.night)
+                }
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                        )
+                )
+            } else {
+                VStack(spacing: 12) {
+                    Text("Time breakdown will appear")
+                        .font(.system(size: 14))
+                        .foregroundColor(theme.secondaryText)
+                    Text("as you practice throughout the day")
+                        .font(.system(size: 12))
+                        .foregroundColor(theme.secondaryText.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                        )
+                )
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+
+    private func timeSlotRow(label: String, time: String, percentage: Int) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(theme.primaryText)
+                Text(time)
+                    .font(.system(size: 10))
+                    .foregroundColor(theme.secondaryText)
+            }
+            .frame(width: 80, alignment: .leading)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(theme.tertiaryBackground)
-                        .frame(height: 24)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(height: 8)
 
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [theme.accentGreen, theme.primaryAccent]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geometry.size.width * (Double(percentage) / 100), height: 24)
-
-                    Text("\(percentage)%")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(theme.primaryText)
-                        .padding(.leading, 8)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(sacredGold)
+                        .frame(width: geometry.size.width * (Double(percentage) / 100), height: 8)
                 }
             }
-            .frame(height: 24)
+            .frame(height: 8)
+
+            Text("\(percentage)%")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(sacredGold)
+                .frame(width: 36, alignment: .trailing)
         }
     }
 
+    // MARK: - Data Helpers
     private func getMonthStats() -> MonthlyStats {
         let calendar = Calendar.current
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedMonth))!
@@ -1108,9 +1082,8 @@ struct MonthlyActivityContainer: View {
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MMM d"
-        let bestDayString = bestDayStats != nil ? dateFormatter.string(from: bestDayDate) : "N/A"
+        let bestDayString = bestDayStats != nil ? dateFormatter.string(from: bestDayDate) : "—"
 
-        // Calculate goals met
         let goal = dhikrService.goal
         let totalGoal = goal.subhanAllah + goal.alhamdulillah + goal.astaghfirullah
         let daysWithGoalsMet = monthlyStats.filter { stats in
@@ -1118,8 +1091,6 @@ struct MonthlyActivityContainer: View {
         }.count
         let goalsMetPercentage = activeDays > 0 ? (daysWithGoalsMet * 100) / activeDays : 0
 
-        // Calculate time breakdown (simulated distribution)
-        // Since we don't track exact times, we'll use a realistic distribution pattern
         let timeBreakdown = calculateTimeBreakdown(from: monthlyStats)
 
         return MonthlyStats(
@@ -1135,25 +1106,20 @@ struct MonthlyActivityContainer: View {
     }
 
     private func calculateTimeBreakdown(from stats: [DailyDhikrStats]) -> TimeBreakdown {
-        // Get the date range for the stats
         guard let firstDate = stats.first?.date,
               let lastDate = stats.last?.date else {
             return TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         }
 
-        // Get actual entries from DhikrService
         let entries = dhikrService.getEntries(from: min(firstDate, lastDate), to: max(firstDate, lastDate))
 
-        // If no entries yet (new user or old data), show default distribution
         guard !entries.isEmpty else {
             return TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         }
 
-        // Use real time breakdown calculation
         let breakdown = dhikrService.calculateTimeBreakdown(for: entries)
         let total = breakdown.morning + breakdown.afternoon + breakdown.evening + breakdown.night
 
-        // Convert to percentages
         guard total > 0 else {
             return TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         }
@@ -1170,13 +1136,8 @@ struct MonthlyActivityContainer: View {
         let calendar = Calendar.current
         guard let lastMonth = calendar.date(byAdding: .month, value: -1, to: selectedMonth) else {
             return MonthlyStats(
-                total: 0,
-                subhanAllah: 0,
-                alhamdulillah: 0,
-                astaghfirullah: 0,
-                dailyAverage: 0,
-                bestDay: (0, "N/A"),
-                goalsMetPercentage: 0,
+                total: 0, subhanAllah: 0, alhamdulillah: 0, astaghfirullah: 0,
+                dailyAverage: 0, bestDay: (0, "—"), goalsMetPercentage: 0,
                 timeBreakdown: TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
             )
         }
@@ -1192,13 +1153,8 @@ struct MonthlyActivityContainer: View {
         let totalDhikr = monthlyStats.reduce(0) { $0 + $1.total }
 
         return MonthlyStats(
-            total: totalDhikr,
-            subhanAllah: 0,
-            alhamdulillah: 0,
-            astaghfirullah: 0,
-            dailyAverage: 0,
-            bestDay: (0, "N/A"),
-            goalsMetPercentage: 0,
+            total: totalDhikr, subhanAllah: 0, alhamdulillah: 0, astaghfirullah: 0,
+            dailyAverage: 0, bestDay: (0, "—"), goalsMetPercentage: 0,
             timeBreakdown: TimeBreakdown(morning: 0, afternoon: 0, evening: 0, night: 0)
         )
     }
@@ -1216,35 +1172,22 @@ struct MonthlyActivityContainer: View {
         }
         return "\(number)"
     }
-
-    private var monthYearString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: selectedMonth)
-    }
-
-    private func changeMonth(by offset: Int) {
-        if let newDate = Calendar.current.date(byAdding: .month, value: offset, to: selectedMonth) {
-            selectedMonth = newDate
-        }
-    }
 }
 
-// MARK: - Monthly Calendar View
-struct MonthlyCalendarView: View {
+// MARK: - Sacred Calendar View
+struct SacredCalendarView: View {
     let month: Date
     @ObservedObject var dhikrService: DhikrService
     let onDayTapped: (DailyDhikrStats) -> Void
-    @StateObject private var themeManager = ThemeManager.shared
+    let accentColor: Color
 
+    @StateObject private var themeManager = ThemeManager.shared
     private var theme: AppTheme { themeManager.theme }
 
     let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
     let days = ["S", "M", "T", "W", "T", "F", "S"]
 
-    private var calendar: Calendar {
-        Calendar.current
-    }
+    private var calendar: Calendar { Calendar.current }
 
     private var monthDates: [Date] {
         guard let monthInterval = calendar.dateInterval(of: .month, for: month),
@@ -1261,38 +1204,41 @@ struct MonthlyCalendarView: View {
             guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
             currentDate = nextDate
         }
-
         return dates
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
     }
 
     var body: some View {
         GeometryReader { geometry in
-            let cellWidth = (geometry.size.width - 24) / 7 // 24 for spacing (6 gaps * 4)
+            let cellWidth = (geometry.size.width - 24) / 7
 
             VStack(spacing: 12) {
-                // Day headers
                 HStack(spacing: 4) {
                     ForEach(days, id: \.self) { day in
                         Text(day)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(theme.secondaryText)
                             .frame(width: cellWidth)
                     }
                 }
 
-                // Calendar days
                 LazyVGrid(columns: columns, spacing: 4) {
                     ForEach(monthDates, id: \.self) { date in
                         let day = calendar.component(.day, from: date)
                         let isInCurrentMonth = calendar.isDate(date, equalTo: month, toGranularity: .month)
 
                         if isInCurrentMonth {
-                            CalendarDayCell(
+                            SacredDayCell(
                                 day: day,
                                 stats: getStats(for: date),
                                 maxTotal: maxDhikrTotal,
+                                accentColor: accentColor,
                                 onTap: {
-                                    // Create stats object even if no dhikr recorded
                                     let stats = getStats(for: date) ?? DailyDhikrStats(
                                         date: date,
                                         subhanAllah: 0,
@@ -1305,7 +1251,6 @@ struct MonthlyCalendarView: View {
                             )
                             .frame(width: cellWidth)
                         } else {
-                            // Empty cell for days outside current month
                             Color.clear
                                 .frame(width: cellWidth, height: 40)
                         }
@@ -1329,22 +1274,21 @@ struct MonthlyCalendarView: View {
     }
 }
 
-// MARK: - Calendar Day Cell
-struct CalendarDayCell: View {
+// MARK: - Sacred Day Cell
+struct SacredDayCell: View {
     let day: Int
     let stats: DailyDhikrStats?
     let maxTotal: Int
+    let accentColor: Color
     let onTap: () -> Void
-    @StateObject private var themeManager = ThemeManager.shared
 
+    @StateObject private var themeManager = ThemeManager.shared
     private var theme: AppTheme { themeManager.theme }
 
     private var cellBackground: Color {
-        if themeManager.effectiveTheme == .dark {
-            return Color(red: 0.15, green: 0.17, blue: 0.20)
-        } else {
-            return theme.cardBackground
-        }
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.15, green: 0.16, blue: 0.18)
+            : Color(red: 0.95, green: 0.94, blue: 0.92)
     }
 
     private var intensity: Double {
@@ -1356,143 +1300,163 @@ struct CalendarDayCell: View {
         Button(action: onTap) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(intensity > 0 ? theme.accentGreen.opacity(0.3 + intensity * 0.7) : cellBackground)
+                    .fill(intensity > 0 ? accentColor.opacity(0.25 + intensity * 0.6) : cellBackground)
                     .frame(height: 40)
 
                 Text("\(day)")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(intensity > 0 ? .white : theme.secondaryText)
+                    .font(.system(size: 14, weight: intensity > 0.5 ? .medium : .regular))
+                    .foregroundColor(intensity > 0.5 ? .white : theme.secondaryText)
             }
         }
         .buttonStyle(PlainButtonStyle())
     }
 }
 
-// MARK: - Day Detail Sheet
-struct DayDetailSheet: View {
+// MARK: - Sacred Day Detail Sheet
+struct SacredDayDetailSheet: View {
     let stats: DailyDhikrStats
+    let sacredGold: Color
+    let softGreen: Color
+    let forgivenessPurple: Color
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var themeManager = ThemeManager.shared
-
     private var theme: AppTheme { themeManager.theme }
 
     private var pageBackground: Color {
         themeManager.effectiveTheme == .dark
-            ? Color(red: 0.11, green: 0.13, blue: 0.16)
-            : theme.primaryBackground
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
     }
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 32) {
             // Header
             HStack {
-                Text(formattedDate)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(theme.primaryText)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("REFLECTION")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.5)
+                        .foregroundColor(theme.secondaryText)
+
+                    Text(formattedDate)
+                        .font(.system(size: 22, weight: .light))
+                        .foregroundColor(theme.primaryText)
+                }
 
                 Spacer()
 
                 Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 28))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(theme.secondaryText)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(theme.secondaryText.opacity(0.1))
+                        )
                 }
             }
-            .padding(.top, 20)
+            .padding(.top, 24)
 
             if stats.total > 0 {
                 // Total count
                 VStack(spacing: 8) {
                     Text("\(stats.total)")
-                        .font(.system(size: 64, weight: .bold))
-                        .foregroundColor(theme.primaryAccent)
+                        .font(.system(size: 56, weight: .ultraLight))
+                        .foregroundColor(sacredGold)
 
-                    Text("Total Dhikr")
-                        .font(.system(size: 16))
+                    Text("remembrances")
+                        .font(.system(size: 14))
                         .foregroundColor(theme.secondaryText)
                 }
-                .padding(.vertical, 20)
+                .padding(.vertical, 16)
 
                 // Breakdown
-                VStack(spacing: 16) {
-                    DhikrStatRow(name: "Astaghfirullah", count: stats.astaghfirullah, color: Color(red: 0.6, green: 0.4, blue: 1.0))
-                    DhikrStatRow(name: "Alhamdulillah", count: stats.alhamdulillah, color: theme.accentGreen)
-                    DhikrStatRow(name: "SubhanAllah", count: stats.subhanAllah, color: theme.primaryAccent)
+                VStack(spacing: 12) {
+                    sacredStatRow(
+                        arabicText: "أستغفر الله",
+                        name: "Astaghfirullah",
+                        count: stats.astaghfirullah,
+                        color: forgivenessPurple
+                    )
+                    sacredStatRow(
+                        arabicText: "الحمد لله",
+                        name: "Alhamdulillah",
+                        count: stats.alhamdulillah,
+                        color: softGreen
+                    )
+                    sacredStatRow(
+                        arabicText: "سبحان الله",
+                        name: "SubhanAllah",
+                        count: stats.subhanAllah,
+                        color: sacredGold
+                    )
                 }
             } else {
                 // No dhikr message
                 VStack(spacing: 16) {
-                    Image(systemName: "moon.zzz.fill")
-                        .font(.system(size: 60))
+                    Text("—")
+                        .font(.system(size: 48, weight: .ultraLight))
                         .foregroundColor(theme.secondaryText)
-                        .padding(.top, 40)
 
-                    Text("No Dhikr Recorded")
-                        .font(.system(size: 24, weight: .bold))
+                    Text("No practice recorded")
+                        .font(.system(size: 16, weight: .light))
                         .foregroundColor(theme.primaryText)
 
-                    Text("You didn't record any dhikr on this day")
-                        .font(.system(size: 16))
+                    Text("on this day")
+                        .font(.system(size: 14))
                         .foregroundColor(theme.secondaryText)
-                        .multilineTextAlignment(.center)
                 }
                 .padding(.vertical, 40)
             }
 
             Spacer()
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(pageBackground)
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
     }
 
-    private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: stats.date)
-    }
-}
-
-// MARK: - Dhikr Stat Row
-struct DhikrStatRow: View {
-    let name: String
-    let count: Int
-    let color: Color
-    @StateObject private var themeManager = ThemeManager.shared
-
-    private var theme: AppTheme { themeManager.theme }
-
-    private var cardBackground: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(theme.cardBackground)
-            }
-        }
-    }
-
-    var body: some View {
-        HStack {
-            Circle()
-                .fill(color)
-                .frame(width: 12, height: 12)
+    private func sacredStatRow(arabicText: String, name: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 16) {
+            Text(arabicText)
+                .font(.system(size: 18, weight: .regular, design: .serif))
+                .foregroundColor(theme.primaryText)
+                .frame(width: 90, alignment: .leading)
 
             Text(name)
-                .font(.system(size: 16))
-                .foregroundColor(theme.primaryText)
+                .font(.system(size: 14))
+                .foregroundColor(theme.secondaryText)
 
             Spacer()
 
             Text("\(count)")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 20, weight: .light))
                 .foregroundColor(color)
         }
         .padding(16)
-        .background(cardBackground)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d, yyyy"
+        return formatter.string(from: stats.date)
     }
 }
 
@@ -1655,8 +1619,12 @@ struct QuickAddButton: View {
     }
 }
 
+// MARK: - Preview
 #Preview {
-    DhikrWidgetView()
-        .environmentObject(DhikrService.shared)
-        .environmentObject(BluetoothService())
+    NavigationView {
+        DhikrWidgetView()
+            .environmentObject(DhikrService.shared)
+            .environmentObject(BluetoothService())
+            .environmentObject(AudioPlayerService.shared)
+    }
 }

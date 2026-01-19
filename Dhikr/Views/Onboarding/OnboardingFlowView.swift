@@ -2,7 +2,7 @@
 //  OnboardingFlowView.swift
 //  Dhikr
 //
-//  4-screen onboarding flow container
+//  4-screen onboarding flow container - Sacred Minimalism redesign
 //
 
 import SwiftUI
@@ -22,7 +22,12 @@ struct OnboardingFlowView: View {
     @State private var isCompact: Bool = false // For Settings re-entry
     @State private var userName: String = ""
 
-    private var theme: AppTheme { themeManager.theme }
+    // Sacred colors
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
 
     init(compact: Bool = false) {
         _isCompact = State(initialValue: compact)
@@ -30,7 +35,7 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         ZStack {
-            theme.primaryBackground
+            pageBackground
                 .ignoresSafeArea()
 
             // Use conditional views instead of TabView to prevent swipe navigation

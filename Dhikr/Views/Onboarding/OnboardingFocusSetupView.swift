@@ -2,7 +2,7 @@
 //  OnboardingFocusSetupView.swift
 //  Dhikr
 //
-//  Quick setup for prayer-time app blocking (Screen 2)
+//  Quick setup for prayer-time app blocking (Screen 2) - Sacred Minimalism redesign
 //
 
 import SwiftUI
@@ -16,7 +16,36 @@ struct OnboardingFocusSetupView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
 
-    private var theme: AppTheme { themeManager.theme }
+    // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var mutedPurple: Color {
+        Color(red: 0.55, green: 0.45, blue: 0.65)
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
 
     // FamilyControls app selection
     @State private var showAppPicker = false
@@ -56,40 +85,50 @@ struct OnboardingFocusSetupView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 12) {
-                    Image(systemName: "iphone.slash.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundColor(theme.primaryAccent)
-                        .padding(.top, 32)
+                // Header - Sacred style
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(sacredGold.opacity(0.15))
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Circle()
+                                    .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                            )
+
+                        Image(systemName: "shield.fill")
+                            .font(.system(size: 36, weight: .ultraLight))
+                            .foregroundColor(sacredGold)
+                    }
+                    .padding(.top, 32)
 
                     Text("Focus Blocking")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.primaryText)
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(themeManager.theme.primaryText)
 
                     Text("Block distracting apps during prayer times")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(theme.secondaryText)
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundColor(warmGray)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
                 .padding(.bottom, 32)
 
-                VStack(spacing: 24) {
-                    // Prayer Time Toggles
+                VStack(spacing: 28) {
+                    // Step 1: Prayer Time Toggles
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
-                            // Step indicator
-                            StepIndicator(number: 1, isComplete: hasSelectedPrayer, theme: theme)
+                            SacredStepIndicator(number: 1, isComplete: hasSelectedPrayer)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Select Prayer Times")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(theme.primaryText)
+                                Text("SELECT PRAYER TIMES")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(2)
+                                    .foregroundColor(warmGray)
 
                                 Text("Choose when to block apps")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(theme.tertiaryText)
+                                    .font(.system(size: 13, weight: .light))
+                                    .foregroundColor(warmGray.opacity(0.7))
                             }
 
                             Spacer()
@@ -97,85 +136,104 @@ struct OnboardingFocusSetupView: View {
                         .padding(.horizontal, 24)
 
                         VStack(spacing: 0) {
-                            OnboardingPrayerToggleRow(icon: "sunrise.fill", iconColor: theme.accentGold, name: "Fajr", isOn: $focusManager.selectedFajr, theme: theme)
-                            Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "sun.max.fill", iconColor: theme.accentGold, name: "Dhuhr", isOn: $focusManager.selectedDhuhr, theme: theme)
-                            Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "sun.haze.fill", iconColor: Color(hex: "FFA726"), name: "Asr", isOn: $focusManager.selectedAsr, theme: theme)
-                            Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "sunset.fill", iconColor: Color(hex: "FF7043"), name: "Maghrib", isOn: $focusManager.selectedMaghrib, theme: theme)
-                            Divider().padding(.leading, 70)
-                            OnboardingPrayerToggleRow(icon: "moon.stars.fill", iconColor: Color(hex: "5E35B1"), name: "Isha", isOn: $focusManager.selectedIsha, theme: theme)
+                            SacredOnboardingPrayerToggle(
+                                icon: "sunrise",
+                                arabicName: "الفجر",
+                                name: "Fajr",
+                                isOn: $focusManager.selectedFajr,
+                                color: sacredGold
+                            )
+                            OnboardingDivider()
+                            SacredOnboardingPrayerToggle(
+                                icon: "sun.max",
+                                arabicName: "الظهر",
+                                name: "Dhuhr",
+                                isOn: $focusManager.selectedDhuhr,
+                                color: sacredGold
+                            )
+                            OnboardingDivider()
+                            SacredOnboardingPrayerToggle(
+                                icon: "sun.haze",
+                                arabicName: "العصر",
+                                name: "Asr",
+                                isOn: $focusManager.selectedAsr,
+                                color: Color(red: 0.85, green: 0.6, blue: 0.4)
+                            )
+                            OnboardingDivider()
+                            SacredOnboardingPrayerToggle(
+                                icon: "sunset",
+                                arabicName: "المغرب",
+                                name: "Maghrib",
+                                isOn: $focusManager.selectedMaghrib,
+                                color: Color(red: 0.85, green: 0.5, blue: 0.4)
+                            )
+                            OnboardingDivider()
+                            SacredOnboardingPrayerToggle(
+                                icon: "moon.stars",
+                                arabicName: "العشاء",
+                                name: "Isha",
+                                isOn: $focusManager.selectedIsha,
+                                color: mutedPurple
+                            )
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(theme.cardBackground)
+                                .fill(cardBackground)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(sacredGold.opacity(0.1), lineWidth: 1)
+                                )
                         )
                         .padding(.horizontal, 24)
                     }
 
-                    // Duration Selector
+                    // Step 2: Duration Selector
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
-                            // Step indicator
-                            StepIndicator(number: 2, isComplete: hasSelectedDuration, theme: theme)
+                            SacredStepIndicator(number: 2, isComplete: hasSelectedDuration)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Blocking Duration")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(theme.primaryText)
+                                Text("BLOCKING DURATION")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(2)
+                                    .foregroundColor(warmGray)
 
                                 Text("Time after prayer starts")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(theme.tertiaryText)
+                                    .font(.system(size: 13, weight: .light))
+                                    .foregroundColor(warmGray.opacity(0.7))
                             }
 
                             Spacer()
                         }
                         .padding(.horizontal, 24)
 
-                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                             ForEach(durationOptions, id: \.self) { duration in
-                                Button(action: {
+                                SacredDurationOption(
+                                    duration: Int(duration),
+                                    isSelected: focusManager.blockingDuration == duration
+                                ) {
                                     focusManager.blockingDuration = duration
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Text("\(Int(duration))")
-                                            .font(.system(size: 20, weight: .bold))
-                                        Text("min")
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                    .foregroundColor(focusManager.blockingDuration == duration ? .white : theme.primaryText)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 64)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(focusManager.blockingDuration == duration ? theme.primaryAccent : theme.cardBackground)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(focusManager.blockingDuration == duration ? Color.clear : theme.tertiaryBackground, lineWidth: 2)
-                                    )
                                 }
                             }
                         }
                         .padding(.horizontal, 24)
                     }
 
-                    // App Picker Button
+                    // Step 3: App Picker Button
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
-                            // Step indicator
-                            StepIndicator(number: 3, isComplete: hasSelectedApps, theme: theme)
+                            SacredStepIndicator(number: 3, isComplete: hasSelectedApps)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Apps to Block")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(theme.primaryText)
+                                Text("APPS TO BLOCK")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(2)
+                                    .foregroundColor(warmGray)
 
                                 Text("Which apps to block")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(theme.tertiaryText)
+                                    .font(.system(size: 13, weight: .light))
+                                    .foregroundColor(warmGray.opacity(0.7))
                             }
 
                             Spacer()
@@ -183,7 +241,6 @@ struct OnboardingFocusSetupView: View {
                         .padding(.horizontal, 24)
 
                         Button(action: {
-                            // Request Screen Time authorization before showing app picker
                             if screenTimeAuth.isAuthorized {
                                 showAppPicker = true
                             } else {
@@ -200,183 +257,152 @@ struct OnboardingFocusSetupView: View {
                             }
                         }) {
                             HStack(spacing: 16) {
-                                Image(systemName: "app.badge")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(theme.primaryAccent)
+                                ZStack {
+                                    Circle()
+                                        .fill(sacredGold.opacity(0.12))
+                                        .frame(width: 44, height: 44)
+
+                                    Image(systemName: "app.badge")
+                                        .font(.system(size: 20, weight: .light))
+                                        .foregroundColor(sacredGold)
+                                }
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Select Apps")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(theme.primaryText)
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundColor(themeManager.theme.primaryText)
 
                                     Text(selectedAppsCount > 0 ? "\(selectedAppsCount) apps selected" : "Tap to choose")
-                                        .font(.system(size: 14, weight: .regular))
-                                        .foregroundColor(theme.secondaryText)
+                                        .font(.system(size: 13, weight: .light))
+                                        .foregroundColor(warmGray)
                                 }
 
                                 Spacer()
 
                                 if isRequestingScreenTime {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: theme.primaryAccent))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: sacredGold))
                                 } else {
                                     Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(theme.tertiaryText)
+                                        .font(.system(size: 13, weight: .light))
+                                        .foregroundColor(warmGray)
                                 }
                             }
                             .padding(16)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(theme.cardBackground)
+                                    .fill(cardBackground)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(sacredGold.opacity(0.1), lineWidth: 1)
+                                    )
                             )
                         }
                         .disabled(isRequestingScreenTime)
                         .padding(.horizontal, 24)
                     }
 
-                    // Pre-Prayer Buffer (Optional)
+                    // Optional: Pre-Prayer Buffer
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
-                            // Optional indicator
                             ZStack {
                                 Circle()
-                                    .fill(theme.primaryAccent.opacity(0.2))
+                                    .fill(sacredGold.opacity(0.12))
                                     .frame(width: 32, height: 32)
-                                Image(systemName: "clock.badge.checkmark")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(theme.primaryAccent)
+                                Image(systemName: "clock")
+                                    .font(.system(size: 14, weight: .light))
+                                    .foregroundColor(sacredGold)
                             }
 
                             VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 6) {
-                                    Text("Pre-Prayer Focus")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(theme.primaryText)
-                                    Text("Optional")
+                                HStack(spacing: 8) {
+                                    Text("PRE-PRAYER FOCUS")
                                         .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(theme.primaryAccent)
+                                        .tracking(2)
+                                        .foregroundColor(warmGray)
+
+                                    Text("Optional")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(sacredGold)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
-                                        .background(theme.primaryAccent.opacity(0.15))
+                                        .background(sacredGold.opacity(0.15))
                                         .cornerRadius(4)
                                 }
 
                                 Text("Start blocking before prayer time")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(theme.tertiaryText)
+                                    .font(.system(size: 13, weight: .light))
+                                    .foregroundColor(warmGray.opacity(0.7))
                             }
 
                             Spacer()
                         }
                         .padding(.horizontal, 24)
 
-                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                             ForEach([0.0, 5.0, 10.0, 15.0], id: \.self) { buffer in
-                                Button(action: {
+                                SacredBufferOption(
+                                    buffer: Int(buffer),
+                                    isSelected: focusManager.prePrayerBuffer == buffer
+                                ) {
                                     focusManager.prePrayerBuffer = buffer
-                                }) {
-                                    VStack(spacing: 4) {
-                                        if buffer == 0 {
-                                            Text("Off")
-                                                .font(.system(size: 16, weight: .bold))
-                                        } else {
-                                            Text("\(Int(buffer))")
-                                                .font(.system(size: 20, weight: .bold))
-                                            Text("min")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                    }
-                                    .foregroundColor(focusManager.prePrayerBuffer == buffer ? .white : theme.primaryText)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 64)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(focusManager.prePrayerBuffer == buffer ? theme.primaryAccent : theme.cardBackground)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(focusManager.prePrayerBuffer == buffer ? Color.clear : theme.tertiaryBackground, lineWidth: 2)
-                                    )
                                 }
                             }
                         }
                         .padding(.horizontal, 24)
                     }
-
                 }
                 .padding(.bottom, 32)
 
                 // Progress indicator
                 if !allStepsComplete {
                     HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundColor(theme.accentGold)
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(sacredGold)
                         Text("Complete all 3 steps to continue")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(theme.secondaryText)
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(warmGray)
                     }
                     .padding(.horizontal, 32)
+                    .padding(.bottom, 16)
                 }
 
-                // Actions
-                VStack(spacing: 16) {
-                    // Primary: Save & Continue
-                    Button(action: {
-                        if !allStepsComplete {
-                            showIncompleteAlert = true
-                            return
-                        }
-
-
-                        // Force immediate save of app selection before continuing
-                        AppSelectionModel.shared.forceSave()
-
-                        // FocusSettingsManager automatically syncs to UserDefaults and App Group
-                        onContinue()
-                    }) {
-                        Text(allStepsComplete ? "Continue" : "Complete All Steps")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(
-                                        allStepsComplete
-                                            ? LinearGradient(
-                                                colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                            : LinearGradient(
-                                                colors: [theme.tertiaryText, theme.secondaryText],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                    )
-                            )
+                // Continue Button - Sacred style
+                Button(action: {
+                    if !allStepsComplete {
+                        showIncompleteAlert = true
+                        return
                     }
-                    .opacity(allStepsComplete ? 1.0 : 0.6)
+
+                    AppSelectionModel.shared.forceSave()
+                    onContinue()
+                }) {
+                    Text(allStepsComplete ? "Continue" : "Complete All Steps")
+                        .font(.system(size: 16, weight: .medium))
+                        .tracking(0.5)
+                        .foregroundColor(allStepsComplete ? (themeManager.effectiveTheme == .dark ? .black : .white) : warmGray)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(allStepsComplete ? sacredGold : sacredGold.opacity(0.3))
+                        )
                 }
+                .opacity(allStepsComplete ? 1.0 : 0.7)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 48)
             }
         }
-        .background(theme.primaryBackground)
+        .background(pageBackground)
         .familyActivityPicker(isPresented: $showAppPicker, selection: $selection)
         .onChange(of: selection) { newSelection in
-            // Save selection immediately - AppSelectionModel handles the save
             AppSelectionModel.shared.selection = newSelection
-            // Notify FocusSettingsManager that app selection changed
             focusManager.appSelectionChanged()
         }
         .onAppear {
-            // Load existing selection if any
             let savedSelection = AppSelectionModel.shared.selection
             selection = savedSelection
-        }
-        .onAppear {
         }
         .alert("Complete Setup Required", isPresented: $showIncompleteAlert) {
             Button("OK", role: .cancel) { }
@@ -403,65 +429,212 @@ struct OnboardingFocusSetupView: View {
     }
 }
 
-// MARK: - Step Indicator Component
+// MARK: - Sacred Step Indicator
 
-private struct StepIndicator: View {
+private struct SacredStepIndicator: View {
     let number: Int
     let isComplete: Bool
-    let theme: AppTheme
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(isComplete ? theme.primaryAccent : theme.tertiaryBackground)
+                .fill(isComplete ? softGreen : warmGray.opacity(0.2))
                 .frame(width: 32, height: 32)
 
             if isComplete {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.white)
             } else {
                 Text("\(number)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(theme.tertiaryText)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(warmGray)
             }
         }
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Sacred Onboarding Prayer Toggle
 
-private struct OnboardingPrayerToggleRow: View {
+private struct SacredOnboardingPrayerToggle: View {
     let icon: String
-    let iconColor: Color
+    let arabicName: String
     let name: String
     @Binding var isOn: Bool
-    let theme: AppTheme
+    let color: Color
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
 
     var body: some View {
-        HStack(spacing: 16) {
-            // Icon
+        HStack(spacing: 14) {
             ZStack {
                 Circle()
-                    .fill(iconColor.opacity(0.15))
+                    .fill(color.opacity(0.12))
                     .frame(width: 40, height: 40)
 
                 Image(systemName: icon)
-                    .font(.system(size: 18))
-                    .foregroundColor(iconColor)
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundColor(color)
             }
 
-            Text(name)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(theme.primaryText)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                Text(arabicName)
+                    .font(.system(size: 13, weight: .regular, design: .serif))
+                    .foregroundColor(warmGray)
+            }
 
             Spacer()
 
             Toggle("", isOn: $isOn)
                 .labelsHidden()
+                .tint(Color(red: 0.77, green: 0.65, blue: 0.46))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Sacred Duration Option
+
+private struct SacredDurationOption: View {
+    let duration: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text("\(duration)")
+                    .font(.system(size: 22, weight: .ultraLight))
+                Text("min")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(1)
+            }
+            .foregroundColor(isSelected ? (themeManager.effectiveTheme == .dark ? .black : .white) : themeManager.theme.primaryText)
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isSelected ? sacredGold : cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(isSelected ? Color.clear : sacredGold.opacity(0.15), lineWidth: 1)
+                    )
+            )
+        }
+    }
+}
+
+// MARK: - Sacred Buffer Option
+
+private struct SacredBufferOption: View {
+    let buffer: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                if buffer == 0 {
+                    Text("Off")
+                        .font(.system(size: 15, weight: .light))
+                } else {
+                    Text("\(buffer)")
+                        .font(.system(size: 22, weight: .ultraLight))
+                    Text("min")
+                        .font(.system(size: 11, weight: .medium))
+                        .tracking(1)
+                }
+            }
+            .foregroundColor(isSelected ? (themeManager.effectiveTheme == .dark ? .black : .white) : themeManager.theme.primaryText)
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isSelected ? sacredGold : cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(isSelected ? Color.clear : sacredGold.opacity(0.15), lineWidth: 1)
+                    )
+            )
+        }
+    }
+}
+
+// MARK: - Onboarding Divider
+
+private struct OnboardingDivider: View {
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(sacredGold.opacity(0.1))
+            .frame(height: 1)
+            .padding(.leading, 70)
     }
 }
 

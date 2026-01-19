@@ -1,3 +1,10 @@
+//
+//  EarlyUnlockBanner.swift
+//  Dhikr
+//
+//  Sacred Minimalism redesign
+//
+
 import SwiftUI
 
 struct EarlyUnlockBanner: View {
@@ -6,124 +13,106 @@ struct EarlyUnlockBanner: View {
     @State private var offset: CGFloat = 0
     @State private var isDismissed = false
 
+    // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
     var body: some View {
         if !isDismissed && !blocking.isStrictModeEnabled && blocking.appsActuallyBlocked && !blocking.isEarlyUnlockedActive {
             let remaining = blocking.timeUntilEarlyUnlock()
 
-            HStack(spacing: 12) {
-                // App Icon
+            HStack(spacing: 14) {
+                // Icon with sacred styling
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(
-                            LinearGradient(
-                                colors: [themeManager.theme.prayerGradientStart, themeManager.theme.prayerGradientEnd],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 40, height: 40)
+                    Circle()
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(width: 44, height: 44)
 
-                    Image(systemName: remaining > 0 ? "hourglass" : "lock.open.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
+                    Image(systemName: remaining > 0 ? "hourglass" : "lock.open")
+                        .font(.system(size: 18, weight: .light))
+                        .foregroundColor(sacredGold)
                 }
 
-                // Notification Content
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text("DHIKR")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(themeManager.theme.secondaryText)
-
-                        Text("•")
-                            .font(.system(size: 11))
-                            .foregroundColor(themeManager.theme.secondaryText.opacity(0.5))
-
-                        Text("now")
-                            .font(.system(size: 11))
-                            .foregroundColor(themeManager.theme.secondaryText)
-
-                        Spacer()
-                    }
-
+                // Content
+                VStack(alignment: .leading, spacing: 4) {
                     if remaining > 0 {
-                        Text("Early Unlock Available Soon")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(themeManager.theme.primaryText)
-                            .lineLimit(1)
+                        Text("EARLY UNLOCK")
+                            .font(.system(size: 10, weight: .medium))
+                            .tracking(1.5)
+                            .foregroundColor(warmGray)
 
-                        Text("Unlock in \(remaining.formattedForCountdown)")
-                            .font(.system(size: 13))
-                            .foregroundColor(themeManager.theme.secondaryText)
+                        Text("Available in \(remaining.formattedForCountdown)")
+                            .font(.system(size: 15, weight: .light))
                             .monospacedDigit()
-                            .lineLimit(1)
-                    } else {
-                        Text("Early Unlock Ready")
-                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(themeManager.theme.primaryText)
-                            .lineLimit(1)
+                    } else {
+                        Text("EARLY UNLOCK READY")
+                            .font(.system(size: 10, weight: .medium))
+                            .tracking(1.5)
+                            .foregroundColor(sacredGold)
 
                         Text("Tap to unlock apps now")
-                            .font(.system(size: 13))
-                            .foregroundColor(themeManager.theme.secondaryText)
-                            .lineLimit(1)
+                            .font(.system(size: 15, weight: .light))
+                            .foregroundColor(themeManager.theme.primaryText)
                     }
                 }
 
                 Spacer(minLength: 0)
 
-                // Action Button
+                // Action indicator
                 if remaining <= 0 {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(themeManager.theme.secondaryText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(sacredGold)
+                } else {
+                    // Countdown badge
+                    Text(remaining.formattedForCountdown)
+                        .font(.system(size: 13, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundColor(sacredGold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(sacredGold.opacity(0.15))
+                        )
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .background(
-                Group {
-                    if themeManager.theme.hasGlassEffect {
-                        // Enhanced liquid glass effect for iOS 26+
-                        if #available(iOS 26.0, *) {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .glassEffect(.clear, in: .rect(cornerRadius: 16))
-                                .shadow(color: themeManager.theme.shadowColor, radius: 12, x: 0, y: 4)
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.ultraThinMaterial)
-                                .shadow(color: themeManager.theme.shadowColor, radius: 12, x: 0, y: 4)
-                        }
-                    } else {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(themeManager.theme.cardBackground)
-                            .shadow(color: themeManager.theme.shadowColor, radius: 12, x: 0, y: 4)
-                    }
-                }
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(cardBackground)
+                    .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 4)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        themeManager.theme.hasGlassEffect ?
-                        Color.white.opacity(0.2) :
-                        Color.clear,
-                        lineWidth: 1
-                    )
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(sacredGold.opacity(0.2), lineWidth: 1)
             )
             .offset(y: offset)
             .opacity(1 - (abs(offset) / 100.0))
             .gesture(
                 DragGesture()
                     .onChanged { gesture in
-                        // Only allow upward swipe
                         if gesture.translation.height < 0 {
                             offset = gesture.translation.height
                         }
                     }
                     .onEnded { gesture in
                         if gesture.translation.height < -50 {
-                            // Dismiss if swiped up more than 50 points
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 offset = -200
                             }
@@ -131,7 +120,6 @@ struct EarlyUnlockBanner: View {
                                 isDismissed = true
                             }
                         } else {
-                            // Snap back
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 offset = 0
                             }

@@ -127,12 +127,26 @@ class CompassManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 }
 
+// MARK: - Sacred Minimalism Colors
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
+
 // MARK: - Compass View (Trigger Button)
 struct CompassView: View {
     @ObservedObject var themeManager = ThemeManager.shared
     @State private var showingCompass = false
 
-    private var theme: AppTheme { themeManager.theme }
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
 
     var body: some View {
         Button(action: {
@@ -141,24 +155,21 @@ struct CompassView: View {
             VStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [theme.accentGreen, theme.primaryAccent],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(cardBackground)
                         .frame(width: 56, height: 56)
-                        .shadow(color: theme.primaryAccent.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .overlay(
+                            Circle()
+                                .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                        )
 
                     Image(systemName: "location.north.fill")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundColor(sacredGold)
                 }
 
                 Text("Qibla")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(theme.primaryText)
+                    .foregroundColor(themeManager.theme.primaryText)
             }
             .frame(maxWidth: .infinity)
         }
@@ -171,7 +182,7 @@ struct CompassView: View {
     }
 }
 
-// MARK: - Qibla Compass Modal (Aesthetic Design)
+// MARK: - Qibla Compass Modal (Sacred Minimalism)
 struct QiblaCompassModal: View {
     @StateObject private var compassManager = CompassManager()
     @ObservedObject var themeManager = ThemeManager.shared
@@ -182,7 +193,23 @@ struct QiblaCompassModal: View {
     @State private var lastProximityZone: Int = 0
     @State private var hapticTimer: Timer?
 
-    private var theme: AppTheme { themeManager.theme }
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var subtleText: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(white: 0.5)
+            : Color(white: 0.45)
+    }
 
     private var relativeQiblaDirection: Double {
         compassManager.qiblaDirection - compassManager.heading
@@ -210,19 +237,10 @@ struct QiblaCompassModal: View {
 
     var body: some View {
         ZStack {
-            // Gradient Background
-            LinearGradient(
-                colors: [
-                    theme.primaryBackground,
-                    theme.secondaryBackground
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            pageBackground.ignoresSafeArea()
 
-            // Animated Stars Background (only in dark mode or glass effect)
-            if themeManager.currentTheme == .dark || theme.hasGlassEffect {
+            // Subtle stars for dark mode
+            if themeManager.effectiveTheme == .dark {
                 starsBackground
             }
 
@@ -238,7 +256,7 @@ struct QiblaCompassModal: View {
                 mainCompassView
                     .padding(.vertical, 40)
                     .opacity(showContent ? 1 : 0)
-                    .scaleEffect(showContent ? 1 : 0.8)
+                    .scaleEffect(showContent ? 1 : 0.9)
 
                 Spacer()
 
@@ -257,16 +275,13 @@ struct QiblaCompassModal: View {
             }
         }
         .onChange(of: proximityZone) { oldZone, newZone in
-            // Trigger immediate haptic when entering a new zone
             if newZone > 0 && newZone != oldZone {
                 triggerHaptic(for: newZone)
             }
 
-            // Stop existing timer
             hapticTimer?.invalidate()
             hapticTimer = nil
 
-            // Start repeating haptics based on proximity
             if newZone > 0 {
                 let interval = hapticInterval(for: newZone)
                 hapticTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
@@ -287,7 +302,7 @@ struct QiblaCompassModal: View {
 
     // MARK: - Header View
     private var headerView: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             HStack {
                 Button(action: {
                     withAnimation {
@@ -296,27 +311,32 @@ struct QiblaCompassModal: View {
                 }) {
                     ZStack {
                         Circle()
-                            .fill(theme.tertiaryBackground.opacity(0.5))
+                            .fill(cardBackground)
                             .frame(width: 44, height: 44)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
 
                         Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(theme.primaryText)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(subtleText)
                     }
                 }
 
                 Spacer()
             }
 
-            Text("Qibla Compass")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [theme.primaryText, theme.secondaryText],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            VStack(spacing: 8) {
+                Text("QIBLA")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(3)
+                    .foregroundColor(subtleText)
+
+                Text("Find Direction")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundColor(themeManager.theme.primaryText)
+            }
 
             if compassManager.locationAuthorized {
                 Button(action: {
@@ -326,18 +346,18 @@ struct QiblaCompassModal: View {
                     }
                 }) {
                     HStack(spacing: 6) {
-                        Image(systemName: compassManager.isRefreshing ? "location.fill" : "location.fill")
-                            .font(.system(size: 12))
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 11))
 
                         Text(compassManager.cityName)
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .font(.system(size: 13))
 
                         if !compassManager.canRefresh && !compassManager.isRefreshing {
-                            Image(systemName: "clock.fill")
+                            Image(systemName: "clock")
                                 .font(.system(size: 10))
                         }
                     }
-                    .foregroundColor(compassManager.canRefresh ? theme.primaryAccent : theme.secondaryText)
+                    .foregroundColor(compassManager.canRefresh ? sacredGold : subtleText)
                 }
                 .disabled(!compassManager.canRefresh)
             }
@@ -350,22 +370,12 @@ struct QiblaCompassModal: View {
             // Outer Glow Ring
             Circle()
                 .stroke(
-                    LinearGradient(
-                        colors: isAligned ? [
-                            theme.accentGreen.opacity(0.5),
-                            theme.primaryAccent.opacity(0.3)
-                        ] : [
-                            theme.primaryAccent.opacity(0.3),
-                            theme.accentGold.opacity(0.2)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 40
+                    isAligned ? softGreen.opacity(0.3) : sacredGold.opacity(0.2),
+                    lineWidth: 30
                 )
                 .frame(width: 300, height: 300)
-                .blur(radius: 20)
-                .opacity(pulseAnimation ? 0.6 : 0.3)
+                .blur(radius: 15)
+                .opacity(pulseAnimation ? 0.5 : 0.2)
 
             // Rotating Compass Ring
             compassRingView
@@ -373,24 +383,14 @@ struct QiblaCompassModal: View {
                 .rotationEffect(.degrees(-compassManager.heading))
                 .animation(.spring(response: 0.5, dampingFraction: 0.7), value: compassManager.heading)
 
-            // Center Glass Circle
+            // Center Circle
             ZStack {
                 Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                theme.tertiaryBackground.opacity(0.3),
-                                theme.tertiaryBackground.opacity(0.1)
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 100
-                        )
-                    )
+                    .fill(cardBackground)
                     .frame(width: 200, height: 200)
                     .overlay(
                         Circle()
-                            .stroke(theme.primaryText.opacity(0.2), lineWidth: 1)
+                            .stroke(isAligned ? softGreen.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
                     )
 
                 // Qibla Arrow
@@ -401,21 +401,8 @@ struct QiblaCompassModal: View {
 
                 // Center Dot
                 Circle()
-                    .fill(
-                        isAligned ?
-                        LinearGradient(
-                            colors: [theme.accentGreen, theme.primaryAccent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ) :
-                        LinearGradient(
-                            colors: [theme.primaryAccent, theme.accentGold],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 16, height: 16)
-                    .shadow(color: theme.primaryAccent.opacity(0.5), radius: 8)
+                    .fill(isAligned ? softGreen : sacredGold)
+                    .frame(width: 12, height: 12)
             }
         }
     }
@@ -426,21 +413,20 @@ struct QiblaCompassModal: View {
             // Degree Markers
             ForEach(0..<72) { index in
                 Rectangle()
-                    .fill(index % 6 == 0 ? theme.primaryText.opacity(0.6) : theme.primaryText.opacity(0.3))
+                    .fill(index % 6 == 0 ? themeManager.theme.primaryText.opacity(0.5) : themeManager.theme.primaryText.opacity(0.2))
                     .frame(
                         width: index % 6 == 0 ? 2 : 1,
-                        height: index % 6 == 0 ? 20 : 10
+                        height: index % 6 == 0 ? 16 : 8
                     )
                     .offset(y: -140)
                     .rotationEffect(.degrees(Double(index) * 5))
             }
 
-            // Cardinal Directions (positioned above the markers with spacing)
+            // Cardinal Directions
             ForEach(["N", "E", "S", "W"], id: \.self) { direction in
                 Text(direction)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(direction == "N" ? theme.accentGreen : theme.primaryText.opacity(0.7))
-                    .shadow(color: direction == "N" ? theme.accentGreen.opacity(0.5) : .clear, radius: 8)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(direction == "N" ? softGreen : subtleText)
                     .offset(y: -165)
                     .rotationEffect(.degrees(rotationForDirection(direction)))
             }
@@ -450,40 +436,15 @@ struct QiblaCompassModal: View {
     // MARK: - Qibla Arrow
     private var qiblaArrowView: some View {
         VStack(spacing: 0) {
-            // Arrow Head (Triangle)
+            // Arrow Head
             Image(systemName: "arrowtriangle.up.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: isAligned ? [
-                            theme.accentGreen,
-                            theme.primaryAccent
-                        ] : [
-                            theme.primaryAccent,
-                            theme.accentGold
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: theme.primaryAccent.opacity(0.5), radius: 10)
+                .font(.system(size: 32))
+                .foregroundColor(isAligned ? softGreen : sacredGold)
 
             // Arrow Body
-            RoundedRectangle(cornerRadius: 3)
-                .fill(
-                    LinearGradient(
-                        colors: isAligned ? [
-                            theme.accentGreen.opacity(0.8),
-                            theme.primaryAccent.opacity(0.6)
-                        ] : [
-                            theme.primaryAccent.opacity(0.8),
-                            theme.accentGold.opacity(0.6)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 6, height: 60)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isAligned ? softGreen.opacity(0.7) : sacredGold.opacity(0.7))
+                .frame(width: 4, height: 50)
 
             Spacer()
         }
@@ -498,8 +459,8 @@ struct QiblaCompassModal: View {
             } else {
                 HStack(spacing: 12) {
                     infoCard(
-                        icon: "compass.fill",
-                        title: "Direction",
+                        icon: "compass",
+                        title: "DIRECTION",
                         value: "\(Int(compassManager.qiblaDirection))°",
                         subtitle: headingToCardinal(compassManager.qiblaDirection)
                     )
@@ -512,103 +473,104 @@ struct QiblaCompassModal: View {
 
     // MARK: - Info Card
     private func infoCard(icon: String, title: String, value: String, subtitle: String) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [theme.primaryAccent, theme.accentGold],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .font(.system(size: 20, weight: .light))
+                .foregroundColor(sacredGold)
 
             Text(title)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(theme.secondaryText)
+                .font(.system(size: 10, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(subtleText)
 
             Text(value)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundColor(theme.primaryText)
+                .font(.system(size: 24, weight: .light))
+                .foregroundColor(themeManager.theme.primaryText)
 
             Text(subtitle)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(theme.tertiaryText)
+                .font(.system(size: 11))
+                .foregroundColor(subtleText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(theme.cardBackground.opacity(0.5))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(theme.primaryAccent.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
                 )
         )
     }
 
     // MARK: - Location Permission Card
     private var locationPermissionCard: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "location.slash.fill")
-                .font(.system(size: 32))
-                .foregroundColor(theme.secondaryText)
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 60, height: 60)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
 
-            Text("Location Access Required")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.primaryText)
+                Image(systemName: "location.slash")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundColor(subtleText)
+            }
 
-            Text("Enable location services to find the Qibla direction from your current position")
-                .font(.system(size: 14, weight: .regular, design: .rounded))
-                .foregroundColor(theme.secondaryText)
+            Text("LOCATION REQUIRED")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(subtleText)
+
+            Text("Enable location services to find the Qibla direction")
+                .font(.system(size: 13))
+                .foregroundColor(subtleText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 30)
+        .padding(.vertical, 28)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(theme.cardBackground.opacity(0.5))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(theme.primaryAccent.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
                 )
         )
     }
 
     // MARK: - Alignment Card
     private var alignmentCard: some View {
-        VStack(spacing: 8) {
-            Image(systemName: isAligned ? "checkmark.circle.fill" : "circle.dotted")
-                .font(.system(size: 24))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: isAligned ? [theme.accentGreen, theme.primaryAccent] : [theme.secondaryText, theme.tertiaryText],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+        VStack(spacing: 10) {
+            Image(systemName: isAligned ? "checkmark.circle" : "circle.dotted")
+                .font(.system(size: 20, weight: .light))
+                .foregroundColor(isAligned ? softGreen : subtleText)
 
-            Text("Alignment")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(theme.secondaryText)
+            Text("ALIGNMENT")
+                .font(.system(size: 10, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(subtleText)
 
             Text(isAligned ? "Aligned" : proximityText)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundColor(isAligned ? theme.accentGreen : theme.primaryText)
+                .font(.system(size: 24, weight: .light))
+                .foregroundColor(isAligned ? softGreen : themeManager.theme.primaryText)
 
             Text(isAligned ? "with Qibla" : "Keep turning")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(theme.tertiaryText)
+                .font(.system(size: 11))
+                .foregroundColor(subtleText)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(isAligned ? theme.accentGreen.opacity(0.1) : theme.cardBackground.opacity(0.5))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(isAligned ? theme.accentGreen.opacity(0.3) : theme.primaryAccent.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isAligned ? softGreen.opacity(0.3) : Color.white.opacity(0.06), lineWidth: 1)
                 )
         )
     }
@@ -626,10 +588,10 @@ struct QiblaCompassModal: View {
     private var starsBackground: some View {
         GeometryReader { geometry in
             ZStack {
-                ForEach(0..<50, id: \.self) { index in
+                ForEach(0..<40, id: \.self) { index in
                     Circle()
-                        .fill(theme.primaryText.opacity(Double.random(in: 0.2...0.5)))
-                        .frame(width: CGFloat.random(in: 1...3))
+                        .fill(Color.white.opacity(Double.random(in: 0.1...0.3)))
+                        .frame(width: CGFloat.random(in: 1...2))
                         .position(
                             x: CGFloat(index * 17 + 23).truncatingRemainder(dividingBy: geometry.size.width),
                             y: CGFloat(index * 29 + 41).truncatingRemainder(dividingBy: geometry.size.height)
@@ -642,13 +604,13 @@ struct QiblaCompassModal: View {
     // MARK: - Helper Functions
     private func triggerHaptic(for zone: Int) {
         switch zone {
-        case 4: // Perfect alignment - Success notification
+        case 4:
             HapticManager.shared.notification(.success)
-        case 3: // Very close - Heavy impact
+        case 3:
             HapticManager.shared.impact(.heavy)
-        case 2: // Close - Medium impact
+        case 2:
             HapticManager.shared.impact(.medium)
-        case 1: // Getting close - Light impact
+        case 1:
             HapticManager.shared.impact(.light)
         default:
             break
@@ -657,16 +619,11 @@ struct QiblaCompassModal: View {
 
     private func hapticInterval(for zone: Int) -> TimeInterval {
         switch zone {
-        case 4: // Perfect alignment - Very fast pulse (0.3s)
-            return 0.3
-        case 3: // Very close - Fast pulse (0.5s)
-            return 0.5
-        case 2: // Close - Medium pulse (0.8s)
-            return 0.8
-        case 1: // Getting close - Slow pulse (1.2s)
-            return 1.2
-        default:
-            return 2.0
+        case 4: return 0.3
+        case 3: return 0.5
+        case 2: return 0.8
+        case 1: return 1.2
+        default: return 2.0
         }
     }
 
@@ -692,7 +649,17 @@ struct CompactQiblaIndicator: View {
     @ObservedObject var themeManager = ThemeManager.shared
     @State private var showingCompass = false
 
-    private var theme: AppTheme { themeManager.theme }
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var subtleText: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(white: 0.5)
+            : Color(white: 0.45)
+    }
 
     var body: some View {
         Button(action: {
@@ -701,56 +668,38 @@ struct CompactQiblaIndicator: View {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [theme.accentGreen.opacity(0.2), theme.primaryAccent.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(sacredGold.opacity(0.12))
                         .frame(width: 50, height: 50)
 
-                    Image(systemName: "location.north.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [theme.accentGreen, theme.primaryAccent],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                    Image(systemName: "location.north.circle")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundColor(sacredGold)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Find Qibla Direction")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(theme.primaryText)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(themeManager.theme.primaryText)
 
                     Text("Open compass to locate Mecca")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.secondaryText)
+                        .font(.system(size: 13))
+                        .foregroundColor(subtleText)
                 }
 
                 Spacer()
 
-                Image(systemName: "arrow.right.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(theme.primaryAccent.opacity(0.6))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(subtleText)
             }
-            .padding(18)
+            .padding(16)
             .background(
-                Group {
-                    if theme.hasGlassEffect {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.6)
-                            .shadow(color: theme.shadowColor.opacity(0.3), radius: 8)
-                    } else {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(theme.cardBackground)
-                            .shadow(color: theme.shadowColor.opacity(0.3), radius: 8)
-                    }
-                }
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
             )
         }
         .buttonStyle(PlainButtonStyle())

@@ -44,7 +44,7 @@ struct AlQuranCloudResponse<T: Codable>: Codable {
 }
 
 // MARK: - Reciter (Audio Edition)
-struct Reciter: Codable, Identifiable, Equatable {
+struct Reciter: Codable, Identifiable, Equatable, Hashable {
     var id: String { identifier }
     let identifier: String
     let language: String

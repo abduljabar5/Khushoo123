@@ -1,8 +1,8 @@
 //
 //  ProfileView.swift
-//  QariVerse
+//  Dhikr
 //
-//  Created by Abduljabar Nur on 6/21/25.
+//  Sacred Minimalism redesign - contemplative, refined, spiritually appropriate
 //
 
 import SwiftUI
@@ -15,10 +15,38 @@ struct ProfileView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var bluetoothService: BluetoothService
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var locationService: LocationService
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var prayerNotificationService = PrayerNotificationService.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
+
+    // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    // State
     @State private var showingHighestStreak = false
     @State private var showingAuth = false
     @State private var showingPaywall = false
@@ -26,110 +54,88 @@ struct ProfileView: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingDeleteError = false
     @State private var deleteErrorMessage = ""
+    @State private var sectionAppeared: [Bool] = Array(repeating: false, count: 10)
+
+    // App Storage
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
     @AppStorage("showSleepTimer") private var showSleepTimer = true
     @AppStorage("prayerRemindersEnabled") private var prayerRemindersEnabled = true
     @AppStorage("dhikrRemindersEnabled") private var dhikrRemindersEnabled = true
     @AppStorage("userDisplayName") private var userDisplayName: String = ""
 
-    // Computed property for display name
     private var displayName: String {
         if authService.isAuthenticated {
             return authService.currentUser?.displayName ?? "User"
         } else if !userDisplayName.isEmpty {
             return userDisplayName
         } else {
-            return "Welcome!"
+            return "Welcome"
         }
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Compact Profile Header
-                compactProfileHeader
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 32) {
+                // Identity
+                identitySection
+                    .opacity(sectionAppeared[0] ? 1 : 0)
+                    .offset(y: sectionAppeared[0] ? 0 : 20)
 
-                // Sign In Prompt (only shown when not authenticated)
+                // Sign In Prompt
                 if !authService.isAuthenticated {
                     signInPromptCard
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 24)
+                        .padding(.horizontal, 24)
+                        .opacity(sectionAppeared[1] ? 1 : 0)
+                        .offset(y: sectionAppeared[1] ? 0 : 20)
                 }
 
-                // Quick Stats
-                quickStatsSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
+                // Journey
+                journeySection
+                    .opacity(sectionAppeared[2] ? 1 : 0)
+                    .offset(y: sectionAppeared[2] ? 0 : 20)
 
-                // Statistics
-                statisticsSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                // Subscription Prompt
+                if !subscriptionService.hasPremiumAccess {
+                    subscriptionPromptCard
+                        .padding(.horizontal, 24)
+                        .opacity(sectionAppeared[3] ? 1 : 0)
+                        .offset(y: sectionAppeared[3] ? 0 : 20)
+                }
 
-                // Completed Surahs Section
-                completedSurahsSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                // Preferences
+                preferencesSection
+                    .opacity(sectionAppeared[4] ? 1 : 0)
+                    .offset(y: sectionAppeared[4] ? 0 : 20)
 
-                // Subscription Section
-                subscriptionSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                // Premium Status
+                if subscriptionService.hasPremiumAccess {
+                    premiumStatusSection
+                        .padding(.horizontal, 24)
+                        .opacity(sectionAppeared[5] ? 1 : 0)
+                        .offset(y: sectionAppeared[5] ? 0 : 20)
+                }
 
-                // Appearance Section
-                appearanceSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                // Support
+                supportSection
+                    .opacity(sectionAppeared[6] ? 1 : 0)
+                    .offset(y: sectionAppeared[6] ? 0 : 20)
 
-                // Audio Section
-                audioSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
-
-                // Notifications Section
-                notificationsSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
-
-                // Zikr Ring - Hidden until Bluetooth feature is ready
-                // zikrRingSection
-                //     .padding(.horizontal, 20)
-                //     .padding(.bottom, 32)
-
-                // Dhikr Goals
-                dhikrGoalsSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
-
-                // About Section
-                aboutSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
-
-                // Sign Out Section (only shown when authenticated)
+                // Account
                 if authService.isAuthenticated {
-                    signOutSection
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-
-                    // Delete Account Section
-                    deleteAccountSection
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 32)
+                    accountSection
+                        .opacity(sectionAppeared[7] ? 1 : 0)
+                        .offset(y: sectionAppeared[7] ? 0 : 20)
                 }
+
+                Color.clear.frame(height: audioPlayerService.currentSurah != nil ? 100 : 40)
             }
-            .padding(.bottom, audioPlayerService.currentSurah != nil ? 90 : 0)
+            .padding(.top, 16)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .background(pageBackground.ignoresSafeArea())
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
-        .background(themeManager.theme.primaryBackground)
         .sheet(isPresented: $showingAuth) {
-            ModernAuthView()
-                .environmentObject(authService)
+            ModernAuthView().environmentObject(authService)
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
@@ -137,965 +143,615 @@ struct ProfileView: View {
         .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
-                Task {
-                    await deleteAccount()
-                }
+                Task { await deleteAccount() }
             }
         } message: {
-            Text("Are you sure you want to delete your account? Your authentication account will be permanently deleted, but your local progress (dhikr counts, streaks, prayer history) will be preserved.")
+            Text("Are you sure you want to delete your account? Your authentication account will be permanently deleted, but your local progress will be preserved.")
         }
         .alert("Error", isPresented: $showingDeleteError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(deleteErrorMessage)
         }
-        .onChange(of: authService.isAuthenticated) { _ in
-            refreshID = UUID()
-        }
+        .onChange(of: authService.isAuthenticated) { _ in refreshID = UUID() }
         .onAppear {
-            // Sync initial value
-            audioPlayerService.isAutoplayEnabled = autoPlayNextSurah
-
-            // Sync prayer reminders toggle from App Group
-            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
-               let value = groupDefaults.object(forKey: "prayerRemindersEnabled") as? Bool {
-                prayerRemindersEnabled = value
-            }
-
-            // Check and schedule notifications if enabled
-            Task {
-                if dhikrRemindersEnabled && prayerNotificationService.hasNotificationPermission {
-                    scheduleDhikrReminders()
-                }
-            }
+            setupOnAppear()
+            animateEntrance()
         }
         .id(refreshID)
     }
 
-    // MARK: - Compact Profile Header
-    private var compactProfileHeader: some View {
-        HStack(spacing: 16) {
-            // Profile Image
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            themeManager.theme.primaryAccent,
-                            themeManager.theme.primaryAccent.opacity(0.7)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 70, height: 70)
-                .overlay(
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 30))
-                        .foregroundColor(.white)
-                )
+    // MARK: - Identity Section
+    private var identitySection: some View {
+        VStack(spacing: 24) {
+            // Avatar
+            ZStack {
+                Circle()
+                    .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                    .frame(width: 88, height: 88)
 
-            // User Info
-            VStack(alignment: .leading, spacing: 4) {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 80, height: 80)
+
+                if let initial = displayName.first, displayName != "Welcome" {
+                    Text(String(initial).uppercased())
+                        .font(.system(size: 32, weight: .light, design: .serif))
+                        .foregroundColor(sacredGold)
+                } else {
+                    Image(systemName: "person")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(sacredGold)
+                }
+            }
+
+            // Name
+            VStack(spacing: 6) {
                 Text(displayName)
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .font(.system(size: 24, weight: .light, design: .serif))
                     .foregroundColor(themeManager.theme.primaryText)
 
                 if authService.isAuthenticated, let joinDate = authService.currentUser?.joinDate {
-                    Text("Member since \(joinDate.formatted(.dateTime.year()))")
-                        .font(.caption)
+                    Text("On this journey since \(joinDate.formatted(.dateTime.year()))")
+                        .font(.system(size: 12, weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
+                        .tracking(0.5)
                 } else {
-                    Text("Your spiritual journey companion")
-                        .font(.caption)
+                    Text("Your path of remembrance")
+                        .font(.system(size: 12, weight: .light, design: .serif))
                         .foregroundColor(themeManager.theme.secondaryText)
+                        .italic()
                 }
             }
 
-            Spacer()
+            // Stats Row
+            statsRow
+                .padding(.horizontal, 24)
         }
     }
 
-    // MARK: - Sign In Prompt Card
+    private var statsRow: some View {
+        let stats = dhikrService.getTodayStats()
+        return HStack(spacing: 16) {
+            SacredProfileStatCard(
+                value: "\(stats.streak)",
+                label: "DAY STREAK",
+                accentColor: .orange
+            )
+
+            SacredProfileStatCard(
+                value: "\(stats.total)",
+                label: "TODAY",
+                accentColor: sacredGold
+            )
+        }
+    }
+
+    // MARK: - Sign In Prompt
     private var signInPromptCard: some View {
-        Button(action: {
-            showingAuth = true
-        }) {
-            VStack(spacing: 16) {
+        Button(action: { showingAuth = true }) {
+            VStack(spacing: 0) {
                 HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        themeManager.theme.primaryAccent,
-                                        themeManager.theme.primaryAccent.opacity(0.7)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 56, height: 56)
+                    Circle()
+                        .fill(sacredGold.opacity(0.1))
+                        .frame(width: 48, height: 48)
+                        .overlay(
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                                .font(.system(size: 20))
+                                .foregroundColor(sacredGold)
+                        )
 
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                            .font(.system(size: 26))
-                            .foregroundColor(.white)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Sign In to Your Account")
-                            .font(.title3)
-                            .fontWeight(.bold)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sign In")
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(themeManager.theme.primaryText)
 
-                        Text("Sync your progress across all devices")
-                            .font(.subheadline)
+                        Text("Sync progress across devices")
+                            .font(.system(size: 13, weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
-                            .multilineTextAlignment(.leading)
                     }
 
                     Spacer()
 
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(themeManager.theme.primaryAccent)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(sacredGold)
                 }
                 .padding(20)
 
-                // Benefits
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Sync your data across devices")
-                            .font(.subheadline)
-                            .foregroundColor(themeManager.theme.primaryText)
-                        Spacer()
-                    }
+                Rectangle()
+                    .fill(sacredGold.opacity(0.1))
+                    .frame(height: 1)
+                    .padding(.horizontal, 20)
 
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Save your progress and streaks")
-                            .font(.subheadline)
-                            .foregroundColor(themeManager.theme.primaryText)
-                        Spacer()
-                    }
-
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Access premium features")
-                            .font(.subheadline)
-                            .foregroundColor(themeManager.theme.primaryText)
-                        Spacer()
-                    }
+                VStack(spacing: 10) {
+                    SacredBenefitRow(icon: "arrow.triangle.2.circlepath", text: "Sync your data across devices", accentColor: sacredGold)
+                    SacredBenefitRow(icon: "flame", text: "Preserve your streaks", accentColor: sacredGold)
+                    SacredBenefitRow(icon: "crown", text: "Access premium features", accentColor: sacredGold)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                .padding(20)
             }
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(themeManager.theme.cardBackground)
+                    .fill(cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        themeManager.theme.primaryAccent.opacity(0.5),
-                                        themeManager.theme.primaryAccent.opacity(0.2)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 2
-                            )
-                    )
-                    .shadow(
-                        color: themeManager.theme.primaryAccent.opacity(0.2),
-                        radius: 12,
-                        x: 0,
-                        y: 4
+                            .stroke(sacredGold.opacity(0.2), lineWidth: 1)
                     )
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(SacredProfileButtonStyle())
     }
 
-    // MARK: - Quick Stats Section
-    private var quickStatsSection: some View {
-        let stats = dhikrService.getTodayStats()
-        return HStack(spacing: 12) {
-            StatPill(
-                value: "\(stats.streak)",
-                label: "Day Streak",
-                color: themeManager.theme.primaryAccent,
-                icon: "flame.fill"
-            )
+    // MARK: - Journey Section
+    private var journeySection: some View {
+        VStack(spacing: 20) {
+            sacredSectionHeader(title: "YOUR JOURNEY")
+                .padding(.horizontal, 24)
 
-            StatPill(
-                value: "\(stats.total)",
-                label: "Today's Dhikr",
-                color: themeManager.theme.primaryAccent,
-                icon: "heart.fill"
-            )
-        }
-    }
-    
-    // MARK: - Statistics Section
-    private var statisticsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "Statistics", icon: "chart.bar.fill")
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
-                EnhancedStatCard(
-                    title: "Total Listening",
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                SacredJourneyCard(
+                    title: "Listening",
                     value: audioPlayerService.getTotalListeningTimeString(),
+                    subtitle: "total time",
                     icon: "headphones",
-                    gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                    description: "Time spent listening"
+                    accentColor: sacredGold
                 )
 
-                // Surahs Completed Card with integrated progress bar
-                SurahsCompletedCard(completedCount: audioPlayerService.getCompletedSurahCount())
+                SacredJourneyCard(
+                    title: "Surahs",
+                    value: "\(audioPlayerService.getCompletedSurahCount())/114",
+                    subtitle: "\(Int((Double(audioPlayerService.getCompletedSurahCount()) / 114.0) * 100))% complete",
+                    icon: "checkmark.seal",
+                    accentColor: softGreen,
+                    showProgress: true,
+                    progress: Double(audioPlayerService.getCompletedSurahCount()) / 114.0
+                )
 
-                EnhancedStatCard(
-                    title: "Favorite Reciter",
+                SacredJourneyCard(
+                    title: "Favorite",
                     value: getMostListenedReciter(),
-                    icon: "person.fill",
-                    gradient: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                    description: "Most played"
+                    subtitle: "most played",
+                    icon: "person.wave.2",
+                    accentColor: warmGray
                 )
 
-                InteractiveStreakCard(
+                SacredStreakCard(
                     dhikrService: dhikrService,
-                    showingHighest: $showingHighestStreak
+                    showingHighest: $showingHighestStreak,
+                    accentColor: .orange
                 )
             }
+            .padding(.horizontal, 24)
+
+            // Completed Surahs Preview
+            if !audioPlayerService.completedSurahNumbers.isEmpty {
+                completedSurahsPreview
+            }
+
+            // Dhikr Goals Link
+            dhikrGoalsLink
+                .padding(.horizontal, 24)
         }
     }
 
-    // MARK: - Completed Surahs Section
-    private var completedSurahsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    private var completedSurahsPreview: some View {
+        VStack(spacing: 12) {
             HStack {
-                sectionHeader(title: "Completed Surahs", icon: "checkmark.seal.fill")
+                Text("COMPLETED SURAHS")
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundColor(themeManager.theme.secondaryText)
+
                 Spacer()
-                if audioPlayerService.completedSurahNumbers.count > 0 {
-                    NavigationLink(destination: CompletedSurahsListView()) {
-                        Text("View All")
-                            .font(.subheadline)
-                            .foregroundColor(themeManager.theme.primaryAccent)
-                    }
+
+                NavigationLink(destination: SacredCompletedSurahsListView().environmentObject(audioPlayerService)) {
+                    Text("See All")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(sacredGold)
                 }
             }
+            .padding(.horizontal, 24)
 
-            if audioPlayerService.completedSurahNumbers.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "checkmark.seal")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary.opacity(0.5))
-
-                    Text("No surahs completed yet")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    Text("Complete a surah to see it here ✨")
-                        .font(.caption)
-                        .foregroundColor(.secondary.opacity(0.8))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 32)
-                .background(themeManager.theme.cardBackground.opacity(0.3))
-                .cornerRadius(16)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(Array(audioPlayerService.completedSurahNumbers).sorted(), id: \.self) { surahNumber in
-                            CompletedSurahBadge(surahNumber: surahNumber)
-                        }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(audioPlayerService.completedSurahNumbers).sorted().prefix(8), id: \.self) { number in
+                        SacredSurahChip(surahNumber: number, accentColor: softGreen)
                     }
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 4)
+
+                    if audioPlayerService.completedSurahNumbers.count > 8 {
+                        Text("+\(audioPlayerService.completedSurahNumbers.count - 8)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(cardBackground))
+                    }
                 }
+                .padding(.horizontal, 24)
             }
         }
     }
 
-    // MARK: - Subscription Section
-    private var subscriptionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: subscriptionService.hasPremiumAccess ? "Premium" : "Upgrade", icon: "crown.fill")
-
-            if subscriptionService.hasPremiumAccess {
-                // Premium user - show status and manage
-                VStack(spacing: 0) {
-                    settingsRow(
-                        icon: "checkmark.seal.fill",
-                        iconColor: themeManager.theme.accentGold,
-                        title: "Premium Active",
-                        trailing: {
-                            Image(systemName: "crown.fill")
-                                .foregroundColor(themeManager.theme.accentGold)
-                        }
-                    )
-
-                    Divider()
-                        .padding(.leading, 50)
-
-                    Button(action: {
-                        Task {
-                            await subscriptionService.restorePurchases()
-                        }
-                    }) {
-                        settingsRow(
-                            icon: "arrow.clockwise",
-                            iconColor: themeManager.theme.primaryAccent,
-                            title: "Restore Purchases",
-                            trailing: {
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.theme.tertiaryText)
-                            }
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-                .background(themeManager.theme.cardBackground)
-                .cornerRadius(16)
-            } else {
-                // Free user - show upgrade prompt
-                Button(action: {
-                    showingPaywall = true
-                }) {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "crown.fill")
-                                .font(.system(size: 24))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [.yellow, .orange],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Unlock Premium")
-                                    .font(.headline)
-                                    .foregroundColor(themeManager.theme.primaryText)
-
-                                Text("Get full access to all features")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.theme.secondaryText)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(themeManager.theme.tertiaryText)
-                        }
-                        .padding(16)
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(themeManager.theme.cardBackground)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [.yellow.opacity(0.5), .orange.opacity(0.3)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 2
-                                    )
-                            )
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-    }
-
-    // MARK: - Appearance Section
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "Appearance", icon: "paintbrush.fill")
-
-            VStack(spacing: 12) {
-                // Theme Selector
-                HStack(spacing: 12) {
-                    ForEach(AppThemeStyle.allCases, id: \.self) { theme in
-                        ThemeOptionButton(
-                            theme: theme,
-                            isSelected: themeManager.currentTheme == theme,
-                            action: {
-                                withAnimation(.spring()) {
-                                    themeManager.currentTheme = theme
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-            .padding(16)
-            .background(themeManager.theme.cardBackground)
-            .cornerRadius(16)
-        }
-    }
-
-    // MARK: - Audio Section
-    private var audioSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "Audio", icon: "speaker.wave.2.fill")
-
-            VStack(spacing: 0) {
-                settingsRow(
-                    icon: "play.circle.fill",
-                    iconColor: themeManager.theme.primaryAccent,
-                    title: "Auto-play next surah",
-                    trailing: {
-                        Toggle("", isOn: $autoPlayNextSurah)
-                            .labelsHidden()
-                            .onChange(of: autoPlayNextSurah) { newValue in
-                                audioPlayerService.isAutoplayEnabled = newValue
-                            }
-                    }
-                )
-
-                Divider()
-                    .padding(.leading, 50)
-
-                settingsRow(
-                    icon: "timer",
-                    iconColor: themeManager.theme.primaryAccent,
-                    title: "Sleep timer button",
-                    trailing: {
-                        Toggle("", isOn: $showSleepTimer)
-                            .labelsHidden()
-                    }
-                )
-            }
-            .background(themeManager.theme.cardBackground)
-            .cornerRadius(16)
-        }
-    }
-
-    // MARK: - Notifications Section
-    private var notificationsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "Notifications", icon: "bell.fill")
-
-            VStack(spacing: 0) {
-                settingsRow(
-                    icon: "moon.stars.fill",
-                    iconColor: themeManager.theme.primaryAccent,
-                    title: "Prayer reminders",
-                    trailing: {
-                        Toggle("", isOn: $prayerRemindersEnabled)
-                            .labelsHidden()
-                            .onChange(of: prayerRemindersEnabled) { newValue in
-                                handlePrayerRemindersToggle(newValue)
-                            }
-                    }
-                )
-
-                Divider()
-                    .padding(.leading, 50)
-
-                settingsRow(
-                    icon: "sparkles",
-                    iconColor: themeManager.theme.primaryAccent,
-                    title: "Dhikr reminders",
-                    trailing: {
-                        Toggle("", isOn: $dhikrRemindersEnabled)
-                            .labelsHidden()
-                            .onChange(of: dhikrRemindersEnabled) { newValue in
-                                handleDhikrRemindersToggle(newValue)
-                            }
-                    }
-                )
-            }
-            .background(themeManager.theme.cardBackground)
-            .cornerRadius(16)
-        }
-    }
-
-    // MARK: - Zikr Ring Section
-    private var zikrRingSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "Zikr Ring", icon: "dot.radiowaves.left.and.right")
-
-            VStack(spacing: 16) {
-                // Status and Ring Count in a more visual way
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                            Circle()
-                                .fill(bluetoothService.isConnected ? Color.green : Color.orange)
-                                .frame(width: 8, height: 8)
-                            
-                            Text("Status")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                        }
-                        
-                    Text(bluetoothService.connectionStatus)
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                        .foregroundColor(bluetoothService.isConnected ? .green : .orange)
-                }
-
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 8) {
-                        Text("Ring Count")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                        
-                    Text("\(bluetoothService.dhikrCount)")
-                            .font(.title)
-                        .fontWeight(.bold)
-                            .foregroundColor(.primary)
-                    }
-                }
-
-                VStack(spacing: 12) {
-                    Button(action: {
-                        if bluetoothService.isConnected {
-                            bluetoothService.disconnectActive()
-                        } else if let first = bluetoothService.discoveredRings.first {
-                            bluetoothService.connectToDiscoveredRing(id: first.id)
-                        } else {
-                            bluetoothService.startScanning()
-                        }
-                    }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: bluetoothService.isConnected ? "xmark.circle.fill" : (bluetoothService.isScanning ? "antenna.radiowaves.left.and.right" : "magnifyingglass"))
-                                .font(.title3)
-                            
-                            Text(bluetoothService.isConnected ? "Disconnect Ring" : (bluetoothService.isScanning ? "Scanning…" : "Scan for Rings"))
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            LinearGradient(
-                                colors: bluetoothService.isConnected ? 
-                                    [Color.red, Color.red.opacity(0.8)] : 
-                                    [Color.blue, Color.blue.opacity(0.8)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                        .shadow(color: (bluetoothService.isConnected ? Color.red : Color.blue).opacity(0.3), radius: 8, x: 0, y: 4)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-                    if !bluetoothService.isConnected && bluetoothService.isScanning && bluetoothService.discoveredRings.isEmpty {
-                        HStack {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .padding(.trailing, 8)
-                            Text("Looking for Zikr rings nearby...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.top, 8)
-                    }
-                    
-                    if !bluetoothService.isConnected && !bluetoothService.discoveredRings.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Available Zikr Rings")
-                                    .font(.subheadline).fontWeight(.semibold)
-                                Spacer()
-                                Button("Stop") { bluetoothService.stopScanning(withMessage: "Scan stopped") }
-                                    .font(.caption)
-                            }
-                            ForEach(bluetoothService.discoveredRings.sorted(by: { $0.rssi > $1.rssi })) { ring in
-                                Button(action: { bluetoothService.connectToDiscoveredRing(id: ring.id) }) {
-                                    HStack {
-                                        Image(systemName: "dot.radiowaves.left.and.right")
-                                            .foregroundColor(.blue)
-                                        Text(ring.name)
-                                            .foregroundColor(.primary)
-                                        Spacer()
-                                        Text("RSSI \(ring.rssi)")
-                                            .foregroundColor(.secondary)
-                                            .font(.caption)
-                                    }
-                                    .padding(10)
-                                    .background(Color(.tertiarySystemBackground))
-                                    .cornerRadius(10)
-                                }
-                            }
-                        }
-                        .padding(.top, 4)
-                    }
-                }
-            }
-            .padding(16)
-            .background(themeManager.theme.cardBackground)
-            .cornerRadius(16)
-        }
-    }
-
-    // MARK: - Dhikr Goals Section
-    private var dhikrGoalsSection: some View {
+    private var dhikrGoalsLink: some View {
         NavigationLink(destination: DhikrGoalsView()
             .environmentObject(dhikrService)
             .environmentObject(audioPlayerService)
             .environmentObject(bluetoothService)
         ) {
-            HStack(spacing: 16) {
-                Circle()
-                    .fill(themeManager.theme.primaryAccent.opacity(0.2))
-                    .frame(width: 50, height: 50)
+            HStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(sacredGold.opacity(0.1))
+                    .frame(width: 40, height: 40)
                     .overlay(
                         Image(systemName: "target")
-                            .font(.title3)
-                            .foregroundColor(themeManager.theme.primaryAccent)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(sacredGold)
                     )
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Dhikr Goals")
-                        .font(.headline)
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
 
-                    Text("Set and manage your daily targets")
-                        .font(.caption)
+                    Text("Set daily targets")
+                        .font(.system(size: 12, weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(themeManager.theme.tertiaryText)
+                    .font(.system(size: 11))
+                    .foregroundColor(themeManager.theme.secondaryText)
             }
             .padding(16)
-            .background(themeManager.theme.cardBackground)
-            .cornerRadius(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
+                    )
+            )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(SacredProfileButtonStyle())
     }
 
-    // MARK: - About Section
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader(title: "About", icon: "info.circle.fill")
+    // MARK: - Subscription Prompt
+    private var subscriptionPromptCard: some View {
+        Button(action: { showingPaywall = true }) {
+            HStack(spacing: 16) {
+                Circle()
+                    .fill(sacredGold.opacity(0.15))
+                    .frame(width: 56, height: 56)
+                    .overlay(
+                        Image(systemName: "crown")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(sacredGold)
+                    )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Unlock Premium")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("Full access to all features")
+                        .font(.system(size: 13, weight: .light))
+                        .foregroundColor(themeManager.theme.secondaryText)
+
+                    HStack(spacing: 4) {
+                        Text("Learn more")
+                            .font(.system(size: 12, weight: .medium))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundColor(sacredGold)
+                    .padding(.top, 2)
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(sacredGold.opacity(0.25), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(SacredProfileButtonStyle())
+    }
+
+    // MARK: - Preferences Section
+    private var preferencesSection: some View {
+        VStack(spacing: 20) {
+            sacredSectionHeader(title: "PREFERENCES")
+                .padding(.horizontal, 24)
+
+            VStack(spacing: 16) {
+                // Appearance
+                SacredPreferenceGroup(title: "APPEARANCE") {
+                    SacredThemeSelector()
+                }
+
+                // Audio
+                SacredPreferenceGroup(title: "AUDIO") {
+                    VStack(spacing: 0) {
+                        SacredToggleRow(
+                            icon: "play.circle",
+                            title: "Auto-play next surah",
+                            isOn: $autoPlayNextSurah,
+                            accentColor: sacredGold
+                        )
+                        .onChange(of: autoPlayNextSurah) { newValue in
+                            audioPlayerService.isAutoplayEnabled = newValue
+                        }
+
+                        SacredDivider()
+
+                        SacredToggleRow(
+                            icon: "moon.zzz",
+                            title: "Sleep timer button",
+                            isOn: $showSleepTimer,
+                            accentColor: warmGray
+                        )
+                    }
+                }
+
+                // Notifications
+                SacredPreferenceGroup(title: "NOTIFICATIONS") {
+                    VStack(spacing: 0) {
+                        SacredToggleRow(
+                            icon: "moon.stars",
+                            title: "Prayer reminders",
+                            isOn: $prayerRemindersEnabled,
+                            accentColor: sacredGold
+                        )
+                        .onChange(of: prayerRemindersEnabled) { newValue in
+                            handlePrayerRemindersToggle(newValue)
+                        }
+
+                        SacredDivider()
+
+                        SacredToggleRow(
+                            icon: "sparkles",
+                            title: "Dhikr reminders",
+                            isOn: $dhikrRemindersEnabled,
+                            accentColor: softGreen
+                        )
+                        .onChange(of: dhikrRemindersEnabled) { newValue in
+                            handleDhikrRemindersToggle(newValue)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    // MARK: - Premium Status Section
+    private var premiumStatusSection: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Circle()
+                    .fill(sacredGold.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: "checkmark.seal")
+                            .font(.system(size: 16))
+                            .foregroundColor(sacredGold)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Premium Active")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("Full access enabled")
+                        .font(.system(size: 12, weight: .light))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                }
+
+                Spacer()
+
+                Image(systemName: "crown")
+                    .font(.system(size: 14))
+                    .foregroundColor(sacredGold)
+            }
+            .padding(16)
+
+            SacredDivider()
+
+            Button(action: {
+                Task { await subscriptionService.restorePurchases() }
+            }) {
+                HStack {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12))
+                    Text("Restore Purchases")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(sacredGold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(sacredGold.opacity(0.15), lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Support Section
+    private var supportSection: some View {
+        VStack(spacing: 20) {
+            sacredSectionHeader(title: "SUPPORT")
+                .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
-                settingsRow(
-                    icon: "app.badge.fill",
-                    iconColor: themeManager.theme.primaryAccent,
-                    title: "Version",
-                    trailing: {
-                        Text("1.0.0")
-                            .font(.subheadline)
-                            .foregroundColor(themeManager.theme.secondaryText)
-                    }
-                )
+                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.0", accentColor: warmGray)
 
-                Divider()
-                    .padding(.leading, 50)
+                SacredDivider()
 
                 Button(action: {
                     if let url = URL(string: "mailto:khushooios@gmail.com?subject=Khushoo%20Support") {
                         UIApplication.shared.open(url)
                     }
                 }) {
-                    settingsRow(
-                        icon: "envelope.fill",
-                        iconColor: themeManager.theme.primaryAccent,
-                        title: "Contact Support",
-                        trailing: {
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(themeManager.theme.tertiaryText)
-                        }
-                    )
+                    SacredActionRow(icon: "envelope", title: "Contact Support", accentColor: sacredGold)
                 }
-                .buttonStyle(PlainButtonStyle())
 
-                Divider()
-                    .padding(.leading, 50)
+                SacredDivider()
 
-                Button(action: {
-                    requestAppReview()
-                }) {
-                    settingsRow(
-                        icon: "star.fill",
-                        iconColor: themeManager.theme.primaryAccent,
-                        title: "Rate Us",
-                        trailing: {
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(themeManager.theme.tertiaryText)
-                        }
-                    )
+                Button(action: requestAppReview) {
+                    SacredActionRow(icon: "star", title: "Rate Us", accentColor: sacredGold)
                 }
-                .buttonStyle(PlainButtonStyle())
             }
-            .background(themeManager.theme.cardBackground)
-            .cornerRadius(16)
-        }
-    }
-
-    // MARK: - Sign Out Section
-    private var signOutSection: some View {
-        Button(action: {
-            try? authService.signOut()
-        }) {
-            HStack(spacing: 16) {
-                Circle()
-                    .fill(Color.red.opacity(0.2))
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.title3)
-                            .foregroundColor(.red)
-                    )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Sign Out")
-                        .font(.headline)
-                        .foregroundColor(.red)
-
-                    Text("Sign out of your account")
-                        .font(.caption)
-                        .foregroundColor(themeManager.theme.secondaryText)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(themeManager.theme.tertiaryText)
-            }
-            .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(themeManager.theme.cardBackground)
+                    .fill(cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                            .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                     )
             )
+            .padding(.horizontal, 24)
         }
-        .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Delete Account Section
-    private var deleteAccountSection: some View {
-        Button(action: {
-            showingDeleteConfirmation = true
-        }) {
-            HStack(spacing: 16) {
-                Circle()
-                    .fill(Color.red.opacity(0.15))
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        Image(systemName: "trash.fill")
-                            .font(.title3)
+    // MARK: - Account Section
+    private var accountSection: some View {
+        VStack(spacing: 16) {
+            Button(action: { try? authService.signOut() }) {
+                HStack(spacing: 14) {
+                    Circle()
+                        .fill(Color.red.opacity(0.1))
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 16))
+                                .foregroundColor(.red)
+                        )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sign Out")
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundColor(.red)
-                    )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Delete Account")
-                        .font(.headline)
-                        .foregroundColor(.red)
+                        Text("You can sign back in anytime")
+                            .font(.system(size: 12, weight: .light))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
 
-                    Text("Permanently delete your account and data")
-                        .font(.caption)
-                        .foregroundColor(themeManager.theme.secondaryText)
+                    Spacer()
                 }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(themeManager.theme.tertiaryText)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(themeManager.theme.cardBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.red.opacity(0.2), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    // MARK: - Helper Functions
-
-    private func sectionHeader(title: String, icon: String) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(themeManager.theme.primaryAccent)
-                .font(.caption)
-            Text(title)
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(themeManager.theme.primaryText)
-            Spacer()
-        }
-    }
-
-    private func settingsRow<Content: View>(
-        icon: String,
-        iconColor: Color,
-        title: String,
-        @ViewBuilder trailing: () -> Content
-    ) -> some View {
-        HStack(spacing: 16) {
-            Circle()
-                .fill(iconColor.opacity(0.2))
-                .frame(width: 34, height: 34)
-                .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 14))
-                        .foregroundColor(iconColor)
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.red.opacity(0.15), lineWidth: 1)
+                        )
                 )
+            }
+            .buttonStyle(SacredProfileButtonStyle())
+
+            Button(action: { showingDeleteConfirmation = true }) {
+                HStack {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                    Text("Delete Account")
+                        .font(.system(size: 13, weight: .light))
+                }
+                .foregroundColor(themeManager.theme.secondaryText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+        }
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: - Section Header
+    private func sacredSectionHeader(title: String) -> some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(sacredGold.opacity(0.4))
+                .frame(width: 20, height: 1)
 
             Text(title)
-                .font(.subheadline)
-                .foregroundColor(themeManager.theme.primaryText)
+                .font(.system(size: 11, weight: .medium))
+                .tracking(2)
+                .foregroundColor(themeManager.theme.secondaryText)
 
             Spacer()
+        }
+    }
 
-            trailing()
+    // MARK: - Animation
+    private func animateEntrance() {
+        for index in 0..<sectionAppeared.count {
+            withAnimation(.easeOut(duration: 0.5).delay(Double(index) * 0.08)) {
+                sectionAppeared[index] = true
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .contentShape(Rectangle())
     }
-    
-    // MARK: - Helper Methods
-    private func getRecentActivity() -> [ActivityItem] {
-        var activities: [ActivityItem] = []
-        
-        // Add current playing activity if any
-        if let currentSurah = audioPlayerService.currentSurah,
-           let currentReciter = audioPlayerService.currentReciter {
-            activities.append(ActivityItem(
-                id: "current",
-                type: .listened,
-                title: "Currently Playing: \(currentSurah.englishName)",
-                subtitle: currentReciter.englishName,
-                time: "Now",
-                icon: "play.circle.fill"
-            ))
+
+    // MARK: - Setup & Helpers
+    private func setupOnAppear() {
+        audioPlayerService.isAutoplayEnabled = autoPlayNextSurah
+
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+           let value = groupDefaults.object(forKey: "prayerRemindersEnabled") as? Bool {
+            prayerRemindersEnabled = value
         }
-        
-        // Add last played activity
-        if let lastPlayed = audioPlayerService.getLastPlayedInfo() {
-            activities.append(ActivityItem(
-                id: "last",
-                type: .listened,
-                title: "Last Played: \(lastPlayed.surah.englishName)",
-                subtitle: lastPlayed.reciter.englishName,
-                time: "Recently",
-                icon: "headphones"
-            ))
+
+        Task {
+            if dhikrRemindersEnabled && prayerNotificationService.hasNotificationPermission {
+                scheduleDhikrReminders()
+            }
         }
-        
-        // Add dhikr activity
-        let stats = dhikrService.getTodayStats()
-        if stats.total > 0 {
-            activities.append(ActivityItem(
-                id: "dhikr",
-                type: .dhikr,
-                title: "Completed \(stats.total) Dhikr",
-                subtitle: "Today's progress",
-                time: "Today",
-                icon: "heart.fill"
-            ))
-        }
-        
-        // If no activities, show placeholder
-        if activities.isEmpty {
-            activities.append(ActivityItem(
-                id: "placeholder",
-                type: .listened,
-                title: "No recent activity",
-                subtitle: "Start listening to see your activity",
-                time: "Never",
-                icon: "info.circle"
-            ))
-        }
-        
-        return activities
     }
-    
-    private func getCompletedSurahs() -> Int {
-        // For now, return a placeholder. In a real app, you'd track completed surahs
-        return UserDefaults.standard.integer(forKey: "completedSurahs")
-    }
-    
+
     private func getMostListenedReciter() -> String {
         let recentItems = RecentsManager.shared.recentItems
-        
-        // Count occurrences of each reciter
         var reciterCounts: [String: Int] = [:]
         for item in recentItems {
-            let reciterName = item.reciter.englishName
-            reciterCounts[reciterName, default: 0] += 1
+            reciterCounts[item.reciter.englishName, default: 0] += 1
         }
-        
-        // Find the most listened reciter
         if let mostListened = reciterCounts.max(by: { $0.value < $1.value }) {
-            if mostListened.value == 1 {
-                return mostListened.key
-            } else {
-                return "\(mostListened.key)"
-            }
+            return mostListened.key
         }
-
         return "None"
     }
-
-    // MARK: - Notification Handlers
 
     private func handlePrayerRemindersToggle(_ isEnabled: Bool) {
         Task {
             if isEnabled {
-                // Request notification permission if needed
                 let granted = await prayerNotificationService.requestNotificationPermission()
                 if granted {
-                    // Save to both UserDefaults and App Group
                     UserDefaults.standard.set(true, forKey: "prayerRemindersEnabled")
                     if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
                         groupDefaults.set(true, forKey: "prayerRemindersEnabled")
                         groupDefaults.synchronize()
                     }
-
-                    // Trigger immediate update via BackgroundRefreshService
                     await BackgroundRefreshService.shared.triggerManualRefresh(reason: "Prayer reminders enabled")
                 } else {
-                    // Permission denied, turn toggle back off
-                    await MainActor.run {
-                        prayerRemindersEnabled = false
-                    }
+                    await MainActor.run { prayerRemindersEnabled = false }
                 }
             } else {
-                // Save to both UserDefaults and App Group
                 UserDefaults.standard.set(false, forKey: "prayerRemindersEnabled")
                 if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
                     groupDefaults.set(false, forKey: "prayerRemindersEnabled")
                     groupDefaults.synchronize()
                 }
-
-                // Clear prayer reminders
                 prayerNotificationService.clearPrePrayerNotifications()
             }
         }
@@ -1104,34 +760,23 @@ struct ProfileView: View {
     private func handleDhikrRemindersToggle(_ isEnabled: Bool) {
         Task {
             if isEnabled {
-                // Request notification permission if needed
                 let granted = await prayerNotificationService.requestNotificationPermission()
                 if granted {
                     scheduleDhikrReminders()
                 } else {
-                    // Permission denied, turn toggle back off
-                    await MainActor.run {
-                        dhikrRemindersEnabled = false
-                    }
+                    await MainActor.run { dhikrRemindersEnabled = false }
                 }
             } else {
-                // Clear dhikr reminders
                 clearDhikrReminders()
             }
         }
     }
 
     private func scheduleDhikrReminders() {
-        // Schedule daily dhikr reminders at specific times
         let notificationCenter = UNUserNotificationCenter.current()
-
-        // Clear existing dhikr reminders first
         clearDhikrReminders()
 
-        // Get user's first name for personalization
         let firstName = getFirstName()
-
-        // Schedule 3 daily reminders
         let reminderTimes = [
             (hour: 9, minute: 0, message: firstName.isEmpty ? "Start your day with dhikr" : "\(firstName), start your day with dhikr"),
             (hour: 15, minute: 0, message: firstName.isEmpty ? "Take a moment for dhikr" : "\(firstName), take a moment for dhikr"),
@@ -1149,38 +794,20 @@ struct ProfileView: View {
             dateComponents.minute = time.minute
 
             let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-            let request = UNNotificationRequest(
-                identifier: "dhikr_reminder_\(index)",
-                content: content,
-                trigger: trigger
-            )
-
-            notificationCenter.add(request) { error in
-                if let error = error {
-                } else {
-                }
-            }
+            let request = UNNotificationRequest(identifier: "dhikr_reminder_\(index)", content: content, trigger: trigger)
+            notificationCenter.add(request)
         }
     }
 
     private func clearDhikrReminders() {
-        let notificationCenter = UNUserNotificationCenter.current()
-        let identifiers = ["dhikr_reminder_0", "dhikr_reminder_1", "dhikr_reminder_2"]
-        notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["dhikr_reminder_0", "dhikr_reminder_1", "dhikr_reminder_2"]
+        )
     }
 
-    // Helper to get first name for personalization
     private func getFirstName() -> String {
-        let fullName: String
-        if authService.isAuthenticated {
-            fullName = authService.currentUser?.displayName ?? ""
-        } else {
-            fullName = userDisplayName
-        }
-
-        // Extract first name
-        let components = fullName.components(separatedBy: " ")
-        return components.first ?? ""
+        let fullName = authService.isAuthenticated ? (authService.currentUser?.displayName ?? "") : userDisplayName
+        return fullName.components(separatedBy: " ").first ?? ""
     }
 
     private func requestAppReview() {
@@ -1189,29 +816,14 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - Account Deletion
     private func deleteAccount() async {
         do {
-
-            // Delete account from Firebase (Auth and Firestore only)
-            // Local data (dhikr counts, streaks, etc.) is preserved
             try await authService.deleteAccount()
-
-
         } catch {
-
-            // Handle re-authentication error
-            if let authError = error as NSError?, authError.domain == "FIRAuthErrorDomain" {
-                if authError.code == 17014 { // Requires recent login
-                    await MainActor.run {
-                        deleteErrorMessage = "For security, please sign out and sign back in, then try deleting your account again."
-                        showingDeleteError = true
-                    }
-                } else {
-                    await MainActor.run {
-                        deleteErrorMessage = "Failed to delete account: \(error.localizedDescription)"
-                        showingDeleteError = true
-                    }
+            if let authError = error as NSError?, authError.domain == "FIRAuthErrorDomain", authError.code == 17014 {
+                await MainActor.run {
+                    deleteErrorMessage = "For security, please sign out and sign back in, then try deleting your account again."
+                    showingDeleteError = true
                 }
             } else {
                 await MainActor.run {
@@ -1223,864 +835,569 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - Enhanced Supporting Views
+// MARK: - Sacred Profile Components
 
-// Theme Option Button
-struct ThemeOptionButton: View {
-    let theme: AppThemeStyle
-    let isSelected: Bool
-    let action: () -> Void
-    @StateObject private var themeManager = ThemeManager.shared
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Circle()
-                    .fill(themePreviewGradient)
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        Image(systemName: theme.icon)
-                            .font(.title3)
-                            .foregroundColor(.white)
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(isSelected ? themeManager.theme.primaryAccent : Color.clear, lineWidth: 3)
-                    )
-
-                Text(theme.rawValue)
-                    .font(.caption)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundColor(isSelected ? themeManager.theme.primaryAccent : themeManager.theme.secondaryText)
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    private var themePreviewGradient: LinearGradient {
-        switch theme {
-        case .auto:
-            return LinearGradient(
-                colors: [Color.white, Color.black],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        case .light:
-            return LinearGradient(
-                colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.1)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .dark:
-            return LinearGradient(
-                colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-}
-
-struct StatPill: View {
+struct SacredProfileStatCard: View {
     let value: String
     let label: String
-    let color: Color
-    let icon: String
-    
+    let accentColor: Color
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundColor(color)
-                
-                Text(value)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(color)
-            }
-            
+        VStack(spacing: 12) {
+            Text(value)
+                .font(.system(size: 32, weight: .ultraLight))
+                .foregroundColor(accentColor)
+                .contentTransition(.numericText())
+
             Text(label)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
+                .font(.system(size: 9, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(themeManager.theme.secondaryText)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(color.opacity(0.1))
+            RoundedRectangle(cornerRadius: 20)
+                .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(color.opacity(0.2), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(accentColor.opacity(0.15), lineWidth: 1)
                 )
         )
     }
 }
 
-struct EnhancedStatCard: View {
+struct SacredJourneyCard: View {
     let title: String
     let value: String
+    let subtitle: String
     let icon: String
-    let gradient: [Color]
-    let description: String
-    var isLarge: Bool = false
+    let accentColor: Color
+    var showProgress: Bool = false
+    var progress: Double = 0
     @StateObject private var themeManager = ThemeManager.shared
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: gradient,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Spacer()
-
-                if !isLarge {
-                    Circle()
-                        .fill(gradient[0].opacity(0.2))
-                        .frame(width: 8, height: 8)
-                }
-            }
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .light))
+                .foregroundColor(accentColor)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
-                    .font(isLarge ? .title : .title2)
-                    .fontWeight(.bold)
+                    .font(.system(size: 18, weight: .ultraLight))
                     .foregroundColor(themeManager.theme.primaryText)
-                    .lineLimit(isLarge ? 2 : 1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
 
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(themeManager.theme.primaryText)
 
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(themeManager.theme.secondaryText)
-                }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(themeManager.theme.cardBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [gradient[0].opacity(0.3), gradient[1].opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-        )
-        .gridCellColumns(isLarge ? 2 : 1)
-    }
-}
-
-// MARK: - Surahs Completed Card with Progress Bar
-struct SurahsCompletedCard: View {
-    let completedCount: Int
-    @StateObject private var themeManager = ThemeManager.shared
-
-    var progressPercentage: Int {
-        Int((Double(completedCount) / 114.0) * 100)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Spacer()
-
-                Circle()
-                    .fill(themeManager.theme.primaryAccent.opacity(0.2))
-                    .frame(width: 8, height: 8)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(completedCount)/114")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(themeManager.theme.primaryText)
-
-                Text("Surahs Completed")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(themeManager.theme.primaryText)
-
-                Text("Chapters finished")
-                    .font(.caption)
+                Text(subtitle)
+                    .font(.system(size: 10, weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
 
-            // Progress bar integrated inside card
-            VStack(alignment: .leading, spacing: 4) {
+            // Always reserve space for progress bar to maintain consistent height
+            GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    // Background
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(accentColor.opacity(showProgress ? 0.15 : 0))
+                        .frame(height: 4)
 
-                    // Progress
-                    GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(
-                                LinearGradient(
-                                    colors: [.green, .green.opacity(0.7)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(
-                                width: geometry.size.width * CGFloat(completedCount) / 114.0,
-                                height: 6
-                            )
+                    if showProgress {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(accentColor)
+                            .frame(width: geo.size.width * progress, height: 4)
                     }
                 }
-                .frame(height: 6)
-
-                // Percentage text
-                Text("\(progressPercentage)% Complete")
-                    .font(.caption2)
-                    .foregroundColor(themeManager.theme.secondaryText)
             }
+            .frame(height: 4)
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 120)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(themeManager.theme.cardBackground)
+                .fill(cardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [themeManager.theme.primaryAccent.opacity(0.3), themeManager.theme.primaryAccent.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+                        .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
     }
 }
 
-struct EnhancedQuickActionRow: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let gradient: [Color]
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        LinearGradient(
-                            colors: gradient,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: icon)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemBackground))
-                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
-        )
-    }
-}
-
-struct EnhancedActivityRow: View {
-    let activity: ActivityItem
-    
-    var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(getColor(for: activity.type).opacity(0.15))
-                    .frame(width: 36, height: 36)
-                
-                Image(systemName: activity.icon)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(getColor(for: activity.type))
-            }
-            
-            VStack(alignment: .leading, spacing: 3) {
-                Text(activity.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                
-                Text(activity.subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(activity.time)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                
-                Circle()
-                    .fill(getColor(for: activity.type))
-                    .frame(width: 4, height: 4)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemBackground))
-        )
-    }
-    
-    private func getColor(for type: ActivityType) -> Color {
-        switch type {
-        case .listened: return .blue
-        case .dhikr: return .green
-        case .completed: return .purple
-        }
-    }
-}
-
-// MARK: - Legacy Supporting Views (keeping for compatibility)
-struct StatCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                
-                Spacer()
-            }
-            
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding(16)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-struct QuickActionRow: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(color)
-                .frame(width: 24)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-struct ActivityRow: View {
-    let activity: ActivityItem
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: activity.icon)
-                .foregroundColor(getColor(for: activity.type))
-                .frame(width: 24)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(activity.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                Text(activity.subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Text(activity.time)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-    
-    private func getColor(for type: ActivityType) -> Color {
-        switch type {
-        case .listened: return .blue
-        case .dhikr: return .green
-        case .completed: return .purple
-        }
-    }
-}
-
-// MARK: - Activity Types
-enum ActivityType {
-    case listened
-    case dhikr
-    case completed
-}
-
-struct ActivityItem: Identifiable {
-    let id: String
-    let type: ActivityType
-    let title: String
-    let subtitle: String
-    let time: String
-    let icon: String
-}
-
-// MARK: - Interactive Streak Card
-struct InteractiveStreakCard: View {
+struct SacredStreakCard: View {
     @ObservedObject var dhikrService: DhikrService
     @Binding var showingHighest: Bool
-    @State private var isAnimating = false
+    let accentColor: Color
     @StateObject private var themeManager = ThemeManager.shared
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
 
     var body: some View {
         let streakInfo = dhikrService.getHighestStreakInfo()
         let currentValue = showingHighest ? streakInfo.highest : streakInfo.current
-        let currentTitle = showingHighest ? "Highest Streak" : "Current Streak"
-        let currentDescription = showingHighest ? streakInfo.achievement : "Days in a row"
+        let currentTitle = showingHighest ? "Best Streak" : "Current Streak"
 
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "flame.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.7)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .scaleEffect(isAnimating ? 1.2 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
+                Image(systemName: "flame")
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundColor(accentColor)
 
                 Spacer()
 
                 if showingHighest && streakInfo.isCurrentBest {
-                    Image(systemName: "crown.fill")
-                        .font(.caption)
-                        .foregroundColor(themeManager.theme.primaryAccent)
-                        .scaleEffect(isAnimating ? 1.1 : 1.0)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
-                } else {
-                    Circle()
-                        .fill(themeManager.theme.primaryAccent.opacity(0.2))
-                        .frame(width: 8, height: 8)
+                    Image(systemName: "crown")
+                        .font(.system(size: 10))
+                        .foregroundColor(accentColor)
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("\(currentValue)")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(themeManager.theme.primaryText)
-                        .contentTransition(.numericText())
-
-                    if showingHighest && streakInfo.current > 0 && !streakInfo.isCurrentBest {
-                        Text("(Current: \(streakInfo.current))")
-                            .font(.caption)
-                            .foregroundColor(themeManager.theme.secondaryText)
-                            .transition(.opacity.combined(with: .scale))
-                    }
-                }
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingHighest)
+                Text("\(currentValue)")
+                    .font(.system(size: 18, weight: .ultraLight))
+                    .foregroundColor(themeManager.theme.primaryText)
+                    .contentTransition(.numericText())
 
                 Text(currentTitle)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(themeManager.theme.primaryText)
-                    .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: showingHighest)
 
-                Text(currentDescription)
-                    .font(.caption)
+                Text("Tap to toggle")
+                    .font(.system(size: 10, weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
-                    .lineLimit(2)
-                    .contentTransition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: showingHighest)
             }
 
-            // Tap indicator
-            HStack {
-                Spacer()
-                Text(showingHighest ? "Tap for current" : "Tap for highest")
-                    .font(.caption2)
-                    .foregroundColor(themeManager.theme.secondaryText)
-                    .opacity(0.7)
-            }
+            // Spacer for consistent height with other cards
+            Spacer(minLength: 0)
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 120)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(themeManager.theme.cardBackground)
+                .fill(cardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [themeManager.theme.primaryAccent.opacity(0.3), themeManager.theme.primaryAccent.opacity(0.1)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+                        .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
         .onTapGesture {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            withAnimation(.easeInOut(duration: 0.3)) {
                 showingHighest.toggle()
-                isAnimating = true
             }
-            
-            // Reset animation state
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                isAnimating = false
-            }
-            
-            // Haptic feedback
-            HapticManager.shared.impact(.medium)
+            HapticManager.shared.impact(.light)
         }
     }
 }
 
-// MARK: - Enhanced Settings View with Theme Switcher
-struct SettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var themeManager = ThemeManager.shared
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                // Theme Section
-                Section {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Choose your theme")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        HStack(spacing: 16) {
-                            ForEach(AppThemeStyle.allCases, id: \.self) { theme in
-                                ThemePreviewCard(
-                                    theme: theme,
-                                    isSelected: themeManager.currentTheme == theme,
-                                    action: {
-                                        withAnimation(.spring()) {
-                                            themeManager.currentTheme = theme
-                                        }
-                                    }
-                                )
-                                .frame(maxWidth: .infinity)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                    }
-                    .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
-                    .listRowBackground(Color.clear)
-                } header: {
-                    HStack {
-                        Image(systemName: "paintbrush.fill")
-                            .foregroundColor(.blue)
-                        Text("Theme")
-                    }
-                }
-
-                Section("Audio") {
-                    HStack {
-                        Image(systemName: "speaker.wave.2.fill")
-                            .foregroundColor(.blue)
-                            .frame(width: 24)
-                        Text("Auto-play next surah")
-                        Spacer()
-                        Toggle("", isOn: .constant(true))
-                            .labelsHidden()
-                    }
-                    
-                    HStack {
-                        Image(systemName: "moon.fill")
-                            .foregroundColor(.purple)
-                            .frame(width: 24)
-                        Text("Sleep timer")
-                        Spacer()
-                        Text("Off")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Section("Notifications") {
-                    HStack {
-                        Image(systemName: "bell.fill")
-                            .foregroundColor(.orange)
-                            .frame(width: 24)
-                        Text("Prayer reminders")
-                        Spacer()
-                        Toggle("", isOn: .constant(true))
-                            .labelsHidden()
-                    }
-                    
-                    HStack {
-                        Image(systemName: "sparkles")
-                            .foregroundColor(.green)
-                            .frame(width: 24)
-                        Text("Dhikr reminders")
-                        Spacer()
-                        Toggle("", isOn: .constant(false))
-                            .labelsHidden()
-                    }
-                }
-                
-                Section("About") {
-                    HStack {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundColor(.gray)
-                            .frame(width: 24)
-                        Text("Version")
-                        Spacer()
-                        Text("2.0.0")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Image(systemName: "envelope.fill")
-                            .foregroundColor(.blue)
-                            .frame(width: 24)
-                        Text("Contact Support")
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
-                            .frame(width: 24)
-                        Text("Rate Us")
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Completed Surah Badge
-struct CompletedSurahBadge: View {
+struct SacredSurahChip: View {
     let surahNumber: Int
-    @State private var surahName: String = ""
+    let accentColor: Color
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(accentColor)
+
+            Text("\(surahNumber)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(themeManager.theme.primaryText)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(cardBackground)
+                .overlay(
+                    Capsule()
+                        .stroke(accentColor.opacity(0.25), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct SacredBenefitRow: View {
+    let icon: String
+    let text: String
+    let accentColor: Color
     @StateObject private var themeManager = ThemeManager.shared
 
     var body: some View {
-        VStack(spacing: 8) {
-            // Number circle with checkmark
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.green, .green.opacity(0.7)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 60, height: 60)
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundColor(accentColor)
+                .frame(width: 20)
 
-                VStack(spacing: 2) {
-                    Text("\(surahNumber)")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
+            Text(text)
+                .font(.system(size: 13, weight: .light))
+                .foregroundColor(themeManager.theme.primaryText)
 
-                    Image(systemName: "checkmark")
-                        .font(.caption2)
-                        .foregroundColor(.white)
-                }
-            }
-            .shadow(color: .green.opacity(0.3), radius: 4, x: 0, y: 2)
-
-            // Surah name
-            if !surahName.isEmpty {
-                Text(surahName)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .frame(maxWidth: 70)
-            } else {
-                Text("Surah \(surahNumber)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(width: 80)
-        .task {
-            await loadSurahName()
-        }
-    }
-
-    private func loadSurahName() async {
-        do {
-            let surahs = try await QuranAPIService.shared.fetchSurahs()
-            if let surah = surahs.first(where: { $0.number == surahNumber }) {
-                await MainActor.run {
-                    surahName = surah.englishName
-                }
-            }
-        } catch {
-            // Silently fail, will show "Surah X" as fallback
+            Spacer()
         }
     }
 }
 
-// MARK: - Completed Surahs List View
-struct CompletedSurahsListView: View {
+struct SacredPreferenceGroup<Content: View>: View {
+    let title: String
+    let content: () -> Content
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(themeManager.theme.secondaryText)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
+                    )
+            )
+        }
+    }
+}
+
+struct SacredThemeSelector: View {
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var selectorBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(AppThemeStyle.allCases, id: \.self) { theme in
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        themeManager.currentTheme = theme
+                    }
+                    HapticManager.shared.impact(.light)
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: theme.icon)
+                            .font(.system(size: 11, weight: .medium))
+
+                        Text(theme.rawValue)
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(themeManager.currentTheme == theme ? .white : themeManager.theme.secondaryText)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(themeManager.currentTheme == theme ? sacredGold : Color.clear)
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(selectorBackground)
+        )
+        .padding(12)
+    }
+}
+
+struct SacredToggleRow: View {
+    let icon: String
+    let title: String
+    @Binding var isOn: Bool
+    let accentColor: Color
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        HStack(spacing: 14) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(accentColor.opacity(0.1))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(accentColor)
+                )
+
+            Text(title)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(themeManager.theme.primaryText)
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(accentColor)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+}
+
+struct SacredInfoRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let accentColor: Color
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        HStack(spacing: 14) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(accentColor.opacity(0.1))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(accentColor)
+                )
+
+            Text(title)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(themeManager.theme.primaryText)
+
+            Spacer()
+
+            Text(value)
+                .font(.system(size: 13, weight: .light))
+                .foregroundColor(themeManager.theme.secondaryText)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+}
+
+struct SacredActionRow: View {
+    let icon: String
+    let title: String
+    let accentColor: Color
+    @StateObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        HStack(spacing: 14) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(accentColor.opacity(0.1))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(accentColor)
+                )
+
+            Text(title)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(themeManager.theme.primaryText)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11))
+                .foregroundColor(themeManager.theme.secondaryText)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+}
+
+struct SacredDivider: View {
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(pageBackground)
+            .frame(height: 1)
+            .padding(.leading, 60)
+    }
+}
+
+struct SacredProfileButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Sacred Completed Surahs List View
+struct SacredCompletedSurahsListView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @StateObject private var themeManager = ThemeManager.shared
+    @State private var allSurahs: [Surah] = []
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var completedSurahs: [Surah] {
+        allSurahs.filter { audioPlayerService.completedSurahNumbers.contains($0.number) }
+    }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                // Header stats
-                VStack(spacing: 8) {
-                    Text("\(audioPlayerService.completedSurahNumbers.count)")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(themeManager.theme.primaryAccent)
+            LazyVStack(spacing: 12) {
+                if completedSurahs.isEmpty {
+                    VStack(spacing: 20) {
+                        Circle()
+                            .fill(sacredGold.opacity(0.1))
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Image(systemName: "checkmark.seal")
+                                    .font(.system(size: 32, weight: .light))
+                                    .foregroundColor(sacredGold.opacity(0.5))
+                            )
 
-                    Text("Surahs Completed")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                        VStack(spacing: 8) {
+                            Text("No completed surahs yet")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(themeManager.theme.primaryText)
 
-                    Text("\(Int((Double(audioPlayerService.completedSurahNumbers.count) / 114.0) * 100))% of the Quran")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 20)
-                .padding(.bottom, 32)
+                            Text("Complete listening to a surah to see it here")
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(themeManager.theme.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .padding(.top, 80)
+                } else {
+                    ForEach(completedSurahs) { surah in
+                        HStack(spacing: 14) {
+                            // Number circle
+                            Circle()
+                                .fill(sacredGold.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Text("\(surah.number)")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(sacredGold)
+                                )
 
-                // Surah grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
-                    ForEach(Array(audioPlayerService.completedSurahNumbers).sorted(), id: \.self) { surahNumber in
-                        CompletedSurahBadge(surahNumber: surahNumber)
+                            // Info
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(surah.englishName)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(themeManager.theme.primaryText)
+
+                                Text("\(surah.revelationType) • \(surah.numberOfAyahs) Ayahs")
+                                    .font(.system(size: 12, weight: .light))
+                                    .foregroundColor(themeManager.theme.secondaryText)
+                            }
+
+                            Spacer()
+
+                            // Checkmark
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(softGreen)
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(cardBackground)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(softGreen.opacity(0.15), lineWidth: 1)
+                                )
+                        )
                     }
                 }
-                .padding(.horizontal, 20)
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
         }
+        .background(pageBackground.ignoresSafeArea())
         .navigationTitle("Completed Surahs")
-        .navigationBarTitleDisplayMode(.inline)
-        .background(themeManager.theme.cardBackground)
+        .navigationBarTitleDisplayMode(.large)
+        .task {
+            await loadSurahs()
+        }
+    }
+
+    private func loadSurahs() async {
+        do {
+            allSurahs = try await QuranAPIService.shared.fetchSurahs()
+        } catch {
+            print("Failed to load surahs: \(error)")
+        }
     }
 }
 
-struct ProfileView_Previews: PreviewProvider {
-    static var previews: some View {
+#Preview {
+    NavigationView {
         ProfileView()
             .environmentObject(DhikrService.shared)
             .environmentObject(AudioPlayerService.shared)
             .environmentObject(BluetoothService())
-            .environmentObject(LocationService())
+            .environmentObject(AuthenticationService.shared)
     }
-} 
+}

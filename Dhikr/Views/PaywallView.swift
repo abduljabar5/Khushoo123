@@ -2,7 +2,7 @@
 //  PaywallView.swift
 //  Dhikr
 //
-//  Premium subscription paywall
+//  Premium subscription paywall - Sacred Minimalism redesign
 //
 
 import SwiftUI
@@ -10,49 +10,100 @@ import StoreKit
 
 struct PaywallView: View {
     @StateObject private var subscriptionService = SubscriptionService.shared
+    @StateObject private var referralService = ReferralCodeService.shared
     @StateObject private var themeManager = ThemeManager.shared
     @EnvironmentObject var authService: AuthenticationService
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedProduct: Product?
     @State private var showingRestoreAlert = false
+    @State private var showReferralInput = false
+    @State private var referralCodeText = ""
+    @FocusState private var isReferralFieldFocused: Bool
 
-    private var theme: AppTheme { themeManager.theme }
+    // Sacred colors
+    private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
+    private var softGreen: Color { Color(red: 0.55, green: 0.68, blue: 0.55) }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var subtleText: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(white: 0.5)
+            : Color(white: 0.45)
+    }
+
+    private var displayMonthlyProduct: Product? {
+        referralService.hasValidReferralCode
+            ? subscriptionService.monthlyReferralProduct
+            : subscriptionService.monthlyProduct
+    }
+
+    private var displayYearlyProduct: Product? {
+        referralService.hasValidReferralCode
+            ? subscriptionService.yearlyReferralProduct
+            : subscriptionService.yearlyProduct
+    }
+
+    private var trialDurationText: String {
+        referralService.hasValidReferralCode ? "7-Day" : "3-Day"
+    }
 
     var body: some View {
         ZStack {
-            // Background
-            theme.primaryBackground
-                .ignoresSafeArea()
+            pageBackground.ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 32) {
+                VStack(spacing: 28) {
                     // Header
                     VStack(spacing: 16) {
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.yellow, .orange],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                        // Sacred crown icon
+                        ZStack {
+                            Circle()
+                                .fill(cardBackground)
+                                .frame(width: 90, height: 90)
+                                .overlay(
+                                    Circle()
+                                        .stroke(sacredGold.opacity(0.4), lineWidth: 1)
                                 )
-                            )
 
-                        Text("Unlock Premium")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(theme.primaryText)
+                            Image(systemName: "crown")
+                                .font(.system(size: 36, weight: .ultraLight))
+                                .foregroundColor(sacredGold)
+                        }
 
-                        Text("Get full access to all features")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundColor(theme.secondaryText)
+                        VStack(spacing: 8) {
+                            Text("PREMIUM")
+                                .font(.system(size: 11, weight: .medium))
+                                .tracking(3)
+                                .foregroundColor(subtleText)
+
+                            Text("Unlock Full Access")
+                                .font(.system(size: 28, weight: .light))
+                                .foregroundColor(themeManager.theme.primaryText)
+
+                            Text("Everything you need for your spiritual journey")
+                                .font(.system(size: 14))
+                                .foregroundColor(subtleText)
+                                .multilineTextAlignment(.center)
+                        }
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 50)
 
                     // Features List
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         ForEach(PremiumFeature.allCases, id: \.self) { feature in
-                            FeatureRow(feature: feature, theme: theme)
+                            SacredFeatureRow(feature: feature, sacredGold: sacredGold, softGreen: softGreen, cardBackground: cardBackground, subtleText: subtleText, primaryText: themeManager.theme.primaryText)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -62,36 +113,123 @@ struct PaywallView: View {
                         if subscriptionService.availableProducts.isEmpty {
                             VStack(spacing: 12) {
                                 ProgressView()
-                                    .tint(theme.primaryAccent)
-                                Text("Loading subscription options...")
-                                    .font(.caption)
-                                    .foregroundColor(theme.secondaryText)
+                                    .tint(sacredGold)
+                                Text("Loading options...")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(subtleText)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 40)
                         } else {
-                            if let yearly = subscriptionService.yearlyProduct {
-                                SubscriptionCard(
+                            if let yearly = displayYearlyProduct {
+                                SacredSubscriptionCard(
                                     product: yearly,
                                     isSelected: selectedProduct?.id == yearly.id,
                                     badge: "BEST VALUE",
                                     savings: "Save 33%",
-                                    theme: theme
+                                    sacredGold: sacredGold,
+                                    softGreen: softGreen,
+                                    cardBackground: cardBackground,
+                                    subtleText: subtleText,
+                                    primaryText: themeManager.theme.primaryText
                                 ) {
                                     selectedProduct = yearly
                                 }
                             }
 
-                            if let monthly = subscriptionService.monthlyProduct {
-                                SubscriptionCard(
+                            if let monthly = displayMonthlyProduct {
+                                SacredSubscriptionCard(
                                     product: monthly,
                                     isSelected: selectedProduct?.id == monthly.id,
                                     badge: nil,
                                     savings: nil,
-                                    theme: theme
+                                    sacredGold: sacredGold,
+                                    softGreen: softGreen,
+                                    cardBackground: cardBackground,
+                                    subtleText: subtleText,
+                                    primaryText: themeManager.theme.primaryText
                                 ) {
                                     selectedProduct = monthly
                                 }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+
+                    // Referral Code Section
+                    VStack(spacing: 12) {
+                        if showReferralInput {
+                            HStack(spacing: 12) {
+                                TextField("Enter code", text: $referralCodeText)
+                                    .textFieldStyle(PlainTextFieldStyle())
+                                    .autocapitalization(.allCharacters)
+                                    .disableAutocorrection(true)
+                                    .font(.system(size: 15))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(cardBackground)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                            )
+                                    )
+                                    .focused($isReferralFieldFocused)
+
+                                Button(action: {
+                                    Task {
+                                        let isValid = await referralService.validateCode(referralCodeText)
+                                        if isValid {
+                                            selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
+                                            isReferralFieldFocused = false
+                                        }
+                                    }
+                                }) {
+                                    if referralService.isValidating {
+                                        ProgressView()
+                                            .frame(width: 70, height: 44)
+                                    } else {
+                                        Text("Apply")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .frame(width: 70, height: 44)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .fill(sacredGold)
+                                            )
+                                    }
+                                }
+                                .disabled(referralCodeText.isEmpty || referralService.isValidating)
+                            }
+
+                            if let error = referralService.validationError {
+                                Text(error)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(red: 0.9, green: 0.4, blue: 0.4))
+                            }
+
+                            if referralService.hasValidReferralCode {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(softGreen)
+                                    Text("Code applied! You get a 7-day free trial.")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(softGreen)
+                                }
+                            }
+                        } else {
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showReferralInput = true
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    isReferralFieldFocused = true
+                                }
+                            }) {
+                                Text("Have a referral code?")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(sacredGold)
                             }
                         }
                     }
@@ -103,6 +241,7 @@ struct PaywallView: View {
                             Task {
                                 await subscriptionService.purchase(product)
                                 if case .success = subscriptionService.purchaseState {
+                                    referralService.clearCode()
                                     dismiss()
                                 }
                             }
@@ -112,21 +251,15 @@ struct PaywallView: View {
                                     ProgressView()
                                         .tint(.white)
                                 } else {
-                                    Text("Start Free Trial")
-                                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    Text("Start \(trialDurationText) Free Trial")
+                                        .font(.system(size: 16, weight: .medium))
                                         .foregroundColor(.white)
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(
-                                LinearGradient(
-                                    colors: [theme.primaryAccent, theme.primaryAccent.opacity(0.8)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
+                            .padding(.vertical, 16)
+                            .background(sacredGold)
+                            .cornerRadius(12)
                         }
                         .disabled(subscriptionService.purchaseState == .purchasing)
                         .padding(.horizontal, 20)
@@ -137,7 +270,6 @@ struct PaywallView: View {
                         Button("Restore Purchases") {
                             Task {
                                 await subscriptionService.restorePurchases()
-                                // FIX: Auto-dismiss if premium was restored successfully
                                 if subscriptionService.hasPremiumAccess {
                                     dismiss()
                                 } else {
@@ -145,24 +277,20 @@ struct PaywallView: View {
                                 }
                             }
                         }
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.secondaryText)
+                        .font(.system(size: 14))
+                        .foregroundColor(subtleText)
 
                         Text("Auto-renews. Cancel anytime.")
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
-                            .foregroundColor(theme.tertiaryText)
+                            .font(.system(size: 12))
+                            .foregroundColor(subtleText.opacity(0.7))
 
-                        // Legal Links (Required by App Store)
                         HStack(spacing: 16) {
                             Link("Privacy Policy", destination: URL(string: "https://abduljabar5.github.io/Khushoo_site/#/privacy")!)
-
-                            Text("•")
-                                .foregroundColor(theme.tertiaryText)
-
+                            Text("•").foregroundColor(subtleText.opacity(0.5))
                             Link("Terms of Use", destination: URL(string: "https://abduljabar5.github.io/Khushoo_site/#/terms")!)
                         }
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.secondaryText)
+                        .font(.system(size: 12))
+                        .foregroundColor(subtleText)
                     }
                     .padding(.bottom, 40)
                 }
@@ -175,11 +303,15 @@ struct PaywallView: View {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(theme.secondaryText)
+                            .foregroundColor(subtleText)
                             .frame(width: 32, height: 32)
                             .background(
                                 Circle()
-                                    .fill(theme.cardBackground)
+                                    .fill(cardBackground)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    )
                             )
                     }
                     .padding(.trailing, 20)
@@ -198,173 +330,169 @@ struct PaywallView: View {
             }
         }
         .onAppear {
-            // Load products if not already loaded
             Task {
                 if subscriptionService.availableProducts.isEmpty {
                     await subscriptionService.loadProducts()
                 }
-                // Pre-select yearly plan after products load
-                selectedProduct = subscriptionService.yearlyProduct ?? subscriptionService.monthlyProduct
+                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
             }
         }
         .onChange(of: subscriptionService.availableProducts) { products in
-            // Auto-select yearly product when products load
             if selectedProduct == nil && !products.isEmpty {
-                selectedProduct = subscriptionService.yearlyProduct ?? subscriptionService.monthlyProduct
+                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
+            }
+        }
+        .onChange(of: referralService.hasValidReferralCode) { hasCode in
+            if hasCode {
+                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
             }
         }
     }
 }
 
-// MARK: - Feature Row
-struct FeatureRow: View {
+// MARK: - Sacred Feature Row
+struct SacredFeatureRow: View {
     let feature: PremiumFeature
-    let theme: AppTheme
+    let sacredGold: Color
+    let softGreen: Color
+    let cardBackground: Color
+    let subtleText: Color
+    let primaryText: Color
 
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: feature.icon)
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(theme.primaryAccent)
-                .frame(width: 50, height: 50)
-                .background(
-                    Circle()
-                        .fill(theme.primaryAccent.opacity(0.15))
-                )
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(sacredGold.opacity(0.12))
+                    .frame(width: 44, height: 44)
 
-            VStack(alignment: .leading, spacing: 4) {
+                Image(systemName: feature.icon)
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundColor(sacredGold)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text(feature.rawValue)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.primaryText)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(primaryText)
 
                 Text(feature.description)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
-                    .foregroundColor(theme.secondaryText)
+                    .font(.system(size: 13))
+                    .foregroundColor(subtleText)
                     .lineLimit(2)
             }
 
             Spacer()
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 20))
-                .foregroundColor(theme.accentGreen)
+            Image(systemName: "checkmark")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(softGreen)
         }
-        .padding(16)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(theme.cardBackground)
-                .shadow(color: theme.shadowColor.opacity(0.1), radius: 5)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
         )
     }
 }
 
-// MARK: - Subscription Card
-struct SubscriptionCard: View {
+// MARK: - Sacred Subscription Card
+struct SacredSubscriptionCard: View {
     let product: Product
     let isSelected: Bool
     let badge: String?
     let savings: String?
-    let theme: AppTheme
+    let sacredGold: Color
+    let softGreen: Color
+    let cardBackground: Color
+    let subtleText: Color
+    let primaryText: Color
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 0) {
-                // Badge
                 if let badge = badge {
                     HStack {
                         Spacer()
                         Text(badge)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .font(.system(size: 10, weight: .medium))
+                            .tracking(1)
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 5)
                             .background(
                                 Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [.yellow, .orange],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
+                                    .fill(sacredGold)
                             )
                         Spacer()
                     }
-                    .offset(y: -8)
+                    .offset(y: -6)
                 }
 
-                // Card Content
                 HStack {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(product.displayName)
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundColor(theme.primaryText)
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(primaryText)
 
                         if let savings = savings {
                             Text(savings)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundColor(theme.accentGreen)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(softGreen)
                         }
 
                         if let period = product.subscription?.subscriptionPeriod {
                             Text(formatPeriod(period))
-                                .font(.system(size: 13, weight: .regular, design: .rounded))
-                                .foregroundColor(theme.secondaryText)
+                                .font(.system(size: 13))
+                                .foregroundColor(subtleText)
                         }
                     }
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: 4) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text(product.displayPrice)
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(theme.primaryText)
+                            .font(.system(size: 22, weight: .light))
+                            .foregroundColor(primaryText)
 
                         if let period = product.subscription?.subscriptionPeriod {
                             Text("per \(periodUnit(period))")
-                                .font(.system(size: 12, weight: .regular, design: .rounded))
-                                .foregroundColor(theme.secondaryText)
+                                .font(.system(size: 11))
+                                .foregroundColor(subtleText)
                         }
                     }
 
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 24))
-                        .foregroundColor(isSelected ? theme.primaryAccent : theme.tertiaryText)
+                    Circle()
+                        .stroke(isSelected ? sacredGold : subtleText.opacity(0.3), lineWidth: isSelected ? 6 : 1.5)
+                        .frame(width: 22, height: 22)
+                        .padding(.leading, 12)
                 }
-                .padding(20)
+                .padding(18)
             }
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.cardBackground)
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(cardBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(
-                                isSelected ? theme.primaryAccent : Color.clear,
-                                lineWidth: 2
-                            )
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(isSelected ? sacredGold.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
                     )
-                    .shadow(color: isSelected ? theme.primaryAccent.opacity(0.3) : theme.shadowColor.opacity(0.1), radius: 8)
             )
         }
         .buttonStyle(PlainButtonStyle())
     }
 
     private func formatPeriod(_ period: Product.SubscriptionPeriod) -> String {
-        let unit = period.unit
-        let value = period.value
-
-        switch unit {
-        case .day:
-            return value == 1 ? "Daily" : "\(value) days"
-        case .week:
-            return value == 1 ? "Weekly" : "\(value) weeks"
-        case .month:
-            return value == 1 ? "Monthly" : "\(value) months"
-        case .year:
-            return value == 1 ? "Yearly" : "\(value) years"
-        @unknown default:
-            return "Subscription"
+        switch period.unit {
+        case .day: return period.value == 1 ? "Daily" : "\(period.value) days"
+        case .week: return period.value == 1 ? "Weekly" : "\(period.value) weeks"
+        case .month: return period.value == 1 ? "Monthly" : "\(period.value) months"
+        case .year: return period.value == 1 ? "Yearly" : "\(period.value) years"
+        @unknown default: return "Subscription"
         }
     }
 

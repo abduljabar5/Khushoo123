@@ -2,11 +2,15 @@
 //  ModernAuthView.swift
 //  Dhikr
 //
-//  Modern unified authentication flow
+//  Sacred Minimalism unified authentication flow
 //
 
 import SwiftUI
 import AuthenticationServices
+
+// Sacred colors
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
 
 enum AuthMethod {
     case apple
@@ -28,42 +32,68 @@ struct ModernAuthView: View {
     @State private var showPassword = false
     @State private var errorMessage: String?
 
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var subtleText: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(white: 0.5)
+            : Color(white: 0.45)
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
-                // Background
-                themeManager.theme.primaryBackground
-                    .ignoresSafeArea()
+                pageBackground.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 32) {
                         // Header
-                        VStack(spacing: 12) {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 70))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [themeManager.theme.primaryAccent, themeManager.theme.secondaryAccent],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
+                        VStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(cardBackground)
+                                    .frame(width: 90, height: 90)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
                                     )
-                                )
 
-                            Text("Welcome")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .foregroundColor(themeManager.theme.primaryText)
+                                Image(systemName: "person.crop.circle")
+                                    .font(.system(size: 40, weight: .ultraLight))
+                                    .foregroundColor(sacredGold)
+                            }
 
-                            Text("Sign in or create an account to continue")
-                                .font(.subheadline)
-                                .foregroundColor(themeManager.theme.secondaryText)
-                                .multilineTextAlignment(.center)
+                            VStack(spacing: 8) {
+                                Text("WELCOME")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(3)
+                                    .foregroundColor(subtleText)
+
+                                Text("Sign In")
+                                    .font(.system(size: 28, weight: .light))
+                                    .foregroundColor(themeManager.theme.primaryText)
+
+                                Text("Sign in or create an account to continue")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(subtleText)
+                                    .multilineTextAlignment(.center)
+                            }
                         }
                         .padding(.top, 40)
 
                         // Auth Method Buttons
                         if selectedMethod == .none {
-                            VStack(spacing: 16) {
+                            VStack(spacing: 14) {
                                 // Apple Sign In
                                 SignInWithAppleButton(.signIn) { request in
                                     let nonce = authService.randomNonceString()
@@ -74,16 +104,15 @@ struct ModernAuthView: View {
                                     handleAppleSignIn(result)
                                 }
                                 .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                                .frame(height: 56)
-                                .cornerRadius(16)
-                                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                .frame(height: 52)
+                                .cornerRadius(12)
 
                                 // Email Option
-                                SocialAuthButton(
-                                    icon: "envelope.fill",
+                                SacredAuthButton(
+                                    icon: "envelope",
                                     title: "Continue with Email",
-                                    backgroundColor: themeManager.theme.primaryAccent,
-                                    foregroundColor: .white
+                                    accentColor: sacredGold,
+                                    cardBackground: cardBackground
                                 ) {
                                     withAnimation(.spring(response: 0.3)) {
                                         selectedMethod = .email
@@ -104,28 +133,28 @@ struct ModernAuthView: View {
                                             errorMessage = nil
                                         }
                                     }) {
-                                        HStack(spacing: 8) {
+                                        HStack(spacing: 6) {
                                             Image(systemName: "chevron.left")
+                                                .font(.system(size: 12, weight: .medium))
                                             Text("Other options")
+                                                .font(.system(size: 13))
                                         }
-                                        .font(.subheadline)
-                                        .foregroundColor(themeManager.theme.primaryAccent)
+                                        .foregroundColor(sacredGold)
                                     }
                                     Spacer()
                                 }
                                 .padding(.horizontal, 24)
 
-                                VStack(spacing: 16) {
-                                    // Name Field (shown always for unified flow)
+                                VStack(spacing: 14) {
                                     CustomTextField(
-                                        icon: "person.fill",
+                                        icon: "person",
                                         placeholder: "Full Name (required for new accounts)",
                                         text: $displayName,
                                         theme: themeManager.theme
                                     )
 
                                     CustomTextField(
-                                        icon: "envelope.fill",
+                                        icon: "envelope",
                                         placeholder: "Email",
                                         text: $email,
                                         keyboardType: .emailAddress,
@@ -133,7 +162,7 @@ struct ModernAuthView: View {
                                     )
 
                                     CustomSecureField(
-                                        icon: "lock.fill",
+                                        icon: "lock",
                                         placeholder: "Password (min. 6 characters)",
                                         text: $password,
                                         showPassword: $showPassword,
@@ -144,45 +173,35 @@ struct ModernAuthView: View {
 
                                 if let errorMessage = errorMessage {
                                     Text(errorMessage)
-                                        .font(.caption)
-                                        .foregroundColor(.red)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(red: 0.9, green: 0.4, blue: 0.4))
                                         .padding(.horizontal, 24)
                                 }
 
                                 // Continue Button
                                 Button(action: continueWithEmail) {
-                                    HStack(spacing: 12) {
+                                    HStack(spacing: 10) {
                                         if authService.isLoading {
                                             ProgressView()
                                                 .tint(.white)
                                         } else {
-                                            Image(systemName: "arrow.right.circle.fill")
-                                                .font(.title3)
+                                            Text("Continue")
+                                                .font(.system(size: 15, weight: .medium))
                                         }
-
-                                        Text("Continue")
-                                            .fontWeight(.semibold)
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 16)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [themeManager.theme.primaryAccent, themeManager.theme.primaryAccent.opacity(0.8)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
+                                    .background(sacredGold)
                                     .foregroundColor(.white)
-                                    .cornerRadius(16)
-                                    .shadow(color: themeManager.theme.primaryAccent.opacity(0.3), radius: 8, x: 0, y: 4)
+                                    .cornerRadius(12)
                                 }
                                 .disabled(authService.isLoading || email.isEmpty || password.isEmpty)
-                                .opacity((authService.isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
+                                .opacity((authService.isLoading || email.isEmpty || password.isEmpty) ? 0.5 : 1.0)
                                 .padding(.horizontal, 24)
 
                                 Text("We'll automatically create an account if you don't have one")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.theme.tertiaryText)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(subtleText)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 24)
                             }
@@ -199,11 +218,11 @@ struct ModernAuthView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .foregroundColor(themeManager.theme.primaryAccent)
+                    .font(.system(size: 15))
+                    .foregroundColor(sacredGold)
                 }
             }
             .onAppear {
-                // Pre-fill display name from AppStorage if available
                 if !userDisplayName.isEmpty && displayName.isEmpty {
                     displayName = userDisplayName
                 }
@@ -255,34 +274,32 @@ struct ModernAuthView: View {
     }
 }
 
-// MARK: - Social Auth Button
-struct SocialAuthButton: View {
+// MARK: - Sacred Auth Button
+struct SacredAuthButton: View {
     let icon: String
     let title: String
-    let backgroundColor: Color
-    let foregroundColor: Color
-    var borderColor: Color? = nil
+    let accentColor: Color
+    let cardBackground: Color
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.title3)
+                    .font(.system(size: 16, weight: .light))
 
                 Text(title)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 15, weight: .medium))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(backgroundColor)
-            .foregroundColor(foregroundColor)
-            .cornerRadius(16)
+            .background(cardBackground)
+            .foregroundColor(accentColor)
+            .cornerRadius(12)
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(borderColor ?? Color.clear, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
     }

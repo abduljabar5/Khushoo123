@@ -17,6 +17,7 @@ struct UnblockEntry: TimelineEntry {
     let nextPrayerName: String?
     let nextPrayerTime: Date?
     let unlockAvailableAt: Date?
+    let isPremium: Bool
 }
 
 enum UnblockState {
@@ -29,7 +30,7 @@ enum UnblockState {
 
 struct UnblockProvider: TimelineProvider {
     func placeholder(in context: Context) -> UnblockEntry {
-        UnblockEntry(date: Date(), state: .idle, nextPrayerName: "Fajr", nextPrayerTime: Date().addingTimeInterval(3600), unlockAvailableAt: nil)
+        UnblockEntry(date: Date(), state: .idle, nextPrayerName: "Fajr", nextPrayerTime: Date().addingTimeInterval(3600), unlockAvailableAt: nil, isPremium: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (UnblockEntry) -> ()) {
@@ -39,10 +40,10 @@ struct UnblockProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<UnblockEntry>) -> ()) {
         let entry = createEntry()
-        
+
         var entries = [entry]
         var policy: TimelineReloadPolicy = .atEnd
-        
+
         // If waiting, schedule a refresh when the timer ends
         if entry.state == .waiting, let unlockTime = entry.unlockAvailableAt {
             let readyEntry = UnblockEntry(
@@ -50,7 +51,8 @@ struct UnblockProvider: TimelineProvider {
                 state: .ready,
                 nextPrayerName: entry.nextPrayerName,
                 nextPrayerTime: entry.nextPrayerTime,
-                unlockAvailableAt: unlockTime
+                unlockAvailableAt: unlockTime,
+                isPremium: entry.isPremium
             )
             entries.append(readyEntry)
             policy = .after(unlockTime)
@@ -61,15 +63,24 @@ struct UnblockProvider: TimelineProvider {
             // Refresh every 15 mins if idle
             policy = .after(Date().addingTimeInterval(900))
         }
-        
+
         let timeline = Timeline(entries: entries, policy: policy)
         completion(timeline)
     }
-    
+
+    private func checkPremiumStatus() -> Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
+            return false
+        }
+        return groupDefaults.bool(forKey: "isPremiumUser") || groupDefaults.bool(forKey: "hasGrantedAccess")
+    }
+
     private func createEntry() -> UnblockEntry {
         let now = Date()
+        let isPremium = checkPremiumStatus()
+
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
-            return UnblockEntry(date: now, state: .idle, nextPrayerName: nil, nextPrayerTime: nil, unlockAvailableAt: nil)
+            return UnblockEntry(date: now, state: .idle, nextPrayerName: nil, nextPrayerTime: nil, unlockAvailableAt: nil, isPremium: isPremium)
         }
 
         // Check if strict mode is enabled - widgets cannot unblock in strict mode
@@ -79,10 +90,10 @@ struct UnblockProvider: TimelineProvider {
         let isBlocking = groupDefaults.object(forKey: "blockingStartTime") != nil
         let appsBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")
         let unlockAvailableAtTimestamp = groupDefaults.object(forKey: "earlyUnlockAvailableAt") as? TimeInterval
-        
+
         var state: UnblockState = .idle
         var unlockAvailableAt: Date? = nil
-        
+
         if isBlocking || appsBlocked {
             if let ts = unlockAvailableAtTimestamp {
                 let date = Date(timeIntervalSince1970: ts)
@@ -98,27 +109,27 @@ struct UnblockProvider: TimelineProvider {
                 unlockAvailableAt = now.addingTimeInterval(300) // Assume 5 mins from now if unknown
             }
         }
-        
+
         // Find Next Prayer
         var nextPrayerName: String?
         var nextPrayerTime: Date?
-        
+
         if let data = groupDefaults.data(forKey: "PrayerTimeStorage_v1") {
             do {
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
                 let storage = try decoder.decode(PrayerTimeStorage.self, from: data)
-                
+
                 // Find next prayer logic
                 let calendar = Calendar.current
                 let today = calendar.startOfDay(for: now)
-                
+
                 if let todayTimings = storage.prayerTimes.first(where: { calendar.isDate($0.date, inSameDayAs: today) }) {
                     let prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
                     let prayerTimeStrings = [todayTimings.fajr, todayTimings.dhuhr, todayTimings.asr, todayTimings.maghrib, todayTimings.isha]
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm"
-                    
+
                     for (index, timeStr) in prayerTimeStrings.enumerated() {
                         let cleanTime = timeStr.components(separatedBy: " ").first ?? ""
                         if let timeDate = formatter.date(from: cleanTime) {
@@ -126,7 +137,7 @@ struct UnblockProvider: TimelineProvider {
                             let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
                             components.hour = timeComponents.hour
                             components.minute = timeComponents.minute
-                            
+
                             if let fullDate = calendar.date(from: components), fullDate > now {
                                 nextPrayerName = prayerNames[index]
                                 nextPrayerTime = fullDate
@@ -138,109 +149,214 @@ struct UnblockProvider: TimelineProvider {
             } catch {
             }
         }
-        
+
         return UnblockEntry(
             date: now,
             state: state,
             nextPrayerName: nextPrayerName,
             nextPrayerTime: nextPrayerTime,
-            unlockAvailableAt: unlockAvailableAt
+            unlockAvailableAt: unlockAvailableAt,
+            isPremium: isPremium
         )
     }
 }
+
+// MARK: - Sacred Minimalism Colors
+
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
+private let pageBackground = Color(red: 0.08, green: 0.09, blue: 0.11)
+private let cardBackground = Color(red: 0.12, green: 0.13, blue: 0.15)
+private let subtleText = Color(white: 0.5)
 
 // MARK: - View
 
 struct UnblockWidgetView: View {
     var entry: UnblockProvider.Entry
-    
+
     var body: some View {
+        if entry.isPremium {
+            premiumContent
+        } else {
+            lockedContent
+        }
+    }
+
+    private var premiumContent: some View {
         VStack {
             if entry.state == .idle {
-                IdleView(entry: entry)
+                SacredIdleView(entry: entry)
             } else if entry.state == .waiting {
-                WaitingView(entry: entry)
+                SacredWaitingView(entry: entry)
             } else {
-                ReadyView()
+                SacredReadyView()
             }
         }
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(for: .widget) {
+            pageBackground
+        }
+    }
+
+    private var lockedContent: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                    )
+
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundColor(sacredGold)
+            }
+
+            VStack(spacing: 4) {
+                Text("PREMIUM")
+                    .font(.system(size: 9, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundColor(subtleText)
+
+                Text("Unlock")
+                    .font(.system(size: 14, weight: .light))
+                    .foregroundColor(.white)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(for: .widget) {
+            pageBackground
+        }
     }
 }
 
-struct IdleView: View {
+struct SacredIdleView: View {
     var entry: UnblockProvider.Entry
-    
+
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "shield.slash")
-                .font(.title)
-                .foregroundColor(.secondary)
-            
+        VStack(spacing: 10) {
+            // Icon in circle
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+
+                Image(systemName: "shield.slash")
+                    .font(.system(size: 20))
+                    .foregroundColor(subtleText)
+            }
+
             if let name = entry.nextPrayerName, let time = entry.nextPrayerTime {
-                Text("Next: \(name)")
-                    .font(.headline)
-                Text(time, style: .timer)
-                    .font(.monospacedDigit(.subheadline)())
-                    .foregroundColor(.secondary)
+                VStack(spacing: 4) {
+                    Text("NEXT: \(name.uppercased())")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(sacredGold)
+
+                    Text(time, style: .timer)
+                        .font(.system(size: 16, weight: .light).monospacedDigit())
+                        .foregroundColor(.white.opacity(0.7))
+                }
             } else {
                 Text("No active blocking")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundColor(subtleText)
             }
         }
     }
 }
 
-struct WaitingView: View {
+struct SacredWaitingView: View {
     var entry: UnblockProvider.Entry
-    
+
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "hourglass")
-                .font(.title)
-                .foregroundColor(.orange)
-            
-            Text("Unblock in")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
+        VStack(spacing: 10) {
+            // Hourglass icon
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                    )
+
+                Image(systemName: "hourglass")
+                    .font(.system(size: 20))
+                    .foregroundColor(sacredGold)
+            }
+
+            Text("UNBLOCK IN")
+                .font(.system(size: 9, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(subtleText)
+
             if let target = entry.unlockAvailableAt {
                 Text(target, style: .timer)
-                    .font(.title2.bold())
-                    .monospacedDigit()
-                    .multilineTextAlignment(.center)
+                    .font(.system(size: 22, weight: .light).monospacedDigit())
+                    .foregroundColor(.white)
             }
-            
-            Button("Unblock Apps") {
-                // Disabled
-            }
-            .buttonStyle(.bordered)
-            .tint(.gray)
-            .disabled(true)
+
+            // Disabled button
+            Text("Unblock Apps")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(subtleText)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(cardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                )
         }
     }
 }
 
-struct ReadyView: View {
+struct SacredReadyView: View {
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "lock.open.fill")
-                .font(.title)
-                .foregroundColor(.green)
-            
-            Text("You can now unblock")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
+            // Unlock icon
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(softGreen.opacity(0.5), lineWidth: 1)
+                    )
+
+                Image(systemName: "lock.open.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(softGreen)
+            }
+
+            Text("READY TO UNBLOCK")
+                .font(.system(size: 9, weight: .medium))
+                .tracking(1.5)
+                .foregroundColor(softGreen.opacity(0.8))
+
             Button(intent: UnblockAppIntent()) {
                 Text("Unblock Apps")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(softGreen.opacity(0.8))
+                    )
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 12)
     }
 }
 
@@ -264,7 +380,7 @@ struct UnblockWidget: Widget {
 #Preview(as: .systemSmall) {
     UnblockWidget()
 } timeline: {
-    UnblockEntry(date: .now, state: .idle, nextPrayerName: "Dhuhr", nextPrayerTime: Date().addingTimeInterval(1200), unlockAvailableAt: nil)
-    UnblockEntry(date: .now, state: .waiting, nextPrayerName: "Dhuhr", nextPrayerTime: nil, unlockAvailableAt: Date().addingTimeInterval(120))
-    UnblockEntry(date: .now, state: .ready, nextPrayerName: "Dhuhr", nextPrayerTime: nil, unlockAvailableAt: Date().addingTimeInterval(-60))
+    UnblockEntry(date: .now, state: .idle, nextPrayerName: "Dhuhr", nextPrayerTime: Date().addingTimeInterval(1200), unlockAvailableAt: nil, isPremium: true)
+    UnblockEntry(date: .now, state: .waiting, nextPrayerName: "Dhuhr", nextPrayerTime: nil, unlockAvailableAt: Date().addingTimeInterval(120), isPremium: true)
+    UnblockEntry(date: .now, state: .ready, nextPrayerName: "Dhuhr", nextPrayerTime: nil, unlockAvailableAt: Date().addingTimeInterval(-60), isPremium: true)
 }

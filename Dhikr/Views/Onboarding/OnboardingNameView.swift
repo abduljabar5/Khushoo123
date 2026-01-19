@@ -2,7 +2,7 @@
 //  OnboardingNameView.swift
 //  Dhikr
 //
-//  Name input screen for personalization (Screen 1.5)
+//  Name input screen for personalization (Screen 1.5) - Sacred Minimalism redesign
 //
 
 import SwiftUI
@@ -14,7 +14,28 @@ struct OnboardingNameView: View {
     @FocusState private var isNameFieldFocused: Bool
     @StateObject private var themeManager = ThemeManager.shared
 
-    private var theme: AppTheme { themeManager.theme }
+    // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
 
     // Validation
     private var isNameValid: Bool {
@@ -26,61 +47,56 @@ struct OnboardingNameView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Icon
+            // Icon - Sacred style
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(sacredGold.opacity(0.15))
                     .frame(width: 100, height: 100)
+                    .overlay(
+                        Circle()
+                            .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                    )
 
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 50))
-                    .foregroundColor(.white)
+                Image(systemName: "person.circle")
+                    .font(.system(size: 44, weight: .ultraLight))
+                    .foregroundColor(sacredGold)
             }
-            .padding(.bottom, 32)
+            .padding(.bottom, 40)
 
-            // Title
+            // Title - Sacred typography
             Text("What should we call you?")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundColor(theme.primaryText)
+                .font(.system(size: 28, weight: .light))
+                .foregroundColor(themeManager.theme.primaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 12)
 
             // Subtitle
             Text("We'll use your name to personalize your experience")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundColor(theme.secondaryText)
+                .font(.system(size: 14, weight: .light))
+                .foregroundColor(warmGray)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
                 .padding(.bottom, 48)
 
-            // Name Input Field
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Your Name")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(theme.primaryText)
+            // Name Input Field - Sacred style
+            VStack(alignment: .leading, spacing: 10) {
+                Text("YOUR NAME")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(warmGray)
                     .padding(.leading, 4)
 
-                TextField("", text: $name, prompt: Text("Enter your name").foregroundColor(theme.tertiaryText))
-                    .font(.system(size: 18))
-                    .foregroundColor(theme.primaryText)
+                TextField("", text: $name, prompt: Text("Enter your name").foregroundColor(warmGray.opacity(0.6)))
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundColor(themeManager.theme.primaryText)
                     .padding(16)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(theme.cardBackground)
-                            .shadow(color: theme.shadowColor, radius: 8, x: 0, y: 2)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(
-                                isNameFieldFocused ? theme.primaryAccent : Color.clear,
-                                lineWidth: 2
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(cardBackground)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(isNameFieldFocused ? sacredGold.opacity(0.5) : sacredGold.opacity(0.15), lineWidth: 1)
                             )
                     )
                     .focused($isNameFieldFocused)
@@ -97,34 +113,23 @@ struct OnboardingNameView: View {
 
             Spacer()
 
-            // Continue Button
+            // Continue Button - Sacred style
             VStack(spacing: 12) {
                 Button(action: handleContinue) {
                     HStack(spacing: 12) {
                         Text("Continue")
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(size: 16, weight: .medium))
+                            .tracking(0.5)
 
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 14, weight: .medium))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(isNameValid ? (themeManager.effectiveTheme == .dark ? .black : .white) : warmGray)
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(
-                                isNameValid
-                                    ? LinearGradient(
-                                        colors: [theme.prayerGradientStart, theme.prayerGradientEnd],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                    : LinearGradient(
-                                        colors: [theme.tertiaryText, theme.secondaryText],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                            )
+                            .fill(isNameValid ? sacredGold : sacredGold.opacity(0.3))
                     )
                 }
                 .disabled(!isNameValid)
@@ -132,14 +137,14 @@ struct OnboardingNameView: View {
                 // Helper text
                 if !name.isEmpty && !isNameValid {
                     Text("Name must be at least 2 characters")
-                        .font(.system(size: 13))
-                        .foregroundColor(.red)
+                        .font(.system(size: 12, weight: .light))
+                        .foregroundColor(Color(red: 0.85, green: 0.4, blue: 0.4))
                 }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
         }
-        .background(theme.primaryBackground)
+        .background(pageBackground)
         .onAppear {
             // Auto-focus the name field for better UX
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {

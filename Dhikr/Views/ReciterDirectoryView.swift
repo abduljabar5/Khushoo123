@@ -1,8 +1,8 @@
 //
 //  ReciterDirectoryView.swift
-//  QariVerse
+//  Dhikr
 //
-//  Created by Abduljabar Nur on 6/21/25.
+//  Sacred Minimalism redesign of Reciters Directory
 //
 
 import SwiftUI
@@ -11,7 +11,7 @@ import Kingfisher
 struct ReciterDirectoryView: View {
     @EnvironmentObject var quranAPIService: QuranAPIService
     @EnvironmentObject var audioPlayerService: AudioPlayerService
-    @ObservedObject var themeManager = ThemeManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
 
     @State private var allReciters: [Reciter] = []
@@ -25,15 +25,39 @@ struct ReciterDirectoryView: View {
     @State private var favoritesCache: Set<String> = []
     @State private var currentBatchIndex = 0
 
-    private let batchSize = 20 // Load 20 reciters at a time
+    private let batchSize = 20
 
-    private var theme: AppTheme { themeManager.theme }
+    // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
 
-    // Memoized computation - only updates when search text or reciters change
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
     private var shouldShowRecentReciters: Bool {
         !recentReciters.isEmpty && searchText.isEmpty
     }
-    
+
     private var isReciterSelectedBinding: Binding<Bool> {
         Binding(
             get: { selectedReciter != nil },
@@ -42,13 +66,12 @@ struct ReciterDirectoryView: View {
             }
         )
     }
-    
+
     var body: some View {
         ZStack {
-            // Background
-            backgroundView
+            pageBackground.ignoresSafeArea()
 
-            // Background NavigationLink for programmatic presentation
+            // Background NavigationLink
             if let reciter = selectedReciter {
                 NavigationLink(
                     destination: ReciterDetailView(reciter: reciter),
@@ -58,36 +81,49 @@ struct ReciterDirectoryView: View {
                 .hidden()
             }
 
-            // Main Content (always show for blur effect)
+            // Main Content
             Group {
                 if isLoading {
                     VStack {
                         Spacer()
                         ProgressView()
-                            .tint(theme.primaryAccent)
+                            .tint(sacredGold)
                         Spacer()
                     }
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
+                            // Header
+                            VStack(spacing: 8) {
+                                Text("RECITERS")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .tracking(3)
+                                    .foregroundColor(warmGray)
+
+                                Text("Discover Voices")
+                                    .font(.system(size: 24, weight: .light))
+                                    .foregroundColor(themeManager.theme.primaryText)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.bottom, 8)
+
                             if shouldShowRecentReciters {
-                                RecentlySearchedView(
+                                SacredRecentlySearchedView(
                                     reciters: recentReciters,
                                     onReciterTapped: handleReciterTap,
-                                    onClearAll: clearRecents,
-                                    theme: theme
+                                    onClearAll: clearRecents
                                 )
                             }
 
-                            AllRecitersView(
+                            SacredAllRecitersView(
                                 reciters: displayedReciters,
                                 onReciterTapped: handleReciterTap,
                                 onLoadMore: loadMoreReciters,
-                                theme: theme,
                                 favoritesCache: favoritesCache,
                                 hasMore: displayedReciters.count < filteredReciters.count
                             )
                         }
+                        .padding(.bottom, 20)
                     }
                 }
             }
@@ -105,7 +141,6 @@ struct ReciterDirectoryView: View {
             updateFavoritesCache()
         }
         .onReceive(quranAPIService.$reciters) { reciters in
-            // Update when global reciters are loaded
             if !reciters.isEmpty && self.allReciters.isEmpty {
                 self.allReciters = reciters
                 self.filteredReciters = reciters
@@ -117,26 +152,14 @@ struct ReciterDirectoryView: View {
             performDebouncedSearch(query: newValue)
         }
         .onChange(of: filteredReciters) { _ in
-            // Reset and load initial batch when filtered list changes
             loadInitialBatch()
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
     }
 
-    // MARK: - Background View
-    private var backgroundView: some View {
-        Group {
-            if themeManager.effectiveTheme == .dark {
-                // Dark background matching Focus page
-                Color(red: 0.11, green: 0.13, blue: 0.16).ignoresSafeArea()
-            } else {
-                theme.primaryBackground
-                    .ignoresSafeArea()
-            }
-        }
-    }
-    
+    // MARK: - Helper Methods
+
     private func clearRecents() {
         RecentRecitersManager.shared.clearAllReciters()
         self.recentReciters = []
@@ -153,7 +176,6 @@ struct ReciterDirectoryView: View {
     }
 
     private func loadData() {
-        // Skip loading if not premium (they can't see the content anyway)
         guard subscriptionService.hasPremiumAccess else {
             isLoading = false
             return
@@ -162,7 +184,6 @@ struct ReciterDirectoryView: View {
         self.recentReciters = RecentRecitersManager.shared.loadRecentReciters()
         loadFavoritesCache()
 
-        // Check if reciters are already available from the global service
         if !quranAPIService.reciters.isEmpty {
             self.allReciters = quranAPIService.reciters
             self.filteredReciters = quranAPIService.reciters
@@ -171,13 +192,11 @@ struct ReciterDirectoryView: View {
             return
         }
 
-        // If global loading is in progress, show loading state but don't fetch again
         if quranAPIService.isLoadingReciters {
             self.isLoading = true
             return
         }
 
-        // Show loading state and fetch if not available
         isLoading = true
         Task {
             do {
@@ -189,8 +208,7 @@ struct ReciterDirectoryView: View {
                     self.isLoading = false
                 }
             } catch QuranAPIError.loadingInProgress {
-                // Global loading is in progress - UI will update via publisher
-                // Keep loading state, onReceive will handle the update
+                // Global loading is in progress
             } catch {
                 await MainActor.run {
                     self.isLoading = false
@@ -198,15 +216,11 @@ struct ReciterDirectoryView: View {
             }
         }
     }
-    
+
     private func performDebouncedSearch(query: String) {
-        // Cancel previous search task
         searchTask?.cancel()
-
-        // Create new search task with debounce
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
-
+            try? await Task.sleep(nanoseconds: 300_000_000)
             if !Task.isCancelled {
                 await applyFilters(query: query)
             }
@@ -218,19 +232,14 @@ struct ReciterDirectoryView: View {
         if query.isEmpty {
             filteredReciters = allReciters
         } else {
-            // Perform filtering on background queue
             let currentReciters = allReciters
             let filtered = await Task.detached {
                 return currentReciters.filter { reciter in
-                    // Search for reciters whose name contains the query
                     let lowercasedQuery = query.lowercased()
                     let lowercasedName = reciter.englishName.lowercased()
-
-                    // Simple contains search - shows all reciters whose name contains the search query
                     return lowercasedName.contains(lowercasedQuery)
                 }
             }.value
-
             filteredReciters = filtered
         }
     }
@@ -246,9 +255,7 @@ struct ReciterDirectoryView: View {
     }
 
     private func loadMoreReciters() {
-        guard displayedReciters.count < filteredReciters.count else {
-            return
-        }
+        guard displayedReciters.count < filteredReciters.count else { return }
 
         let startIndex = displayedReciters.count
         let endIndex = min(startIndex + batchSize, filteredReciters.count)
@@ -258,85 +265,48 @@ struct ReciterDirectoryView: View {
     }
 }
 
-// MARK: - SearchBar
-struct SearchBar: View {
-    @Binding var text: String
-    let theme: AppTheme
+// MARK: - Sacred Recently Searched View
 
-    var body: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(theme.secondaryText)
-            TextField("Search reciters...", text: $text)
-                .foregroundColor(theme.primaryText)
-                .accentColor(theme.primaryAccent)
-            if !text.isEmpty {
-                Button(action: { self.text = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(theme.secondaryText)
-                }
-            }
-        }
-        .padding(12)
-        .background(
-            Group {
-                if theme.hasGlassEffect {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.6)
-                } else if ThemeManager.shared.currentTheme == .dark {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-                } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(theme.cardBackground)
-                        .shadow(color: theme.shadowColor.opacity(0.1), radius: 5)
-                }
-            }
-        )
-        .padding(.horizontal, 20)
-    }
-}
-
-// MARK: - Recently Searched
-struct RecentlySearchedView: View {
+private struct SacredRecentlySearchedView: View {
     let reciters: [Reciter]
     let onReciterTapped: (Reciter) -> Void
     let onClearAll: () -> Void
-    let theme: AppTheme
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("RECENTLY SEARCHED")
-                    .font(.caption)
-                    .foregroundColor(theme.secondaryText)
+                Text("RECENT")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(warmGray)
+
                 Spacer()
-                Button("Clear All") {
-                    onClearAll()
+
+                Button(action: onClearAll) {
+                    Text("Clear")
+                        .font(.system(size: 12, weight: .light))
+                        .foregroundColor(sacredGold)
                 }
-                .font(.caption)
-                .foregroundColor(theme.primaryAccent)
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 20)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 20) {
                     ForEach(reciters) { reciter in
                         Button(action: { onReciterTapped(reciter) }) {
-                            VStack {
-                                ReciterArtworkImage(
-                                    artworkURL: reciter.artworkURL,
-                                    reciterName: reciter.name,
-                                    size: 60
-                                )
-                                
-                                Text(reciter.englishName.components(separatedBy: " ").first ?? "")
-                                    .font(.caption)
-                                    .foregroundColor(theme.primaryText)
-                                    .frame(width: 70)
-                                    .lineLimit(1)
-                            }
+                            SacredRecentReciterItem(reciter: reciter)
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
@@ -347,41 +317,87 @@ struct RecentlySearchedView: View {
     }
 }
 
-// MARK: - All Reciters
-struct AllRecitersView: View {
+// MARK: - Sacred Recent Reciter Item
+
+private struct SacredRecentReciterItem: View {
+    let reciter: Reciter
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            KFImage(reciter.artworkURL)
+                .placeholder {
+                    SacredReciterPlaceholder(size: 64, iconSize: 24)
+                }
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 64, height: 64)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(sacredGold.opacity(0.2), lineWidth: 1)
+                )
+
+            Text(reciter.englishName.components(separatedBy: " ").first ?? "")
+                .font(.system(size: 12, weight: .light))
+                .foregroundColor(themeManager.theme.primaryText)
+                .frame(width: 70)
+                .lineLimit(1)
+        }
+    }
+}
+
+// MARK: - Sacred All Reciters View
+
+private struct SacredAllRecitersView: View {
     let reciters: [Reciter]
     let onReciterTapped: (Reciter) -> Void
     let onLoadMore: () -> Void
-    let theme: AppTheme
     let favoritesCache: Set<String>
     let hasMore: Bool
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("ALL RECITERS")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundColor(theme.secondaryText)
+                .font(.system(size: 11, weight: .medium))
+                .tracking(2)
+                .foregroundColor(warmGray)
                 .padding(.horizontal, 20)
 
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: 10) {
                 ForEach(reciters) { reciter in
                     Button(action: { onReciterTapped(reciter) }) {
-                        ReciterRow(reciter: reciter, theme: theme, favoritesCache: favoritesCache)
+                        SacredReciterRow(reciter: reciter, favoritesCache: favoritesCache)
                     }
                     .buttonStyle(PlainButtonStyle())
                     .onAppear {
-                        // Load more when we reach the last few items
                         if reciter.id == reciters.suffix(3).first?.id && hasMore {
                             onLoadMore()
                         }
                     }
                 }
 
-                // Loading indicator at the bottom when more items are available
                 if hasMore {
                     HStack {
                         Spacer()
                         ProgressView()
+                            .tint(sacredGold)
                             .padding()
                         Spacer()
                     }
@@ -392,108 +408,125 @@ struct AllRecitersView: View {
     }
 }
 
-// MARK: - Reciter Row
-struct ReciterRow: View {
+// MARK: - Sacred Reciter Row
+
+private struct SacredReciterRow: View {
     let reciter: Reciter
-    let theme: AppTheme
     let favoritesCache: Set<String>
     @State private var isSaved: Bool
+    @StateObject private var themeManager = ThemeManager.shared
 
-    init(reciter: Reciter, theme: AppTheme, favoritesCache: Set<String>) {
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    init(reciter: Reciter, favoritesCache: Set<String>) {
         self.reciter = reciter
-        self.theme = theme
         self.favoritesCache = favoritesCache
         _isSaved = State(initialValue: favoritesCache.contains(reciter.identifier))
     }
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            ReciterArtworkImage(
-                artworkURL: reciter.artworkURL,
-                reciterName: reciter.name,
-                size: 50
-            )
-            .overlay(
-                Circle()
-                    .stroke(theme.hasGlassEffect ? theme.primaryAccent.opacity(0.2) : .clear, lineWidth: 1)
-            )
 
+    var body: some View {
+        HStack(spacing: 14) {
+            // Avatar
+            KFImage(reciter.artworkURL)
+                .placeholder {
+                    SacredReciterPlaceholder(size: 52, iconSize: 20)
+                }
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 52, height: 52)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(sacredGold.opacity(0.15), lineWidth: 1)
+                )
+
+            // Info
             VStack(alignment: .leading, spacing: 6) {
                 Text(reciter.englishName)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(theme.primaryText)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(themeManager.theme.primaryText)
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
                     if let country = reciter.country {
-                        TagView(text: country, color: theme.accentGreen, theme: theme)
+                        SacredTag(text: country, color: softGreen)
                     }
                     if let dialect = reciter.dialect {
-                        TagView(text: dialect, color: theme.primaryAccent, theme: theme)
+                        SacredTag(text: dialect, color: sacredGold)
                     }
                 }
             }
 
             Spacer()
 
+            // Bookmark
             Button(action: {
                 FavoritesManager.shared.toggleFavorite(reciter: reciter)
                 isSaved.toggle()
-                // Note: Parent view should update cache, but this handles immediate UI response
             }) {
                 Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                    .foregroundColor(isSaved ? theme.accentGold : theme.tertiaryText)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundColor(isSaved ? sacredGold : warmGray)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(
-            Group {
-                if theme.hasGlassEffect {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.6)
-                } else if ThemeManager.shared.currentTheme == .dark {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(red: 0.15, green: 0.17, blue: 0.20))
-                } else {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(theme.cardBackground)
-                        .shadow(color: theme.shadowColor.opacity(0.1), radius: 5)
-                }
-            }
+                        .stroke(sacredGold.opacity(0.1), lineWidth: 1)
+                )
         )
     }
 }
 
-// MARK: - Tag View
-struct TagView: View {
+// MARK: - Sacred Tag
+
+private struct SacredTag: View {
     let text: String
     let color: Color
-    let theme: AppTheme
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
                 Capsule()
-                    .fill(color.opacity(theme.hasGlassEffect ? 0.3 : 0.15))
+                    .fill(color.opacity(0.1))
                     .overlay(
                         Capsule()
-                            .stroke(color.opacity(0.5), lineWidth: 0.5)
+                            .stroke(color.opacity(0.2), lineWidth: 0.5)
                     )
             )
-            .foregroundColor(color)
     }
 }
 
-struct ReciterDirectoryView_Previews: PreviewProvider {
-    static var previews: some View {
+// MARK: - Preview
+
+#Preview {
     ReciterDirectoryView()
         .environmentObject(QuranAPIService.shared)
         .environmentObject(AudioPlayerService.shared)
-    }
-} 
+}

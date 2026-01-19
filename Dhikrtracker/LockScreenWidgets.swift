@@ -33,17 +33,27 @@ struct DhikrCircularView: View {
     }
 
     var body: some View {
-        Gauge(value: progress) {
-            Image(systemName: "hands.clap.fill")
-                .font(.system(size: 12))
-        } currentValueLabel: {
-            Text(formatCount(entry.dhikrData.todayCount))
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .minimumScaleFactor(0.6)
+        if entry.isPremium {
+            Gauge(value: progress) {
+                Image(systemName: "hands.clap.fill")
+                    .font(.system(size: 12))
+            } currentValueLabel: {
+                Text(formatCount(entry.dhikrData.todayCount))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .minimumScaleFactor(0.6)
+            }
+            .gaugeStyle(.accessoryCircular)
+            .widgetAccentable()
+            .containerBackground(.fill.tertiary, for: .widget)
+        } else {
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 18))
+                    .widgetAccentable()
+            }
+            .containerBackground(.fill.tertiary, for: .widget)
         }
-        .gaugeStyle(.accessoryCircular)
-        .widgetAccentable()
-        .containerBackground(.fill.tertiary, for: .widget)
     }
 
     private func formatCount(_ count: Int) -> String {
@@ -76,7 +86,19 @@ struct DhikrRectangularView: View {
         return min(Double(entry.dhikrData.todayCount) / Double(entry.dhikrData.dailyGoal), 1.0)
     }
 
+    private var goalReached: Bool {
+        entry.dhikrData.todayCount >= entry.dhikrData.dailyGoal
+    }
+
     var body: some View {
+        if entry.isPremium {
+            premiumContent
+        } else {
+            lockedContent
+        }
+    }
+
+    private var premiumContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             // Streak row
             HStack(spacing: 4) {
@@ -88,14 +110,19 @@ struct DhikrRectangularView: View {
                 Spacer()
             }
 
-            // Today's count
+            // Today's count with goal context
             HStack(spacing: 4) {
                 Text("\(entry.dhikrData.todayCount.formatted())")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                Text("today")
+                Text("/ \(entry.dhikrData.dailyGoal.formatted())")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                 Spacer()
+                if goalReached {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .widgetAccentable()
+                }
             }
 
             // Progress bar
@@ -112,6 +139,23 @@ struct DhikrRectangularView: View {
                 }
             }
             .frame(height: 4)
+        }
+        .containerBackground(.fill.tertiary, for: .widget)
+    }
+
+    private var lockedContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 16))
+                .widgetAccentable()
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Premium Widget")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Open app to unlock")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
         }
         .containerBackground(.fill.tertiary, for: .widget)
     }
@@ -135,10 +179,18 @@ struct DhikrInlineView: View {
     let entry: DhikrEntry
 
     var body: some View {
-        Label {
-            Text("\(entry.dhikrData.streak) day streak")
-        } icon: {
-            Image(systemName: "flame.fill")
+        if entry.isPremium {
+            Label {
+                Text("\(entry.dhikrData.streak) day streak")
+            } icon: {
+                Image(systemName: "flame.fill")
+            }
+        } else {
+            Label {
+                Text("Premium Widget")
+            } icon: {
+                Image(systemName: "lock.fill")
+            }
         }
     }
 }
@@ -167,7 +219,15 @@ struct PrayerCircularView: View {
     }
 
     var body: some View {
-        if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
+        if !entry.isPremium {
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 18))
+                    .widgetAccentable()
+            }
+            .containerBackground(.fill.tertiary, for: .widget)
+        } else if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
             // Show next prayer with countdown or "Now" if in grace period
             ZStack {
                 AccessoryWidgetBackground()
@@ -241,19 +301,44 @@ struct PrayerRectangularView: View {
         entry.prayerStatus.filter { $0.isCompleted }.count
     }
 
+    private func isCurrentPrayer(_ prayerName: String) -> Bool {
+        entry.isCurrentPrayerActive && entry.nextPrayer == prayerName
+    }
+
     var body: some View {
+        if !entry.isPremium {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 16))
+                    .widgetAccentable()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Premium Widget")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Open app to unlock")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .containerBackground(.fill.tertiary, for: .widget)
+        } else {
+            premiumContent
+        }
+    }
+
+    private var premiumContent: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Completion status row - evenly distributed
             HStack(spacing: 0) {
                 ForEach(entry.prayerStatus, id: \.name) { prayer in
                     VStack(spacing: 1) {
-                        Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
+                        Image(systemName: prayerStatusIcon(for: prayer))
                             .font(.system(size: 11))
-                            .foregroundStyle(prayer.isCompleted ? .primary : .tertiary)
-                            .widgetAccentable(prayer.isCompleted)
+                            .foregroundStyle(prayer.isCompleted ? .primary : (isCurrentPrayer(prayer.name) ? .primary : .tertiary))
+                            .widgetAccentable(prayer.isCompleted || isCurrentPrayer(prayer.name))
                         Text(prayerShortName(prayer.name))
                             .font(.system(size: 7, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(isCurrentPrayer(prayer.name) ? .primary : .secondary)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity)
@@ -271,7 +356,6 @@ struct PrayerRectangularView: View {
                         Text(nextPrayer)
                             .font(.system(size: 14, weight: .semibold))
                         if entry.isCurrentPrayerActive {
-                            // Within 30-minute grace period
                             Text("Pray now")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
@@ -312,9 +396,23 @@ struct PrayerRectangularView: View {
         .containerBackground(.fill.tertiary, for: .widget)
     }
 
+    private func prayerStatusIcon(for prayer: PrayerStatus) -> String {
+        if prayer.isCompleted {
+            return "checkmark.circle.fill"
+        } else if isCurrentPrayer(prayer.name) {
+            return "circle.inset.filled" // Current prayer - distinct indicator
+        } else {
+            return "circle"
+        }
+    }
+
     private func prayerShortName(_ name: String) -> String {
         switch name {
-        case "Maghrib": return "Magh"
+        case "Fajr": return "Faj"
+        case "Dhuhr": return "Dhu"
+        case "Asr": return "Asr"
+        case "Maghrib": return "Mag"
+        case "Isha": return "Ish"
         default: return name
         }
     }
@@ -353,7 +451,13 @@ struct PrayerInlineView: View {
     }
 
     var body: some View {
-        if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
+        if !entry.isPremium {
+            Label {
+                Text("Premium Widget")
+            } icon: {
+                Image(systemName: "lock.fill")
+            }
+        } else if let nextPrayer = entry.nextPrayer, let prayerTime = entry.nextPrayerTime {
             Label {
                 if entry.isCurrentPrayerActive {
                     // Within 30-minute grace period
@@ -390,6 +494,7 @@ struct PrayerLockScreenEntry: TimelineEntry {
     let prayerStatus: [PrayerStatus]
     // When true, we're within 30 min of the displayed prayer (show "Now" instead of countdown)
     let isCurrentPrayerActive: Bool
+    let isPremium: Bool
 }
 
 struct PrayerStatus {
@@ -410,7 +515,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
                 PrayerStatus(name: "Maghrib", isCompleted: false),
                 PrayerStatus(name: "Isha", isCompleted: false)
             ],
-            isCurrentPrayerActive: false
+            isCurrentPrayerActive: false,
+            isPremium: true
         )
     }
 
@@ -439,13 +545,21 @@ struct PrayerLockScreenProvider: TimelineProvider {
         completion(timeline)
     }
 
+    private func checkPremiumStatus() -> Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
+            return false
+        }
+        return groupDefaults.bool(forKey: "isPremiumUser") || groupDefaults.bool(forKey: "hasGrantedAccess")
+    }
+
     private func loadEntry() -> PrayerLockScreenEntry {
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
+        let isPremium = checkPremiumStatus()
 
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
-            return sampleEntry()
+            return sampleEntry(isPremium: isPremium)
         }
 
         // Load completed prayers
@@ -518,11 +632,12 @@ struct PrayerLockScreenProvider: TimelineProvider {
             nextPrayer: nextPrayer,
             nextPrayerTime: nextPrayerTime,
             prayerStatus: prayerStatus,
-            isCurrentPrayerActive: isCurrentPrayerActive
+            isCurrentPrayerActive: isCurrentPrayerActive,
+            isPremium: isPremium
         )
     }
 
-    private func sampleEntry() -> PrayerLockScreenEntry {
+    private func sampleEntry(isPremium: Bool = true) -> PrayerLockScreenEntry {
         PrayerLockScreenEntry(
             date: Date(),
             nextPrayer: "Dhuhr",
@@ -534,7 +649,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
                 PrayerStatus(name: "Maghrib", isCompleted: false),
                 PrayerStatus(name: "Isha", isCompleted: false)
             ],
-            isCurrentPrayerActive: false
+            isCurrentPrayerActive: false,
+            isPremium: isPremium
         )
     }
 }
@@ -550,7 +666,7 @@ struct PrayerLockScreenProvider: TimelineProvider {
         lastThreeDays: [],
         dailyGoal: 99,
         highestStreak: 50
-    ))
+    ), isPremium: true)
 }
 
 #Preview("Dhikr Rectangular", as: .accessoryRectangular) {
@@ -562,7 +678,7 @@ struct PrayerLockScreenProvider: TimelineProvider {
         lastThreeDays: [],
         dailyGoal: 2000,
         highestStreak: 50
-    ))
+    ), isPremium: true)
 }
 
 #Preview("Prayer Circular", as: .accessoryCircular) {
@@ -579,7 +695,8 @@ struct PrayerLockScreenProvider: TimelineProvider {
             PrayerStatus(name: "Maghrib", isCompleted: false),
             PrayerStatus(name: "Isha", isCompleted: false)
         ],
-        isCurrentPrayerActive: false
+        isCurrentPrayerActive: false,
+        isPremium: true
     )
 }
 
@@ -597,6 +714,7 @@ struct PrayerLockScreenProvider: TimelineProvider {
             PrayerStatus(name: "Maghrib", isCompleted: false),
             PrayerStatus(name: "Isha", isCompleted: false)
         ],
-        isCurrentPrayerActive: false
+        isCurrentPrayerActive: false,
+        isPremium: true
     )
 }

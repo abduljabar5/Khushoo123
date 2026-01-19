@@ -26,34 +26,41 @@ struct DayData {
 // MARK: - Timeline Provider
 struct DhikrProvider: TimelineProvider {
     func placeholder(in context: Context) -> DhikrEntry {
-        DhikrEntry(date: Date(), dhikrData: sampleData())
+        DhikrEntry(date: Date(), dhikrData: sampleData(), isPremium: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (DhikrEntry) -> ()) {
-        let entry = DhikrEntry(date: Date(), dhikrData: loadDhikrData())
+        let isPremium = checkPremiumStatus()
+        let entry = DhikrEntry(date: Date(), dhikrData: loadDhikrData(), isPremium: isPremium)
         completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<DhikrEntry>) -> ()) {
-        // --- FIX: Create a single entry timeline that reloads on demand ---
-        let entry = DhikrEntry(date: Date(), dhikrData: loadDhikrData())
-        
+        let isPremium = checkPremiumStatus()
+        let entry = DhikrEntry(date: Date(), dhikrData: loadDhikrData(), isPremium: isPremium)
+
         // By using .atEnd, we tell WidgetKit to display this entry indefinitely
         // until the app tells it to reload using WidgetCenter.
         let timeline = Timeline(entries: [entry], policy: .atEnd)
-        // --- END FIX ---
-        
+
         completion(timeline)
     }
-    
+
+    private func checkPremiumStatus() -> Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
+            return false
+        }
+        return groupDefaults.bool(forKey: "isPremiumUser") || groupDefaults.bool(forKey: "hasGrantedAccess")
+    }
+
     private func loadDhikrData() -> DhikrData {
         // Use standard UserDefaults for now since App Groups aren't working
         let userDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") ?? .standard
-        
+
         // Get current dhikr count
         let dhikrCountKey = "dhikrCount"
         var todayCount = 0
-        
+
         // Try to get dhikr count from UserDefaults
         if let data = userDefaults.data(forKey: dhikrCountKey) {
             do {
@@ -63,7 +70,7 @@ struct DhikrProvider: TimelineProvider {
             }
         } else {
         }
-        
+
         // Get daily streak
         let streak = userDefaults.integer(forKey: "streak")
 
@@ -91,11 +98,11 @@ struct DhikrProvider: TimelineProvider {
             dailyGoal: dailyGoal,
             highestStreak: highestStreak
         )
-        
-        
+
+
         return result
     }
-    
+
     private func getLastThreeDaysData(userDefaults: UserDefaults) -> [DayData] {
         let calendar = Calendar.current
         let today = Date()
@@ -130,13 +137,13 @@ struct DhikrProvider: TimelineProvider {
 
         return days
     }
-    
+
     private static func dateKey(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
-    
+
     private func sampleData() -> DhikrData {
         let today = Date()
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
@@ -161,14 +168,60 @@ struct DhikrProvider: TimelineProvider {
 struct DhikrEntry: TimelineEntry {
     let date: Date
     let dhikrData: DhikrData
+    let isPremium: Bool
 }
+
+// MARK: - Sacred Minimalism Colors
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
+private let pageBackground = Color(red: 0.08, green: 0.09, blue: 0.11)
+private let cardBackground = Color(red: 0.12, green: 0.13, blue: 0.15)
+private let subtleText = Color(white: 0.5)
 
 // MARK: - Widget View
 struct DhikrWidgetView: View {
     var entry: DhikrProvider.Entry
 
     var body: some View {
-        LargeWidgetContent(entry: entry)
+        if entry.isPremium {
+            SacredLargeWidgetContent(entry: entry)
+        } else {
+            lockedContent
+        }
+    }
+
+    private var lockedContent: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 80, height: 80)
+                    .overlay(
+                        Circle()
+                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                    )
+
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundColor(sacredGold)
+            }
+
+            VStack(spacing: 8) {
+                Text("PREMIUM")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(subtleText)
+
+                Text("Unlock Widgets")
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundColor(.white)
+            }
+
+            Text("Open Khushoo to upgrade")
+                .font(.system(size: 12))
+                .foregroundColor(subtleText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -176,21 +229,19 @@ struct DhikrWidgetView: View {
 struct MediumWidgetContent: View {
     var entry: DhikrProvider.Entry
     @State private var showingPreviousDays = false
-    
+
     var body: some View {
-        // MODIFICATION: Added .padding() to the VStack.
-        // This adds space around all the content, fixing the clipped top and removing the large default side margins.
         VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack {
-                Image(systemName: "hand.thumbsup.fill") // A more distinct icon suggestion
+                Image(systemName: "hand.thumbsup.fill")
                     .foregroundColor(.green)
                 Text("Stay connected with Allah")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                 Spacer()
             }
-            
+
             // Main Content
             HStack(alignment: .top, spacing: 16) {
                 // Left side: Today's Count & Streak
@@ -203,7 +254,7 @@ struct MediumWidgetContent: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    
+
                     HStack {
                         Image(systemName: "flame.fill")
                             .foregroundColor(.orange)
@@ -220,7 +271,7 @@ struct MediumWidgetContent: View {
                     .background(Color.orange.gradient)
                     .cornerRadius(12)
                 }
-                
+
                 // Right side: Recent Days
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(entry.dhikrData.lastThreeDays, id: \.day) { day in
@@ -238,13 +289,22 @@ struct MediumWidgetContent: View {
                 }
             }
         }
-        .padding() // This padding is key to the fix.
+        .padding()
     }
 }
 
 
-// MARK: - Large Widget Content
+// MARK: - Large Widget Content (Legacy)
 struct LargeWidgetContent: View {
+    var entry: DhikrProvider.Entry
+
+    var body: some View {
+        SacredLargeWidgetContent(entry: entry)
+    }
+}
+
+// MARK: - Sacred Large Widget Content
+struct SacredLargeWidgetContent: View {
     var entry: DhikrProvider.Entry
 
     var lastThreeDaysTotal: Int {
@@ -252,179 +312,166 @@ struct LargeWidgetContent: View {
     }
 
     var streakProgress: Double {
-        // Progress based on beating personal best
         guard entry.dhikrData.highestStreak > 0 else { return 0 }
         return min(Double(entry.dhikrData.streak) / Double(entry.dhikrData.highestStreak), 1.0)
     }
 
     var todayProgress: Double {
-        // Progress based on daily goal
         guard entry.dhikrData.dailyGoal > 0 else { return 0 }
         return min(Double(entry.dhikrData.todayCount) / Double(entry.dhikrData.dailyGoal), 1.0)
     }
 
     var body: some View {
-        // Main card container (widget is just the card, title is handled by iOS)
-        VStack(spacing: 12) {
-                // Circular progress with today's count - WITH DEPTH
-                ZStack {
-                    // Outer shadow ring (dark) for depth
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.black.opacity(0.4), Color.black.opacity(0.2)],
-                                center: .center,
-                                startRadius: 50,
-                                endRadius: 65
-                            )
-                        )
-                        .frame(width: 130, height: 130)
-                        .blur(radius: 5)
-                        .offset(y: 2)
+        VStack(spacing: 16) {
+            // Header
+            HStack {
+                Text("DHIKR")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(sacredGold)
+                Spacer()
+                Text(Date(), style: .date)
+                    .font(.system(size: 10))
+                    .foregroundColor(subtleText)
+            }
+            .padding(.horizontal, 4)
 
-                    // Middle ring with lighter gradient
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.08), Color.clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 125, height: 125)
+            // Main circular progress
+            ZStack {
+                // Background circle
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 110, height: 110)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
 
-                    // Main circle background with gradient
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(white: 0.22), Color(white: 0.18)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 120, height: 120)
-                        .shadow(color: Color.black.opacity(0.5), radius: 12, x: 0, y: 6)
-                        .shadow(color: Color.white.opacity(0.1), radius: 2, x: -2, y: -2)
+                // Progress ring
+                Circle()
+                    .trim(from: 0, to: todayProgress)
+                    .stroke(sacredGold.opacity(0.7), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 110, height: 110)
+                    .rotationEffect(.degrees(-90))
 
-                    // Progress circle
-                    Circle()
-                        .trim(from: 0, to: todayProgress)
-                        .stroke(Color.white.opacity(0.3), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .frame(width: 120, height: 120)
-                        .rotationEffect(.degrees(-90))
-
-                    // Center content
-                    VStack(spacing: 1) {
-                        Text("Today's Total:")
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.6))
-                        Text("\(entry.dhikrData.todayCount.formatted())")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(Color.white)
-                            .monospacedDigit()
-                    }
+                // Center content
+                VStack(spacing: 2) {
+                    Text("TODAY")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(subtleText)
+                    Text("\(entry.dhikrData.todayCount.formatted())")
+                        .font(.system(size: 32, weight: .ultraLight))
+                        .foregroundColor(.white)
+                        .monospacedDigit()
                 }
-                .padding(.vertical, 4)
+            }
 
-                // Streak section WITH DEPTH
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Text("🔥")
-                            .font(.system(size: 18))
-                        Text("Days Streak: \(entry.dhikrData.streak) Days")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
+            // Streak card
+            HStack(spacing: 10) {
+                // Flame icon
+                ZStack {
+                    Circle()
+                        .fill(cardBackground)
+                        .frame(width: 36, height: 36)
+                        .overlay(
+                            Circle()
+                                .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                        )
+                    Text("🔥")
+                        .font(.system(size: 16))
+                }
 
-                    // Streak progress bar with depth
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("DAY STREAK")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(subtleText)
+
+                    // Progress bar
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
-                            // Background with inset shadow
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color(white: 0.18))
-                                .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                            // Progress - gradient from blue to red
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color(red: 0.29, green: 0.56, blue: 0.89), Color(red: 0.91, green: 0.29, blue: 0.24)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.white.opacity(0.08))
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(sacredGold.opacity(0.6))
                                 .frame(width: geometry.size.width * streakProgress)
-                                .shadow(color: Color.blue.opacity(0.3), radius: 3, x: 0, y: 1)
                         }
                     }
-                    .frame(height: 9)
+                    .frame(height: 6)
                 }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(white: 0.22), Color(white: 0.18)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
-                )
-                .padding(.horizontal, 12)
 
-                // Last 3 days summary WITH DEPTH
-                VStack(spacing: 8) {
-                    Text("Last 3 Days Total: \(lastThreeDaysTotal.formatted())")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+                Spacer()
 
-                    // Three columns for days with depth
-                    HStack(spacing: 6) {
-                        ForEach(Array(entry.dhikrData.lastThreeDays.enumerated()), id: \.element.day) { index, day in
-                            VStack(spacing: 4) {
-                                Text(getDayLabel(for: index))
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.7))
-                                Text("\(day.count.formatted())")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .monospacedDigit()
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color(white: 0.18))
-                                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
-                            )
+                Text("\(entry.dhikrData.streak)")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundColor(.white)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+
+            // Last 3 days
+            VStack(spacing: 10) {
+                HStack {
+                    Text("LAST 3 DAYS")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundColor(subtleText)
+                    Spacer()
+                    Text("\(lastThreeDaysTotal.formatted()) total")
+                        .font(.system(size: 10))
+                        .foregroundColor(subtleText)
+                }
+
+                HStack(spacing: 8) {
+                    ForEach(Array(entry.dhikrData.lastThreeDays.enumerated()), id: \.element.day) { index, day in
+                        VStack(spacing: 4) {
+                            Text(getShortDayLabel(for: index))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(subtleText)
+                            Text("\(day.count.formatted())")
+                                .font(.system(size: 18, weight: .light))
+                                .foregroundColor(.white)
+                                .monospacedDigit()
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(cardBackground)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                )
+                        )
                     }
                 }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(white: 0.22), Color(white: 0.18)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
-                        .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
-                )
-                .padding(.horizontal, 12)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
         }
-        .padding(12)
+        .padding(14)
     }
 
-    private func getDayLabel(for index: Int) -> String {
+    private func getShortDayLabel(for index: Int) -> String {
         switch index {
-        case 0: return "Yesterday:"
-        case 1: return "2 Days Ago:"
-        case 2: return "3 Days Ago:"
+        case 0: return "YST"
+        case 1: return "-2D"
+        case 2: return "-3D"
         default: return ""
         }
     }
@@ -436,7 +483,7 @@ struct DhikrCount: Codable {
     let subhanAllah: Int
     let alhamdulillah: Int
     let astaghfirullah: Int
-    
+
     var totalCount: Int {
         subhanAllah + alhamdulillah + astaghfirullah
     }
@@ -467,7 +514,9 @@ struct Dhikrtracker: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: DhikrProvider()) { entry in
             DhikrWidgetView(entry: entry)
-                .containerBackground(Color(white: 0.15), for: .widget)
+                .containerBackground(for: .widget) {
+                    pageBackground
+                }
         }
         .configurationDisplayName("Dhikr Tracker")
         .description("Track your daily dhikr and maintain your streak.")
@@ -497,5 +546,5 @@ private let dayFormatter: DateFormatter = {
         dailyGoal: 2000,
         highestStreak: 50
     )
-    DhikrEntry(date: .now, dhikrData: sampleData)
+    DhikrEntry(date: .now, dhikrData: sampleData, isPremium: true)
 }

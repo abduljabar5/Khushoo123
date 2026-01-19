@@ -347,55 +347,56 @@ class AuthenticationService: ObservableObject {
 
         await MainActor.run { isLoading = true }
 
-        // New approach: Try to create account first, then sign in if exists
+        // Try to sign in first, then create account if user doesn't exist
 
         do {
-            // Try to create account first
-            guard let displayName = displayName, !displayName.isEmpty else {
-                await MainActor.run { isLoading = false }
-                throw AuthError.unknown("Please enter your name to create an account")
-            }
-
-            let result = try await auth.createUser(withEmail: email, password: password)
-
-            // Capitalize the name before saving
-            let capitalizedName = capitalizeName(displayName)
-
-            let newUser = User(
-                id: result.user.uid,
-                email: email,
-                displayName: capitalizedName,
-                joinDate: Date(),
-                isPremium: false,
-                hasGrantedAccess: false,
-                grantReason: ""
-            )
-
-            try await saveUserToFirestore(user: newUser)
-
-            await MainActor.run {
-                self.currentUser = newUser
-                self.isAuthenticated = true
-                self.isLoading = false
-            }
+            // First, try to sign in (works for existing users)
+            let result = try await auth.signIn(withEmail: email, password: password)
+            await fetchUserData(uid: result.user.uid)
+            await MainActor.run { isLoading = false }
 
         } catch let error as NSError {
+            // Check if user doesn't exist
+            if let authError = AuthErrorCode(_bridgedNSError: error),
+               authError.code == .userNotFound || authError.code == .invalidCredential {
 
-            // Check if account already exists
-            if let authError = AuthErrorCode(_bridgedNSError: error), authError.code == .emailAlreadyInUse {
+                // User doesn't exist, try to create account
+                // Require displayName for new accounts
+                guard let displayName = displayName, !displayName.isEmpty else {
+                    await MainActor.run { isLoading = false }
+                    throw AuthError.unknown("Please enter your name to create an account")
+                }
 
-                // Account exists, try to sign in
                 do {
-                    let result = try await auth.signIn(withEmail: email, password: password)
-                    await fetchUserData(uid: result.user.uid)
-                    await MainActor.run { isLoading = false }
+                    let result = try await auth.createUser(withEmail: email, password: password)
 
-                } catch let signInError as NSError {
+                    // Capitalize the name before saving
+                    let capitalizedName = capitalizeName(displayName)
+
+                    let newUser = User(
+                        id: result.user.uid,
+                        email: email,
+                        displayName: capitalizedName,
+                        joinDate: Date(),
+                        isPremium: false,
+                        hasGrantedAccess: false,
+                        grantReason: ""
+                    )
+
+                    try await saveUserToFirestore(user: newUser)
+
+                    await MainActor.run {
+                        self.currentUser = newUser
+                        self.isAuthenticated = true
+                        self.isLoading = false
+                    }
+
+                } catch let createError as NSError {
                     await MainActor.run { isLoading = false }
-                    throw mapFirebaseError(signInError)
+                    throw mapFirebaseError(createError)
                 }
             } else {
-                // Other error
+                // Other sign-in error (wrong password, etc.)
                 await MainActor.run { isLoading = false }
                 throw mapFirebaseError(error)
             }

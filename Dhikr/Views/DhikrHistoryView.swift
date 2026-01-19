@@ -1,47 +1,72 @@
 import SwiftUI
 
+// Sacred colors
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
+
 struct DhikrHistoryView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var dhikrService: DhikrService
-    
+    @StateObject private var themeManager = ThemeManager.shared
+
     @State private var allStats: [DailyDhikrStats] = []
     @State private var selectedStat: DailyDhikrStats?
-    
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var subtleText: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(white: 0.5)
+            : Color(white: 0.45)
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
-                // Background Gradient
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.green.opacity(0.1), Color.blue.opacity(0.1), Color.purple.opacity(0.1)]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                pageBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Header with selected stats
-                    StatDetailView(stat: selectedStat)
-                        .padding(.horizontal)
-                        .padding(.vertical, 20)
-                        .background(.ultraThinMaterial)
-                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
-                    
+                    SacredStatDetailView(
+                        stat: selectedStat,
+                        primaryText: themeManager.theme.primaryText,
+                        subtleText: subtleText,
+                        cardBackground: cardBackground
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 20)
+
                     // List of all historical dhikr days
-                    List {
-                        ForEach(allStats, id: \.date) { stat in
-                            HistoryRow(stat: stat, isSelected: selectedStat?.date == stat.date)
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(allStats, id: \.date) { stat in
+                                SacredHistoryRow(
+                                    stat: stat,
+                                    isSelected: selectedStat?.date == stat.date,
+                                    primaryText: themeManager.theme.primaryText,
+                                    subtleText: subtleText,
+                                    cardBackground: cardBackground
+                                )
                                 .onTapGesture {
                                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                         self.selectedStat = stat
                                     }
                                 }
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .padding(.vertical, 4)
+                            }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
-                    .listStyle(PlainListStyle())
-                    .background(Color.clear)
                 }
             }
             .navigationTitle("Dhikr History")
@@ -51,7 +76,8 @@ struct DhikrHistoryView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .fontWeight(.bold)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(sacredGold)
                 }
             }
             .onAppear {
@@ -64,121 +90,174 @@ struct DhikrHistoryView: View {
     }
 }
 
-// MARK: - Stat Detail View (Header)
-struct StatDetailView: View {
+// MARK: - Sacred Stat Detail View (Header)
+struct SacredStatDetailView: View {
     let stat: DailyDhikrStats?
+    let primaryText: Color
+    let subtleText: Color
+    let cardBackground: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let stat = stat {
-                Text(stat.isToday ? "Today's Summary" : stat.formattedDate)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                HStack {
+                    Text(stat.isToday ? "TODAY'S SUMMARY" : stat.formattedDate.uppercased())
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.5)
+                        .foregroundColor(subtleText)
+
+                    Spacer()
+
+                    if stat.total > 0 {
+                        Text("\(stat.total)")
+                            .font(.system(size: 24, weight: .light))
+                            .foregroundColor(sacredGold)
+                        + Text(" total")
+                            .font(.system(size: 12))
+                            .foregroundColor(subtleText)
+                    }
+                }
 
                 if stat.total > 0 {
-                    VStack(spacing: 12) {
-                        DhikrProgressRow(type: .subhanAllah, count: stat.subhanAllah, total: stat.total)
-                        DhikrProgressRow(type: .alhamdulillah, count: stat.alhamdulillah, total: stat.total)
-                        DhikrProgressRow(type: .astaghfirullah, count: stat.astaghfirullah, total: stat.total)
+                    VStack(spacing: 10) {
+                        SacredDhikrProgressRow(
+                            type: .subhanAllah,
+                            count: stat.subhanAllah,
+                            total: stat.total,
+                            primaryText: primaryText,
+                            subtleText: subtleText
+                        )
+                        SacredDhikrProgressRow(
+                            type: .alhamdulillah,
+                            count: stat.alhamdulillah,
+                            total: stat.total,
+                            primaryText: primaryText,
+                            subtleText: subtleText
+                        )
+                        SacredDhikrProgressRow(
+                            type: .astaghfirullah,
+                            count: stat.astaghfirullah,
+                            total: stat.total,
+                            primaryText: primaryText,
+                            subtleText: subtleText
+                        )
                     }
                 } else {
                     Text("No dhikr recorded on this day.")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                        .frame(height: 100)
+                        .font(.system(size: 13))
+                        .foregroundColor(subtleText)
+                        .frame(height: 60)
                 }
             } else {
                 Text("Select a day to see details")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-                    .frame(height: 100)
+                    .font(.system(size: 13))
+                    .foregroundColor(subtleText)
+                    .frame(height: 60)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
     }
 }
 
-// MARK: - History Row (List Item)
-struct HistoryRow: View {
+// MARK: - Sacred History Row (List Item)
+struct SacredHistoryRow: View {
     let stat: DailyDhikrStats
     let isSelected: Bool
+    let primaryText: Color
+    let subtleText: Color
+    let cardBackground: Color
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(stat.formattedDate)
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                Text("Total Dhikr: \(stat.total)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(primaryText)
+                Text("Total: \(stat.total)")
+                    .font(.system(size: 13))
+                    .foregroundColor(subtleText)
             }
             Spacer()
-            Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                .font(.title2)
-                .foregroundColor(isSelected ? .green : .secondary.opacity(0.4))
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 18, weight: .light))
+                .foregroundColor(isSelected ? softGreen : subtleText.opacity(0.5))
         }
-        .padding()
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(isSelected ? Color.green.opacity(0.2) : Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(isSelected ? Color.green : Color.gray.opacity(0.2), lineWidth: 2)
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? softGreen.opacity(0.4) : Color.white.opacity(0.06), lineWidth: 1)
                 )
         )
-        .shadow(color: .black.opacity(isSelected ? 0.1 : 0.05), radius: 5, y: 3)
     }
 }
 
-
-// MARK: - Dhikr Progress Row
-struct DhikrProgressRow: View {
+// MARK: - Sacred Dhikr Progress Row
+struct SacredDhikrProgressRow: View {
     let type: DhikrType
     let count: Int
     let total: Int
-    
+    let primaryText: Color
+    let subtleText: Color
+
     private var percentage: Double {
         total > 0 ? Double(count) / Double(total) : 0
     }
-    
+
     private var color: Color {
         switch type {
-        case .subhanAllah: return .blue
-        case .alhamdulillah: return .green
-        case .astaghfirullah: return .purple
+        case .subhanAllah: return sacredGold
+        case .alhamdulillah: return softGreen
+        case .astaghfirullah: return Color(red: 0.6, green: 0.55, blue: 0.7)
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(type.rawValue)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 13))
+                    .foregroundColor(primaryText)
                 Spacer()
                 Text("\(count)")
-                    .fontWeight(.bold)
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(color)
             }
-            
-            ProgressView(value: percentage)
-                .progressViewStyle(LinearProgressViewStyle(tint: color))
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(subtleText.opacity(0.2))
+                        .frame(height: 4)
+
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: geometry.size.width * percentage, height: 4)
+                }
+            }
+            .frame(height: 4)
         }
-        .font(.subheadline)
     }
 }
-
 
 #if DEBUG
 struct DhikrHistoryView_Previews: PreviewProvider {
     static var previews: some View {
         let service = DhikrService.shared
-        // Add some dummy data for preview
-        
+
         DhikrHistoryView()
             .environmentObject(service)
     }
 }
-#endif 
+#endif

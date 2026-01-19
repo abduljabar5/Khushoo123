@@ -42,40 +42,49 @@ struct PrayerItem: Identifiable {
 struct PrayerEntry: TimelineEntry {
     let date: Date
     let prayers: [PrayerItem]
+    let isPremium: Bool
 }
 
 // MARK: - Provider
 
 struct PrayerProvider: TimelineProvider {
     func placeholder(in context: Context) -> PrayerEntry {
-        PrayerEntry(date: Date(), prayers: samplePrayers())
+        PrayerEntry(date: Date(), prayers: samplePrayers(), isPremium: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PrayerEntry) -> ()) {
-        let entry = PrayerEntry(date: Date(), prayers: loadPrayers())
+        let isPremium = checkPremiumStatus()
+        let entry = PrayerEntry(date: Date(), prayers: loadPrayers(), isPremium: isPremium)
         completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PrayerEntry>) -> ()) {
-        let entry = PrayerEntry(date: Date(), prayers: loadPrayers())
-        
+        let isPremium = checkPremiumStatus()
+        let entry = PrayerEntry(date: Date(), prayers: loadPrayers(), isPremium: isPremium)
+
         // Refresh every 15 minutes or when significant changes happen
-        // Also refresh when the next prayer time arrives
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
-        
+
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)
     }
-    
+
+    private func checkPremiumStatus() -> Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
+            return false
+        }
+        return groupDefaults.bool(forKey: "isPremiumUser") || groupDefaults.bool(forKey: "hasGrantedAccess")
+    }
+
     private func loadPrayers() -> [PrayerItem] {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
             return samplePrayers()
         }
-        
+
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        
+
         // Load Prayer Times
         var todayTimings: StoredPrayerTime?
         if let data = groupDefaults.data(forKey: "PrayerTimeStorage_v1") {
@@ -87,43 +96,40 @@ struct PrayerProvider: TimelineProvider {
             } catch {
             }
         }
-        
+
         // Load Completed Prayers
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let todayKey = dateFormatter.string(from: now)
         let completed = groupDefaults.array(forKey: "completed_\(todayKey)") as? [String] ?? []
-        
+
         guard let timings = todayTimings else {
             return samplePrayers() // Fallback if no data
         }
-        
+
         // Parse timings to Date objects to find "Next" prayer
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
-        
+
         let prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
         let prayerTimeStrings = [timings.fajr, timings.dhuhr, timings.asr, timings.maghrib, timings.isha]
-        
+
         var items: [PrayerItem] = []
         var nextFound = false
-        
+
         for (index, name) in prayerNames.enumerated() {
             let timeString = prayerTimeStrings[index].components(separatedBy: " ").first ?? ""
             let isCompleted = completed.contains(name)
-            
+
             // Determine if this is the "Next" prayer
             var isNext = false
             if !nextFound {
-                // Simple logic: first uncompleted prayer is "Next", OR based on time
-                // Let's use time for accuracy
                 if let timeDate = timeFormatter.date(from: timeString) {
-                    // Combine with today's date
                     var components = calendar.dateComponents([.year, .month, .day], from: today)
                     let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
                     components.hour = timeComponents.hour
                     components.minute = timeComponents.minute
-                    
+
                     if let fullDate = calendar.date(from: components) {
                         if fullDate > now {
                             isNext = true
@@ -132,26 +138,21 @@ struct PrayerProvider: TimelineProvider {
                     }
                 }
             }
-            
-            // Check if prayer is in the future (disabled)
-            // A prayer is disabled if it's NOT completed AND it's NOT the current/past prayer
-            // Actually, user requested: "only current or past prayers should be enabled"
-            
+
             var isFuture = false
             if let timeDate = timeFormatter.date(from: timeString) {
                 var components = calendar.dateComponents([.year, .month, .day], from: today)
                 let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
                 components.hour = timeComponents.hour
                 components.minute = timeComponents.minute
-                
+
                 if let fullDate = calendar.date(from: components) {
-                    // If prayer time is in the future (more than 15 mins buffer? No, strict future)
                     if fullDate > now {
                         isFuture = true
                     }
                 }
             }
-            
+
             // Check Cooldown
             let cooldownKey = "lastMarkedTime_\(name)"
             var isInCooldown = false
@@ -160,26 +161,25 @@ struct PrayerProvider: TimelineProvider {
                     isInCooldown = true
                 }
             }
-            
-            // Disable if future
+
             let isDisabled = isFuture
-            
+
             items.append(PrayerItem(
                 name: name,
                 time: formatTime(timeString),
                 isCompleted: isCompleted,
                 isNext: isNext,
-                isInCooldown: isInCooldown || isDisabled // Reuse this flag or add new one. Let's add new one to struct.
+                isInCooldown: isInCooldown || isDisabled
             ))
         }
-        
+
         return items
     }
-    
+
     private func formatTime(_ time: String) -> String {
         let inputFormatter = DateFormatter()
         inputFormatter.dateFormat = "HH:mm"
-        
+
         if let date = inputFormatter.date(from: time) {
             let outputFormatter = DateFormatter()
             outputFormatter.dateFormat = "h:mm a"
@@ -187,7 +187,7 @@ struct PrayerProvider: TimelineProvider {
         }
         return time
     }
-    
+
     private func samplePrayers() -> [PrayerItem] {
         [
             PrayerItem(name: "Fajr", time: "5:30 AM", isCompleted: true, isNext: false, isInCooldown: false),
@@ -199,85 +199,125 @@ struct PrayerProvider: TimelineProvider {
     }
 }
 
+// MARK: - Sacred Minimalism Colors
+
+private let sacredGold = Color(red: 0.77, green: 0.65, blue: 0.46)
+private let softGreen = Color(red: 0.55, green: 0.68, blue: 0.55)
+private let pageBackground = Color(red: 0.08, green: 0.09, blue: 0.11)
+private let cardBackground = Color(red: 0.12, green: 0.13, blue: 0.15)
+private let subtleText = Color(white: 0.5)
+
 // MARK: - View
 
 struct PrayerWidgetView: View {
     var entry: PrayerProvider.Entry
 
     var body: some View {
-        VStack(spacing: 8) {
-            // Header with depth
-            HStack {
-                Text("Daily Prayers")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                Spacer()
-                Text(Date(), style: .date)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(white: 0.22), Color(white: 0.18)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
-                    .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
-            )
+        if entry.isPremium {
+            premiumContent
+        } else {
+            lockedContent
+        }
+    }
 
-            // Prayer List with depth
-            VStack(spacing: 6) {
+    private var premiumContent: some View {
+        VStack(spacing: 6) {
+            // Header - Sacred Minimalism style
+            HStack(alignment: .firstTextBaseline) {
+                Text("DAILY PRAYERS")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(1.5)
+                    .foregroundColor(sacredGold)
+
+                Spacer()
+
+                Text(Date(), style: .date)
+                    .font(.system(size: 10))
+                    .foregroundColor(subtleText)
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 4)
+
+            // Prayer List
+            VStack(spacing: 5) {
                 ForEach(entry.prayers) { prayer in
-                    PrayerRow(prayer: prayer)
+                    SacredPrayerRow(prayer: prayer)
                 }
             }
         }
-        .padding(10)
+        .padding(12)
         .containerBackground(for: .widget) {
-            Color.clear
-                .background(.ultraThinMaterial)
+            pageBackground
+        }
+    }
+
+    private var lockedContent: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(cardBackground)
+                    .frame(width: 64, height: 64)
+                    .overlay(
+                        Circle()
+                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                    )
+
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundColor(sacredGold)
+            }
+
+            VStack(spacing: 6) {
+                Text("PREMIUM")
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(subtleText)
+
+                Text("Unlock Widgets")
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundColor(.white)
+            }
+
+            Text("Open Khushoo to upgrade")
+                .font(.system(size: 11))
+                .foregroundColor(subtleText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(for: .widget) {
+            pageBackground
         }
     }
 }
 
-struct PrayerRow: View {
+struct SacredPrayerRow: View {
     let prayer: PrayerItem
 
     var body: some View {
         HStack(spacing: 10) {
-            // Prayer icon with depth
+            // Prayer icon - minimal circle
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(white: 0.22), Color(white: 0.18)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                    .fill(cardBackground)
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Circle()
+                            .stroke(prayer.isNext ? sacredGold.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 1)
                     )
-                    .frame(width: 34, height: 34)
-                    .shadow(color: Color.black.opacity(0.3), radius: 3, x: 0, y: 2)
 
                 Image(systemName: prayerIcon(for: prayer.name))
-                    .font(.system(size: 15))
-                    .foregroundColor(prayer.isNext ? .orange : .white.opacity(0.7))
+                    .font(.system(size: 14))
+                    .foregroundColor(prayer.isNext ? sacredGold : subtleText)
             }
 
             // Prayer info
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(prayer.name)
-                    .font(.system(size: 13, weight: prayer.isNext ? .semibold : .regular))
-                    .foregroundColor(.white)
+                    .font(.system(size: 13, weight: prayer.isNext ? .medium : .regular))
+                    .foregroundColor(prayer.isNext ? .white : Color.white.opacity(0.85))
 
                 Text(prayer.time)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.6))
+                    .font(.system(size: 10))
+                    .foregroundColor(subtleText)
             }
 
             Spacer()
@@ -285,18 +325,18 @@ struct PrayerRow: View {
             // Status indicator
             if prayer.isCompleted {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.system(size: 20))
+                    .foregroundColor(softGreen)
+                    .font(.system(size: 18))
             } else {
                 Button(intent: MarkPrayerIntent(prayerName: prayer.name)) {
                     if prayer.isInCooldown {
                         Image(systemName: "hourglass")
-                            .foregroundColor(.orange)
-                            .font(.system(size: 20))
+                            .foregroundColor(sacredGold)
+                            .font(.system(size: 16))
                     } else {
-                        Image(systemName: "circle")
-                            .foregroundColor(.white.opacity(0.4))
-                            .font(.system(size: 20))
+                        Circle()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+                            .frame(width: 18, height: 18)
                     }
                 }
                 .buttonStyle(.plain)
@@ -304,18 +344,14 @@ struct PrayerRow: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(white: 0.22), Color(white: 0.18)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(prayer.isNext ? sacredGold.opacity(0.3) : Color.white.opacity(0.06), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
-                .shadow(color: Color.white.opacity(0.05), radius: 1, x: -1, y: -1)
         )
     }
 
@@ -357,5 +393,5 @@ struct PrayerWidget: Widget {
         PrayerItem(name: "Asr", time: "4:45 PM", isCompleted: false, isNext: false, isInCooldown: false),
         PrayerItem(name: "Maghrib", time: "7:30 PM", isCompleted: false, isNext: false, isInCooldown: false),
         PrayerItem(name: "Isha", time: "9:00 PM", isCompleted: false, isNext: false, isInCooldown: false)
-    ])
+    ], isPremium: true)
 }

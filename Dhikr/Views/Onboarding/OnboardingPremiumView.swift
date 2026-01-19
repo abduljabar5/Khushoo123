@@ -2,7 +2,7 @@
 //  OnboardingPremiumView.swift
 //  Dhikr
 //
-//  Premium upsell screen (Screen 4)
+//  Premium upsell screen (Screen 4) - Sacred Minimalism redesign
 //
 
 import SwiftUI
@@ -13,92 +13,132 @@ struct OnboardingPremiumView: View {
     let onContinueWithoutPremium: () -> Void
 
     @StateObject private var subscriptionService = SubscriptionService.shared
+    @StateObject private var referralService = ReferralCodeService.shared
     @StateObject private var themeManager = ThemeManager.shared
-    @State private var selectedPlanIndex = 0 // 0 = monthly (default)
+    @State private var selectedPlanIndex = 0
     @State private var isPurchasing = false
+    @State private var showReferralInput = false
+    @State private var referralCodeText = ""
+    @FocusState private var isReferralFieldFocused: Bool
 
-    private var theme: AppTheme { themeManager.theme }
+    // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var mutedPurple: Color {
+        Color(red: 0.55, green: 0.45, blue: 0.65)
+    }
+
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    /// Products to display based on referral code status
+    private var displayProducts: [Product] {
+        if referralService.hasValidReferralCode {
+            return subscriptionService.referralProducts
+        } else {
+            return subscriptionService.standardProducts
+        }
+    }
+
+    /// Trial duration text based on referral code status
+    private var trialDurationText: String {
+        referralService.hasValidReferralCode ? "7-day" : "3-day"
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 12) {
+                // Header - Sacred style
+                VStack(spacing: 16) {
                     ZStack {
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [theme.accentGold, Color(hex: "FFA500")],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .fill(sacredGold.opacity(0.15))
                             .frame(width: 96, height: 96)
+                            .overlay(
+                                Circle()
+                                    .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                            )
 
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: 44))
-                            .foregroundColor(.white)
+                        Image(systemName: "crown")
+                            .font(.system(size: 44, weight: .ultraLight))
+                            .foregroundColor(sacredGold)
                     }
                     .padding(.top, 32)
 
                     Text("Unlock Premium")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.primaryText)
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(themeManager.theme.primaryText)
 
                     Text("Get the full spiritual experience")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(theme.secondaryText)
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundColor(warmGray)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
                 .padding(.bottom, 32)
 
-                // Benefits
-                VStack(spacing: 16) {
-                    PremiumBenefitRow(
-                        icon: "person.3.fill",
-                        iconColor: theme.primaryAccent,
+                // Benefits - Sacred style
+                VStack(spacing: 12) {
+                    SacredPremiumBenefitRow(
+                        icon: "person.3",
                         title: "300+ Reciters",
                         description: "Access the world's best Quran reciters",
-                        theme: theme
+                        color: sacredGold
                     )
 
-                    PremiumBenefitRow(
+                    SacredPremiumBenefitRow(
                         icon: "sparkles",
-                        iconColor: theme.accentGold,
                         title: "Advanced Blocking",
                         description: "Enhanced prayer-time focus features",
-                        theme: theme
+                        color: softGreen
                     )
 
-                    PremiumBenefitRow(
-                        icon: "photo.fill",
-                        iconColor: Color(hex: "5E35B1"),
+                    SacredPremiumBenefitRow(
+                        icon: "photo",
                         title: "Premium Cover Art",
                         description: "Beautiful nature wallpapers",
-                        theme: theme
+                        color: mutedPurple
                     )
 
-                    PremiumBenefitRow(
-                        icon: "icloud.fill",
-                        iconColor: theme.accentTeal,
+                    SacredPremiumBenefitRow(
+                        icon: "icloud",
                         title: "Cloud Sync",
                         description: "Access your data across devices",
-                        theme: theme
+                        color: warmGray
                     )
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.bottom, 28)
 
-                // Plan Selector
+                // Plan Selector - Sacred style
                 VStack(spacing: 12) {
-                    if !subscriptionService.availableProducts.isEmpty {
-                        ForEach(Array(subscriptionService.availableProducts.enumerated()), id: \.element.id) { index, product in
-                            PlanCard(
+                    if !displayProducts.isEmpty {
+                        ForEach(Array(displayProducts.enumerated()), id: \.element.id) { index, product in
+                            SacredPlanCard(
                                 product: product,
                                 isSelected: selectedPlanIndex == index,
-                                isBestValue: product.subscription?.subscriptionPeriod.unit == .year,
-                                theme: theme
+                                isBestValue: product.subscription?.subscriptionPeriod.unit == .year
                             ) {
                                 selectedPlanIndex = index
                             }
@@ -107,25 +147,107 @@ struct OnboardingPremiumView: View {
                         // Loading state
                         VStack(spacing: 16) {
                             ProgressView()
+                                .tint(sacredGold)
                             Text("Loading subscription options...")
-                                .font(.system(size: 14, weight: .regular))
-                                .foregroundColor(theme.secondaryText)
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(warmGray)
                         }
                         .padding()
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .padding(.bottom, 16)
+
+                // Referral Code Section - Sacred style
+                VStack(spacing: 12) {
+                    if showReferralInput {
+                        HStack(spacing: 12) {
+                            TextField("Enter code", text: $referralCodeText)
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .autocapitalization(.allCharacters)
+                                .disableAutocorrection(true)
+                                .font(.system(size: 15, weight: .light))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(cardBackground)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(sacredGold.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                                .focused($isReferralFieldFocused)
+
+                            Button(action: {
+                                Task {
+                                    let isValid = await referralService.validateCode(referralCodeText)
+                                    if isValid {
+                                        selectedPlanIndex = 0
+                                        isReferralFieldFocused = false
+                                    }
+                                }
+                            }) {
+                                if referralService.isValidating {
+                                    ProgressView()
+                                        .tint(.white)
+                                        .frame(width: 70, height: 44)
+                                } else {
+                                    Text("Apply")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(themeManager.effectiveTheme == .dark ? .black : .white)
+                                        .frame(width: 70, height: 44)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(sacredGold)
+                                        )
+                                }
+                            }
+                            .disabled(referralCodeText.isEmpty || referralService.isValidating)
+                        }
+
+                        if let error = referralService.validationError {
+                            Text(error)
+                                .font(.system(size: 12, weight: .light))
+                                .foregroundColor(Color(red: 0.85, green: 0.4, blue: 0.4))
+                        }
+
+                        if referralService.hasValidReferralCode {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(softGreen)
+                                Text("Code applied! You get a 7-day free trial.")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(softGreen)
+                            }
+                        }
+                    } else {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showReferralInput = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                isReferralFieldFocused = true
+                            }
+                        }) {
+                            Text("Have a referral code?")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(sacredGold)
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
 
                 // Trial Terms
-                Text("Start with a 7-day free trial. No charge before trial ends. Cancel anytime.")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(theme.secondaryText)
+                Text("Start with a \(trialDurationText) free trial. No charge before trial ends. Cancel anytime.")
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundColor(warmGray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                     .padding(.bottom, 24)
 
-                // Actions
+                // Actions - Sacred style
                 VStack(spacing: 16) {
                     // Primary: Start Trial
                     Button(action: {
@@ -135,40 +257,35 @@ struct OnboardingPremiumView: View {
                     }) {
                         if isPurchasing {
                             ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .progressViewStyle(CircularProgressViewStyle(tint: themeManager.effectiveTheme == .dark ? .black : .white))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 56)
                                 .background(
                                     RoundedRectangle(cornerRadius: 16)
-                                        .fill(theme.primaryAccent)
+                                        .fill(sacredGold)
                                 )
                         } else {
-                            Text("Start 7-Day Free Trial")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                            Text("Start \(trialDurationText.capitalized) Free Trial")
+                                .font(.system(size: 16, weight: .medium))
+                                .tracking(0.5)
+                                .foregroundColor(themeManager.effectiveTheme == .dark ? .black : .white)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 56)
                                 .background(
                                     RoundedRectangle(cornerRadius: 16)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [theme.accentGold, Color(hex: "FFA500")],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
+                                        .fill(sacredGold)
                                 )
                         }
                     }
-                    .disabled(isPurchasing || subscriptionService.availableProducts.isEmpty)
+                    .disabled(isPurchasing || displayProducts.isEmpty)
 
                     // Secondary: Continue without Premium
                     Button(action: {
                         onContinueWithoutPremium()
                     }) {
                         Text("Continue without Premium")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(theme.secondaryText)
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundColor(warmGray)
                     }
                     .disabled(isPurchasing)
 
@@ -179,8 +296,8 @@ struct OnboardingPremiumView: View {
                         }
                     }) {
                         Text("Restore Purchases")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(theme.primaryAccent)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(sacredGold)
                     }
                     .disabled(isPurchasing)
                 }
@@ -194,107 +311,143 @@ struct OnboardingPremiumView: View {
                             UIApplication.shared.open(url)
                         }
                     }
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(theme.tertiaryText)
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundColor(warmGray.opacity(0.7))
 
-                    Text("•")
-                        .foregroundColor(theme.tertiaryText)
+                    Text("·")
+                        .foregroundColor(warmGray.opacity(0.5))
 
                     Button("Privacy") {
                         if let url = URL(string: "https://abduljabar5.github.io/Khushoo_site/#/privacy") {
                             UIApplication.shared.open(url)
                         }
                     }
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(theme.tertiaryText)
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundColor(warmGray.opacity(0.7))
                 }
                 .padding(.bottom, 48)
             }
         }
-        .background(theme.primaryBackground)
+        .background(pageBackground)
         .onAppear {
-
-            // Only load if products aren't already loaded
             if subscriptionService.availableProducts.isEmpty {
                 Task {
                     await subscriptionService.loadProducts()
-
-                    // Check result after loading
-                    if subscriptionService.availableProducts.isEmpty {
-                    } else {
-                    }
                 }
-            } else {
             }
         }
     }
 
     private func purchaseSelectedProduct() async {
-        guard selectedPlanIndex < subscriptionService.availableProducts.count else {
+        guard selectedPlanIndex < displayProducts.count else {
             return
         }
 
         isPurchasing = true
-        let product = subscriptionService.availableProducts[selectedPlanIndex]
+        let product = displayProducts[selectedPlanIndex]
 
         await subscriptionService.purchase(product)
 
         isPurchasing = false
 
-        // Check if purchase succeeded - complete onboarding immediately
         if subscriptionService.hasPremiumAccess {
+            referralService.clearCode()
             onStartTrial()
         }
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Sacred Premium Benefit Row
 
-struct PremiumBenefitRow: View {
+private struct SacredPremiumBenefitRow: View {
     let icon: String
-    let iconColor: Color
     let title: String
     let description: String
-    let theme: AppTheme
+    let color: Color
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
 
     var body: some View {
         HStack(spacing: 16) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(iconColor.opacity(0.1))
-                    .frame(width: 48, height: 48)
+                Circle()
+                    .fill(color.opacity(0.12))
+                    .frame(width: 44, height: 44)
 
                 Image(systemName: icon)
-                    .font(.system(size: 22))
-                    .foregroundColor(iconColor)
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundColor(color)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(theme.primaryText)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(themeManager.theme.primaryText)
 
                 Text(description)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(theme.secondaryText)
+                    .font(.system(size: 13, weight: .light))
+                    .foregroundColor(warmGray)
             }
 
             Spacer()
         }
-        .padding(16)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(theme.cardBackground)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(sacredGold.opacity(0.08), lineWidth: 1)
+                )
         )
     }
 }
 
-struct PlanCard: View {
+// MARK: - Sacred Plan Card
+
+private struct SacredPlanCard: View {
     let product: Product
     let isSelected: Bool
     let isBestValue: Bool
-    let theme: AppTheme
     let onSelect: () -> Void
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
 
     var body: some View {
         Button(action: onSelect) {
@@ -302,12 +455,12 @@ struct PlanCard: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(product.displayName)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(theme.primaryText)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(themeManager.theme.primaryText)
 
                         Text(product.description)
-                            .font(.system(size: 14, weight: .regular))
-                            .foregroundColor(theme.secondaryText)
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(warmGray)
                             .lineLimit(2)
                     }
 
@@ -315,40 +468,41 @@ struct PlanCard: View {
 
                     if isBestValue {
                         Text("Best Value")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 10, weight: .medium))
+                            .tracking(0.5)
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(theme.accentGreen)
+                                Capsule()
+                                    .fill(softGreen)
                             )
                     }
                 }
 
                 HStack {
                     Text(product.displayPrice)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(theme.primaryAccent)
+                        .font(.system(size: 24, weight: .ultraLight))
+                        .foregroundColor(sacredGold)
 
                     Text("/ \(periodText)")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(theme.secondaryText)
+                        .font(.system(size: 13, weight: .light))
+                        .foregroundColor(warmGray)
 
                     Spacer()
 
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 24))
-                        .foregroundColor(isSelected ? theme.primaryAccent : theme.tertiaryText)
+                        .font(.system(size: 22, weight: .light))
+                        .foregroundColor(isSelected ? sacredGold : warmGray.opacity(0.5))
                 }
             }
-            .padding(20)
+            .padding(18)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(theme.cardBackground)
+                    .fill(cardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? theme.primaryAccent : theme.tertiaryBackground, lineWidth: 2)
+                            .stroke(isSelected ? sacredGold.opacity(0.5) : sacredGold.opacity(0.1), lineWidth: isSelected ? 2 : 1)
                     )
             )
         }

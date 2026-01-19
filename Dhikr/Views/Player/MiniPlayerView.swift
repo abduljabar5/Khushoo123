@@ -19,19 +19,24 @@ struct MiniPlayerView: View {
     }
 
     var body: some View {
-        HStack(spacing: 15) {
-            PlayerInfo(.init(width: 45, height: 45))
+        HStack(spacing: 0) {
+            // Player info area - tap here to expand
+            HStack(spacing: 15) {
+                PlayerInfo(.init(width: 45, height: 45))
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                expanded = true
+            }
 
-            Spacer(minLength: 0)
-
-            /// Action Buttons
+            // Action Buttons - independent of tap gesture above
             if audioPlayerService.isLoading {
-                // Show loading indicator when audio is loading
                 ProgressView()
                     .scaleEffect(0.9)
                     .padding(.trailing, 10)
             } else {
-                // Save/Bookmark button
+                // Bookmark button
                 Button {
                     HapticManager.shared.impact(.light)
                     if let reciter = audioPlayerService.currentReciter {
@@ -39,27 +44,30 @@ struct MiniPlayerView: View {
                     }
                 } label: {
                     Image(systemName: isCurrentReciterFavorite ? "bookmark.fill" : "bookmark")
-                        .font(.body)
+                        .font(.system(size: 18))
                         .foregroundStyle(isCurrentReciterFavorite ? Color(red: 0.85, green: 0.65, blue: 0.2) : Color.gray)
-                        .contentShape(.rect)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
-                .padding(.trailing, 5)
 
+                // Play/Pause button
                 Button {
                     audioPlayerService.togglePlayPause()
                 } label: {
                     Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title3)
-                        .contentShape(.rect)
+                        .font(.system(size: 20))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
-                .padding(.trailing, 10)
 
+                // Forward button
                 Button {
                     audioPlayerService.nextTrack()
                 } label: {
                     Image(systemName: "forward.fill")
-                        .font(.title3)
-                        .contentShape(.rect)
+                        .font(.system(size: 18))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
             }
         }

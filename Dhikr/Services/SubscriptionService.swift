@@ -9,11 +9,24 @@ import Foundation
 import StoreKit
 import FirebaseAuth
 import FirebaseFirestore
+import WidgetKit
 
 // MARK: - Subscription Product IDs
 enum SubscriptionProductID: String, CaseIterable {
     case monthly = "khushoo.monthly"
     case yearly = "khushoo.yearly"
+    case monthlyReferral = "khushoo.monthly.referral"
+    case yearlyReferral = "khushoo.yearly.referral"
+
+    /// Standard products (3-day trial)
+    static var standardProducts: [SubscriptionProductID] {
+        [.monthly, .yearly]
+    }
+
+    /// Referral products (7-day trial)
+    static var referralProducts: [SubscriptionProductID] {
+        [.monthlyReferral, .yearlyReferral]
+    }
 }
 
 // MARK: - Subscription Service
@@ -73,6 +86,11 @@ class SubscriptionService: ObservableObject {
             if cachedGrantedAccess {
                 self.hasGrantedAccess = true
                 print("✅ [SubscriptionService] Loaded cached granted access: true")
+            }
+
+            // Refresh widgets immediately if user has cached premium access
+            if cachedPremium || cachedGrantedAccess {
+                WidgetCenter.shared.reloadAllTimelines()
             }
         }
 
@@ -285,6 +303,9 @@ class SubscriptionService: ObservableObject {
         }
 
         print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium), hasGrantedAccess: \(self.hasGrantedAccess), hasPremiumAccess: \(self.hasPremiumAccess)")
+
+        // Refresh all widgets so they pick up the new premium status
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Firebase Sync Methods
@@ -412,7 +433,20 @@ class SubscriptionService: ObservableObject {
         purchaseState = .purchasing
 
         do {
-            let result = try await product.purchase()
+            // Check if this is a referral product and we have an appAccountToken
+            let isReferralProduct = product.id == SubscriptionProductID.monthlyReferral.rawValue ||
+                                    product.id == SubscriptionProductID.yearlyReferral.rawValue
+            let referralToken = ReferralCodeService.shared.appAccountToken
+
+            // Make the purchase - attach appAccountToken for referral tracking
+            let result: Product.PurchaseResult
+            if isReferralProduct, let token = referralToken {
+                // Attach the token so Apple includes it in webhook notifications
+                result = try await product.purchase(options: [.appAccountToken(token)])
+                print("✅ [SubscriptionService] Purchase with appAccountToken: \(token.uuidString)")
+            } else {
+                result = try await product.purchase()
+            }
 
             switch result {
             case .success(let verification):
@@ -421,6 +455,11 @@ class SubscriptionService: ObservableObject {
                 // Sync to Firebase if user is logged in
                 if currentUserId != nil {
                     await syncSubscriptionToFirebase(transaction: transaction, isActive: true)
+                }
+
+                // Record referral code usage if this was a referral product
+                if isReferralProduct {
+                    await ReferralCodeService.shared.recordCodeUsage(transactionId: String(transaction.id))
                 }
 
                 // Update subscription status (works locally via StoreKit)
@@ -509,11 +548,37 @@ extension SubscriptionService {
         return hasPremiumAccess
     }
 
+    // MARK: - Standard Products (3-day trial)
     var monthlyProduct: Product? {
         return availableProducts.first { $0.id == SubscriptionProductID.monthly.rawValue }
     }
 
     var yearlyProduct: Product? {
         return availableProducts.first { $0.id == SubscriptionProductID.yearly.rawValue }
+    }
+
+    /// Standard products to show (without referral code)
+    var standardProducts: [Product] {
+        return availableProducts.filter {
+            $0.id == SubscriptionProductID.monthly.rawValue ||
+            $0.id == SubscriptionProductID.yearly.rawValue
+        }.sorted { $0.price < $1.price }
+    }
+
+    // MARK: - Referral Products (7-day trial)
+    var monthlyReferralProduct: Product? {
+        return availableProducts.first { $0.id == SubscriptionProductID.monthlyReferral.rawValue }
+    }
+
+    var yearlyReferralProduct: Product? {
+        return availableProducts.first { $0.id == SubscriptionProductID.yearlyReferral.rawValue }
+    }
+
+    /// Referral products to show (with valid referral code)
+    var referralProducts: [Product] {
+        return availableProducts.filter {
+            $0.id == SubscriptionProductID.monthlyReferral.rawValue ||
+            $0.id == SubscriptionProductID.yearlyReferral.rawValue
+        }.sorted { $0.price < $1.price }
     }
 }
