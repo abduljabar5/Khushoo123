@@ -1,0 +1,1910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Khushoo - Sacred Quran Listening Experience</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      /* Sacred Minimalism Color Palette */
+      --sacred-gold: #C4A574;
+      --sacred-gold-light: rgba(196, 165, 116, 0.15);
+      --soft-green: #8CAE8C;
+      --warm-gray: #666B6B;
+      --muted-purple: #8C73A6;
+
+      /* Dark Theme */
+      --bg-primary: #14171C;
+      --bg-secondary: #1E2126;
+      --bg-card: #1E2126;
+      --text-primary: #FFFFFF;
+      --text-secondary: #B0BEC5;
+      --text-tertiary: #78909C;
+
+      /* Light Theme */
+      --bg-primary-light: #F5F4F2;
+      --bg-secondary-light: #FFFFFF;
+      --bg-card-light: #FFFFFF;
+      --text-primary-light: #2C3E50;
+      --text-secondary-light: #7F8C8D;
+
+      /* Spacing */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      --spacing-2xl: 48px;
+
+      /* Border Radius */
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --radius-2xl: 32px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Website Layout */
+    .website-container {
+      min-height: 100vh;
+    }
+
+    /* Navigation */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding: var(--spacing-md) var(--spacing-xl);
+      background: rgba(20, 23, 28, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(196, 165, 116, 0.1);
+    }
+
+    .nav-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 1.5rem;
+      font-weight: 300;
+      letter-spacing: 8px;
+      color: var(--sacred-gold);
+      text-transform: uppercase;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: var(--spacing-xl);
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      letter-spacing: 1px;
+      transition: color 0.3s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--sacred-gold);
+    }
+
+    .nav-cta {
+      background: var(--sacred-gold);
+      color: var(--bg-primary);
+      padding: var(--spacing-sm) var(--spacing-lg);
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .nav-cta:hover {
+      background: #d4b584;
+      transform: translateY(-2px);
+    }
+
+    /* Hero Section */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 120px var(--spacing-xl) var(--spacing-2xl);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(ellipse at 30% 20%, rgba(196, 165, 116, 0.08) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 80%, rgba(140, 174, 140, 0.05) 0%, transparent 50%);
+    }
+
+    .hero-content {
+      max-width: 1200px;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--spacing-2xl);
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-text {
+      max-width: 540px;
+    }
+
+    .hero-label {
+      display: inline-block;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      letter-spacing: 2px;
+      color: var(--sacred-gold);
+      text-transform: uppercase;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .hero-title {
+      font-size: 3.5rem;
+      font-weight: 300;
+      line-height: 1.2;
+      margin-bottom: var(--spacing-lg);
+      color: var(--text-primary);
+    }
+
+    .hero-title span {
+      color: var(--sacred-gold);
+    }
+
+    .hero-description {
+      font-size: 1.125rem;
+      font-weight: 300;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: var(--spacing-md);
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      background: var(--sacred-gold);
+      color: var(--bg-primary);
+      padding: var(--spacing-md) var(--spacing-lg);
+      border-radius: var(--radius-md);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      background: #d4b584;
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      background: transparent;
+      color: var(--text-primary);
+      padding: var(--spacing-md) var(--spacing-lg);
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(196, 165, 116, 0.3);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--sacred-gold);
+      background: rgba(196, 165, 116, 0.1);
+    }
+
+    /* iPhone Mockup */
+    .hero-mockup {
+      display: flex;
+      justify-content: center;
+      perspective: 1000px;
+    }
+
+    .iphone-frame {
+      width: 320px;
+      height: 692px;
+      background: linear-gradient(145deg, #2a2d33 0%, #1a1d22 100%);
+      border-radius: 50px;
+      padding: 12px;
+      box-shadow:
+        0 50px 100px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      position: relative;
+      transform: rotateY(-5deg) rotateX(2deg);
+      transition: transform 0.5s ease;
+    }
+
+    .iphone-frame:hover {
+      transform: rotateY(0deg) rotateX(0deg);
+    }
+
+    .iphone-screen {
+      width: 100%;
+      height: 100%;
+      background: var(--bg-primary);
+      border-radius: 40px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Dynamic Island */
+    .dynamic-island {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 34px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 100;
+    }
+
+    /* Mockup Content */
+    .mockup-content {
+      height: calc(100% - 80px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-top: 60px;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .mockup-content::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Tab Bar */
+    .tab-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: rgba(30, 33, 38, 0.95);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(196, 165, 116, 0.1);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding-bottom: 16px;
+      z-index: 50;
+    }
+
+    .tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 8px 16px;
+      transition: all 0.3s ease;
+    }
+
+    .tab-item i {
+      width: 24px;
+      height: 24px;
+      color: var(--text-tertiary);
+      transition: color 0.3s ease;
+    }
+
+    .tab-item span {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      transition: color 0.3s ease;
+    }
+
+    .tab-item.active i,
+    .tab-item.active span {
+      color: var(--sacred-gold);
+    }
+
+    .tab-item:hover i,
+    .tab-item:hover span {
+      color: var(--sacred-gold);
+    }
+
+    /* Tab Content Panels */
+    .tab-panel {
+      display: none;
+      padding: 0 16px 100px;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Home Tab Content */
+    .mockup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0 16px;
+    }
+
+    .mockup-greeting {
+      font-size: 18px;
+      font-weight: 400;
+      font-family: serif;
+      color: var(--sacred-gold);
+    }
+
+    .mockup-greeting-sub {
+      font-size: 13px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .profile-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--sacred-gold-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .profile-btn i {
+      width: 18px;
+      height: 18px;
+      color: var(--sacred-gold);
+    }
+
+    /* Continue Card */
+    .continue-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid rgba(196, 165, 116, 0.15);
+      margin-bottom: 20px;
+    }
+
+    .continue-play {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--sacred-gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .continue-play i {
+      width: 16px;
+      height: 16px;
+      color: var(--bg-primary);
+      margin-left: 2px;
+    }
+
+    .continue-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .continue-label {
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      color: var(--sacred-gold);
+      text-transform: uppercase;
+    }
+
+    .continue-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .continue-meta {
+      font-size: 12px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .continue-meta span {
+      color: var(--sacred-gold);
+      font-weight: 500;
+    }
+
+    /* Prayer Card */
+    .prayer-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-xl);
+      padding: 18px;
+      border: 1px solid rgba(196, 165, 116, 0.2);
+      margin-bottom: 20px;
+    }
+
+    .prayer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .prayer-label {
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .prayer-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .prayer-arabic {
+      font-size: 17px;
+      font-family: serif;
+      color: var(--text-primary);
+    }
+
+    .prayer-english {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .prayer-location {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    .prayer-location i {
+      width: 10px;
+      height: 10px;
+    }
+
+    .prayer-time {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .prayer-time-value {
+      font-size: 32px;
+      font-weight: 200;
+      color: var(--sacred-gold);
+    }
+
+    .prayer-time-until {
+      font-size: 12px;
+      font-weight: 300;
+      color: var(--text-secondary);
+    }
+
+    .prayer-progress {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .prayer-current {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--sacred-gold);
+    }
+
+    .prayer-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(196, 165, 116, 0.15);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .prayer-bar-fill {
+      height: 100%;
+      width: 60%;
+      background: var(--sacred-gold);
+      border-radius: 2px;
+    }
+
+    .prayer-end {
+      font-size: 10px;
+      font-weight: 300;
+      color: var(--text-secondary);
+    }
+
+    /* Section Header */
+    .section-header {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .quick-action {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .quick-action:hover {
+      border-color: rgba(196, 165, 116, 0.2);
+    }
+
+    .quick-action-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .quick-action-icon i {
+      width: 14px;
+      height: 14px;
+    }
+
+    .quick-action-icon.gold {
+      background: var(--sacred-gold-light);
+    }
+
+    .quick-action-icon.gold i {
+      color: var(--sacred-gold);
+    }
+
+    .quick-action-icon.green {
+      background: rgba(140, 174, 140, 0.15);
+    }
+
+    .quick-action-icon.green i {
+      color: var(--soft-green);
+    }
+
+    .quick-action-icon.gray {
+      background: rgba(102, 107, 107, 0.15);
+    }
+
+    .quick-action-icon.gray i {
+      color: var(--warm-gray);
+    }
+
+    .quick-action-icon.purple {
+      background: rgba(140, 115, 166, 0.15);
+    }
+
+    .quick-action-icon.purple i {
+      color: var(--muted-purple);
+    }
+
+    .quick-action-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .quick-action-chevron i {
+      width: 10px;
+      height: 10px;
+      color: var(--text-secondary);
+    }
+
+    /* Reciter Cards */
+    .reciter-scroll {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      margin: 0 -16px;
+      padding: 0 16px 16px;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .reciter-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .reciter-card {
+      flex-shrink: 0;
+      width: 100px;
+      text-align: center;
+    }
+
+    .reciter-image-wrapper {
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .reciter-image {
+      width: 100px;
+      height: 100px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+      background: var(--bg-card);
+    }
+
+    .reciter-play {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--sacred-gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .reciter-play i {
+      width: 11px;
+      height: 11px;
+      color: var(--bg-primary);
+      margin-left: 1px;
+    }
+
+    .reciter-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .reciter-country {
+      font-size: 9px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* Verse Card */
+    .verse-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-xl);
+      padding: 28px 24px;
+      text-align: center;
+      border: 1px solid rgba(196, 165, 116, 0.15);
+      margin-bottom: 24px;
+    }
+
+    .verse-arabic {
+      font-size: 22px;
+      font-family: serif;
+      line-height: 1.8;
+      color: var(--text-primary);
+      margin-bottom: 18px;
+    }
+
+    .verse-divider {
+      width: 40px;
+      height: 1px;
+      background: rgba(196, 165, 116, 0.4);
+      margin: 0 auto 18px;
+    }
+
+    .verse-translation {
+      font-size: 13px;
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+    }
+
+    .verse-reference {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--sacred-gold);
+    }
+
+    /* Spotlight Card */
+    .spotlight-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid rgba(196, 165, 116, 0.15);
+      margin-bottom: 24px;
+    }
+
+    .spotlight-image {
+      width: 70px;
+      height: 70px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .spotlight-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .spotlight-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .spotlight-country {
+      font-size: 11px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .spotlight-surahs {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--sacred-gold);
+      margin-top: 4px;
+    }
+
+    .spotlight-play {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--sacred-gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .spotlight-play i {
+      width: 14px;
+      height: 14px;
+      color: var(--bg-primary);
+      margin-left: 2px;
+    }
+
+    /* Stats Card */
+    .stats-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 24px;
+    }
+
+    .stats-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .stats-label {
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .stats-value {
+      font-size: 28px;
+      font-weight: 200;
+      color: var(--sacred-gold);
+      margin-top: 6px;
+    }
+
+    .stats-sub {
+      font-size: 11px;
+      font-weight: 300;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .stats-icon i {
+      width: 24px;
+      height: 24px;
+      color: var(--sacred-gold);
+      opacity: 0.5;
+    }
+
+    /* Search Tab Content */
+    .search-bar {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 20px;
+    }
+
+    .search-bar i {
+      width: 18px;
+      height: 18px;
+      color: var(--text-secondary);
+    }
+
+    .search-bar input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .search-bar input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .search-result {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .search-result-image {
+      width: 50px;
+      height: 50px;
+      border-radius: var(--radius-sm);
+      object-fit: cover;
+      background: var(--bg-secondary);
+    }
+
+    .search-result-info {
+      flex: 1;
+    }
+
+    .search-result-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .search-result-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* Prayer Tab Content */
+    .prayer-times-list {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid rgba(196, 165, 116, 0.1);
+    }
+
+    .prayer-time-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .prayer-time-item:last-child {
+      border-bottom: none;
+    }
+
+    .prayer-time-item.current {
+      background: rgba(196, 165, 116, 0.1);
+    }
+
+    .prayer-time-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .prayer-time-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+    }
+
+    .prayer-time-item.current .prayer-time-dot {
+      background: var(--sacred-gold);
+    }
+
+    .prayer-time-item.done .prayer-time-dot {
+      background: var(--soft-green);
+    }
+
+    .prayer-time-name-ar {
+      font-size: 15px;
+      font-family: serif;
+      color: var(--text-primary);
+    }
+
+    .prayer-time-name-en {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .prayer-time-right {
+      text-align: right;
+    }
+
+    .prayer-time-value-item {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .prayer-time-item.current .prayer-time-value-item {
+      color: var(--sacred-gold);
+    }
+
+    .prayer-time-status {
+      font-size: 10px;
+      color: var(--sacred-gold);
+      margin-top: 2px;
+    }
+
+    /* Profile Tab Content */
+    .profile-header {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .profile-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--sacred-gold-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      border: 2px solid rgba(196, 165, 116, 0.3);
+    }
+
+    .profile-avatar i {
+      width: 32px;
+      height: 32px;
+      color: var(--sacred-gold);
+    }
+
+    .profile-name {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .profile-email {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .profile-stats {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      padding: 20px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 20px;
+    }
+
+    .profile-stat {
+      text-align: center;
+    }
+
+    .profile-stat-value {
+      font-size: 24px;
+      font-weight: 300;
+      color: var(--sacred-gold);
+    }
+
+    .profile-stat-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .profile-menu-item {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .profile-menu-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: var(--sacred-gold-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .profile-menu-icon i {
+      width: 16px;
+      height: 16px;
+      color: var(--sacred-gold);
+    }
+
+    .profile-menu-text {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .profile-menu-chevron i {
+      width: 14px;
+      height: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* Features Section */
+    .features {
+      padding: var(--spacing-2xl) var(--spacing-xl);
+      background: var(--bg-secondary);
+    }
+
+    .features-content {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .features-header {
+      text-align: center;
+      margin-bottom: var(--spacing-2xl);
+    }
+
+    .features-label {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      letter-spacing: 2px;
+      color: var(--sacred-gold);
+      text-transform: uppercase;
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .features-title {
+      font-size: 2.5rem;
+      font-weight: 300;
+      color: var(--text-primary);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--spacing-lg);
+    }
+
+    .feature-card {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-lg);
+      border: 1px solid rgba(196, 165, 116, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(196, 165, 116, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: var(--sacred-gold-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .feature-icon i {
+      width: 24px;
+      height: 24px;
+      color: var(--sacred-gold);
+    }
+
+    .feature-title {
+      font-size: 1.125rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .feature-description {
+      font-size: 0.875rem;
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    .footer {
+      padding: var(--spacing-2xl) var(--spacing-xl);
+      border-top: 1px solid rgba(196, 165, 116, 0.1);
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-logo {
+      font-size: 1.25rem;
+      font-weight: 300;
+      letter-spacing: 6px;
+      color: var(--sacred-gold);
+      text-transform: uppercase;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--spacing-lg);
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.3s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--sacred-gold);
+    }
+
+    .footer-copyright {
+      font-size: 0.875rem;
+      color: var(--text-tertiary);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .hero-content {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .hero-text {
+        max-width: 100%;
+      }
+
+      .hero-buttons {
+        justify-content: center;
+      }
+
+      .hero-mockup {
+        margin-top: var(--spacing-xl);
+      }
+
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero-title {
+        font-size: 2.5rem;
+      }
+
+      .iphone-frame {
+        width: 280px;
+        height: 606px;
+        transform: none;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        gap: var(--spacing-lg);
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero {
+        padding: 100px var(--spacing-md) var(--spacing-xl);
+      }
+
+      .hero-buttons {
+        flex-direction: column;
+      }
+
+      .iphone-frame {
+        width: 260px;
+        height: 563px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="website-container">
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="nav-content">
+        <div class="nav-logo">Khushoo</div>
+        <ul class="nav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#download">Download</a></li>
+        </ul>
+        <a href="#download" class="nav-cta">Get the App</a>
+      </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <div class="hero-text">
+          <span class="hero-label">Sacred Minimalism</span>
+          <h1 class="hero-title">A contemplative <span>Quran</span> listening experience</h1>
+          <p class="hero-description">
+            Immerse yourself in the sacred recitations of the Quran.
+            Track your prayer times, discover world-renowned reciters,
+            and cultivate a deeper spiritual connection.
+          </p>
+          <div class="hero-buttons">
+            <a href="#download" class="btn-primary">
+              <i data-lucide="download"></i>
+              Download Free
+            </a>
+            <a href="#features" class="btn-secondary">
+              <i data-lucide="play"></i>
+              See Features
+            </a>
+          </div>
+        </div>
+
+        <!-- iPhone Mockup -->
+        <div class="hero-mockup">
+          <div class="iphone-frame">
+            <div class="iphone-screen">
+              <div class="dynamic-island"></div>
+
+              <div class="mockup-content">
+                <!-- Home Tab Panel -->
+                <div id="home-panel" class="tab-panel active">
+                  <!-- Header -->
+                  <div class="mockup-header">
+                    <div>
+                      <div class="mockup-greeting">&#1575;&#1604;&#1587;&#1604;&#1575;&#1605; &#1593;&#1604;&#1610;&#1603;&#1605;</div>
+                      <div class="mockup-greeting-sub">Good evening, Abdullah</div>
+                    </div>
+                    <div class="profile-btn">
+                      <i data-lucide="user"></i>
+                    </div>
+                  </div>
+
+                  <!-- Continue Card -->
+                  <div class="continue-card">
+                    <div class="continue-play">
+                      <i data-lucide="play"></i>
+                    </div>
+                    <div class="continue-info">
+                      <div class="continue-label">Continue</div>
+                      <div class="continue-title">Surah Al-Baqarah</div>
+                      <div class="continue-meta">Mishary Alafasi <span>12:34</span></div>
+                    </div>
+                  </div>
+
+                  <!-- Prayer Card -->
+                  <div class="prayer-card">
+                    <div class="prayer-header">
+                      <div>
+                        <div class="prayer-label">Next Prayer</div>
+                        <div class="prayer-name">
+                          <span class="prayer-arabic">&#1575;&#1604;&#1605;&#1594;&#1585;&#1576;</span>
+                          <span class="prayer-english">Maghrib</span>
+                        </div>
+                      </div>
+                      <div class="prayer-location">
+                        <i data-lucide="map-pin"></i>
+                        New York
+                      </div>
+                    </div>
+                    <div class="prayer-time">
+                      <span class="prayer-time-value">6:42</span>
+                      <span class="prayer-time-until">in 2h 15m</span>
+                    </div>
+                    <div class="prayer-progress">
+                      <span class="prayer-current">Asr</span>
+                      <div class="prayer-bar">
+                        <div class="prayer-bar-fill"></div>
+                      </div>
+                      <span class="prayer-end">of day</span>
+                    </div>
+                  </div>
+
+                  <!-- Quick Actions -->
+                  <div class="section-header">Quick Access</div>
+                  <div class="quick-actions">
+                    <div class="quick-action">
+                      <div class="quick-action-icon gray">
+                        <i data-lucide="clock"></i>
+                      </div>
+                      <span class="quick-action-text">Recent</span>
+                      <div class="quick-action-chevron">
+                        <i data-lucide="chevron-right"></i>
+                      </div>
+                    </div>
+                    <div class="quick-action">
+                      <div class="quick-action-icon purple">
+                        <i data-lucide="heart"></i>
+                      </div>
+                      <span class="quick-action-text">Liked</span>
+                      <div class="quick-action-chevron">
+                        <i data-lucide="chevron-right"></i>
+                      </div>
+                    </div>
+                    <div class="quick-action">
+                      <div class="quick-action-icon green">
+                        <i data-lucide="shuffle"></i>
+                      </div>
+                      <span class="quick-action-text">Discover</span>
+                      <div class="quick-action-chevron">
+                        <i data-lucide="chevron-right"></i>
+                      </div>
+                    </div>
+                    <div class="quick-action">
+                      <div class="quick-action-icon gold">
+                        <i data-lucide="compass"></i>
+                      </div>
+                      <span class="quick-action-text">Qibla</span>
+                      <div class="quick-action-chevron">
+                        <i data-lucide="chevron-right"></i>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Popular Reciters -->
+                  <div class="section-header">Popular</div>
+                  <div class="reciter-scroll">
+                    <div class="reciter-card">
+                      <div class="reciter-image-wrapper">
+                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop" class="reciter-image" alt="Reciter">
+                        <div class="reciter-play">
+                          <i data-lucide="play"></i>
+                        </div>
+                      </div>
+                      <div class="reciter-name">Mishary Alafasi</div>
+                      <div class="reciter-country">Kuwait</div>
+                    </div>
+                    <div class="reciter-card">
+                      <div class="reciter-image-wrapper">
+                        <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop" class="reciter-image" alt="Reciter">
+                        <div class="reciter-play">
+                          <i data-lucide="play"></i>
+                        </div>
+                      </div>
+                      <div class="reciter-name">Abdul Rahman</div>
+                      <div class="reciter-country">Saudi Arabia</div>
+                    </div>
+                    <div class="reciter-card">
+                      <div class="reciter-image-wrapper">
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop" class="reciter-image" alt="Reciter">
+                        <div class="reciter-play">
+                          <i data-lucide="play"></i>
+                        </div>
+                      </div>
+                      <div class="reciter-name">Maher Al Meaqli</div>
+                      <div class="reciter-country">Saudi Arabia</div>
+                    </div>
+                  </div>
+
+                  <!-- Verse of the Day -->
+                  <div class="section-header">Verse of the Day</div>
+                  <div class="verse-card">
+                    <div class="verse-arabic">&#1601;&#1614;&#1573;&#1616;&#1606;&#1617;&#1614; &#1605;&#1614;&#1593;&#1614; &#1649;&#1604;&#1618;&#1593;&#1615;&#1587;&#1618;&#1585;&#1616; &#1610;&#1615;&#1587;&#1618;&#1585;&#1611;&#1575;</div>
+                    <div class="verse-divider"></div>
+                    <div class="verse-translation">For indeed, with hardship [will be] ease.</div>
+                    <div class="verse-reference">Surah Ash-Sharh 94:5</div>
+                  </div>
+
+                  <!-- Spotlight -->
+                  <div class="section-header">Spotlight</div>
+                  <div class="spotlight-card">
+                    <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop" class="spotlight-image" alt="Reciter">
+                    <div class="spotlight-info">
+                      <div class="spotlight-name">Yasser Al-Dosari</div>
+                      <div class="spotlight-country">Saudi Arabia</div>
+                      <div class="spotlight-surahs">Complete Quran</div>
+                    </div>
+                    <div class="spotlight-play">
+                      <i data-lucide="play"></i>
+                    </div>
+                  </div>
+
+                  <!-- Stats -->
+                  <div class="section-header">Your Journey</div>
+                  <div class="stats-card">
+                    <div class="stats-header">
+                      <div>
+                        <div class="stats-label">Listening Time</div>
+                        <div class="stats-value">4h 32m</div>
+                        <div class="stats-sub">total time spent</div>
+                      </div>
+                      <div class="stats-icon">
+                        <i data-lucide="headphones"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Search Tab Panel -->
+                <div id="search-panel" class="tab-panel">
+                  <div class="mockup-header">
+                    <div>
+                      <div class="mockup-greeting" style="font-family: Inter; font-size: 20px; font-weight: 300;">Search</div>
+                      <div class="mockup-greeting-sub">Find reciters and surahs</div>
+                    </div>
+                  </div>
+
+                  <div class="search-bar">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search reciters, surahs...">
+                  </div>
+
+                  <div class="section-header">Recent Searches</div>
+
+                  <div class="search-result">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" class="search-result-image" alt="Reciter">
+                    <div class="search-result-info">
+                      <div class="search-result-name">Mishary Alafasi</div>
+                      <div class="search-result-meta">Kuwait - 114 Surahs</div>
+                    </div>
+                  </div>
+
+                  <div class="search-result">
+                    <div class="search-result-image" style="display: flex; align-items: center; justify-content: center;">
+                      <i data-lucide="book-open" style="width: 20px; height: 20px; color: var(--sacred-gold);"></i>
+                    </div>
+                    <div class="search-result-info">
+                      <div class="search-result-name">Surah Al-Mulk</div>
+                      <div class="search-result-meta">Chapter 67 - 30 Verses</div>
+                    </div>
+                  </div>
+
+                  <div class="search-result">
+                    <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop" class="search-result-image" alt="Reciter">
+                    <div class="search-result-info">
+                      <div class="search-result-name">Yasser Al-Dosari</div>
+                      <div class="search-result-meta">Saudi Arabia - 114 Surahs</div>
+                    </div>
+                  </div>
+
+                  <div class="section-header" style="margin-top: 24px;">Browse Categories</div>
+
+                  <div class="quick-actions">
+                    <div class="quick-action">
+                      <div class="quick-action-icon gold">
+                        <i data-lucide="book"></i>
+                      </div>
+                      <span class="quick-action-text">All Surahs</span>
+                    </div>
+                    <div class="quick-action">
+                      <div class="quick-action-icon green">
+                        <i data-lucide="users"></i>
+                      </div>
+                      <span class="quick-action-text">Reciters</span>
+                    </div>
+                    <div class="quick-action">
+                      <div class="quick-action-icon purple">
+                        <i data-lucide="star"></i>
+                      </div>
+                      <span class="quick-action-text">Favorites</span>
+                    </div>
+                    <div class="quick-action">
+                      <div class="quick-action-icon gray">
+                        <i data-lucide="download"></i>
+                      </div>
+                      <span class="quick-action-text">Downloads</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Prayer Tab Panel -->
+                <div id="prayer-panel" class="tab-panel">
+                  <div class="mockup-header">
+                    <div>
+                      <div class="mockup-greeting" style="font-family: Inter; font-size: 20px; font-weight: 300;">Prayer Times</div>
+                      <div class="mockup-greeting-sub">New York, USA</div>
+                    </div>
+                    <div class="profile-btn">
+                      <i data-lucide="calendar"></i>
+                    </div>
+                  </div>
+
+                  <div class="prayer-card" style="margin-bottom: 24px;">
+                    <div style="text-align: center;">
+                      <div class="prayer-label">Current Prayer</div>
+                      <div class="prayer-arabic" style="font-size: 28px; margin-top: 8px;">&#1575;&#1604;&#1593;&#1589;&#1585;</div>
+                      <div class="prayer-time-value" style="font-size: 48px; margin-top: 8px;">4:27</div>
+                      <div class="prayer-time-until" style="margin-top: 4px;">Maghrib in 2h 15m</div>
+                    </div>
+                  </div>
+
+                  <div class="section-header">Today's Schedule</div>
+                  <div class="prayer-times-list">
+                    <div class="prayer-time-item done">
+                      <div class="prayer-time-left">
+                        <div class="prayer-time-dot"></div>
+                        <div>
+                          <div class="prayer-time-name-ar">&#1575;&#1604;&#1601;&#1580;&#1585;</div>
+                          <div class="prayer-time-name-en">Fajr</div>
+                        </div>
+                      </div>
+                      <div class="prayer-time-right">
+                        <div class="prayer-time-value-item">5:23</div>
+                      </div>
+                    </div>
+                    <div class="prayer-time-item done">
+                      <div class="prayer-time-left">
+                        <div class="prayer-time-dot"></div>
+                        <div>
+                          <div class="prayer-time-name-ar">&#1575;&#1604;&#1592;&#1607;&#1585;</div>
+                          <div class="prayer-time-name-en">Dhuhr</div>
+                        </div>
+                      </div>
+                      <div class="prayer-time-right">
+                        <div class="prayer-time-value-item">12:15</div>
+                      </div>
+                    </div>
+                    <div class="prayer-time-item current">
+                      <div class="prayer-time-left">
+                        <div class="prayer-time-dot"></div>
+                        <div>
+                          <div class="prayer-time-name-ar">&#1575;&#1604;&#1593;&#1589;&#1585;</div>
+                          <div class="prayer-time-name-en">Asr</div>
+                        </div>
+                      </div>
+                      <div class="prayer-time-right">
+                        <div class="prayer-time-value-item">4:27</div>
+                        <div class="prayer-time-status">Current</div>
+                      </div>
+                    </div>
+                    <div class="prayer-time-item">
+                      <div class="prayer-time-left">
+                        <div class="prayer-time-dot"></div>
+                        <div>
+                          <div class="prayer-time-name-ar">&#1575;&#1604;&#1605;&#1594;&#1585;&#1576;</div>
+                          <div class="prayer-time-name-en">Maghrib</div>
+                        </div>
+                      </div>
+                      <div class="prayer-time-right">
+                        <div class="prayer-time-value-item">6:42</div>
+                      </div>
+                    </div>
+                    <div class="prayer-time-item">
+                      <div class="prayer-time-left">
+                        <div class="prayer-time-dot"></div>
+                        <div>
+                          <div class="prayer-time-name-ar">&#1575;&#1604;&#1593;&#1588;&#1575;&#1569;</div>
+                          <div class="prayer-time-name-en">Isha</div>
+                        </div>
+                      </div>
+                      <div class="prayer-time-right">
+                        <div class="prayer-time-value-item">8:05</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Profile Tab Panel -->
+                <div id="profile-panel" class="tab-panel">
+                  <div class="profile-header">
+                    <div class="profile-avatar">
+                      <i data-lucide="user"></i>
+                    </div>
+                    <div class="profile-name">Abdullah</div>
+                    <div class="profile-email">abdullah@example.com</div>
+                  </div>
+
+                  <div class="profile-stats">
+                    <div class="profile-stat">
+                      <div class="profile-stat-value">42</div>
+                      <div class="profile-stat-label">Surahs</div>
+                    </div>
+                    <div class="profile-stat">
+                      <div class="profile-stat-value">4h</div>
+                      <div class="profile-stat-label">Listening</div>
+                    </div>
+                    <div class="profile-stat">
+                      <div class="profile-stat-value">12</div>
+                      <div class="profile-stat-label">Favorites</div>
+                    </div>
+                  </div>
+
+                  <div class="section-header">Settings</div>
+
+                  <div class="profile-menu-item">
+                    <div class="profile-menu-icon">
+                      <i data-lucide="bell"></i>
+                    </div>
+                    <span class="profile-menu-text">Notifications</span>
+                    <div class="profile-menu-chevron">
+                      <i data-lucide="chevron-right"></i>
+                    </div>
+                  </div>
+
+                  <div class="profile-menu-item">
+                    <div class="profile-menu-icon">
+                      <i data-lucide="moon"></i>
+                    </div>
+                    <span class="profile-menu-text">Appearance</span>
+                    <div class="profile-menu-chevron">
+                      <i data-lucide="chevron-right"></i>
+                    </div>
+                  </div>
+
+                  <div class="profile-menu-item">
+                    <div class="profile-menu-icon">
+                      <i data-lucide="download"></i>
+                    </div>
+                    <span class="profile-menu-text">Downloads</span>
+                    <div class="profile-menu-chevron">
+                      <i data-lucide="chevron-right"></i>
+                    </div>
+                  </div>
+
+                  <div class="profile-menu-item">
+                    <div class="profile-menu-icon">
+                      <i data-lucide="shield"></i>
+                    </div>
+                    <span class="profile-menu-text">Privacy</span>
+                    <div class="profile-menu-chevron">
+                      <i data-lucide="chevron-right"></i>
+                    </div>
+                  </div>
+
+                  <div class="profile-menu-item">
+                    <div class="profile-menu-icon">
+                      <i data-lucide="help-circle"></i>
+                    </div>
+                    <span class="profile-menu-text">Help & Support</span>
+                    <div class="profile-menu-chevron">
+                      <i data-lucide="chevron-right"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab Bar -->
+              <div class="tab-bar">
+                <div class="tab-item active" data-tab="home">
+                  <i data-lucide="home"></i>
+                  <span>Home</span>
+                </div>
+                <div class="tab-item" data-tab="search">
+                  <i data-lucide="search"></i>
+                  <span>Search</span>
+                </div>
+                <div class="tab-item" data-tab="prayer">
+                  <i data-lucide="clock"></i>
+                  <span>Prayer</span>
+                </div>
+                <div class="tab-item" data-tab="profile">
+                  <i data-lucide="user"></i>
+                  <span>Profile</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+      <div class="features-content">
+        <div class="features-header">
+          <span class="features-label">Features</span>
+          <h2 class="features-title">Designed for your spiritual journey</h2>
+        </div>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i data-lucide="headphones"></i>
+            </div>
+            <h3 class="feature-title">World-Class Reciters</h3>
+            <p class="feature-description">Listen to over 100 renowned Quran reciters from around the world with crystal-clear audio quality.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i data-lucide="clock"></i>
+            </div>
+            <h3 class="feature-title">Accurate Prayer Times</h3>
+            <p class="feature-description">Never miss a prayer with precise, location-based prayer time calculations and gentle reminders.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i data-lucide="compass"></i>
+            </div>
+            <h3 class="feature-title">Qibla Direction</h3>
+            <p class="feature-description">Find the Qibla direction instantly with our beautifully designed compass feature.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i data-lucide="moon"></i>
+            </div>
+            <h3 class="feature-title">Sacred Minimalism</h3>
+            <p class="feature-description">A contemplative design that creates a distraction-free environment for spiritual reflection.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i data-lucide="download"></i>
+            </div>
+            <h3 class="feature-title">Offline Listening</h3>
+            <p class="feature-description">Download your favorite recitations and listen without an internet connection.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i data-lucide="bar-chart-2"></i>
+            </div>
+            <h3 class="feature-title">Track Your Progress</h3>
+            <p class="feature-description">Monitor your listening journey and see your spiritual growth over time.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-content">
+        <div class="footer-logo">Khushoo</div>
+        <div class="footer-links">
+          <a href="#features">Features</a>
+          <a href="#about">About</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#contact">Contact</a>
+        </div>
+        <div class="footer-copyright">2024 Khushoo. All rights reserved.</div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Tab switching functionality
+    const tabItems = document.querySelectorAll('.tab-item');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    tabItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const tabId = item.getAttribute('data-tab');
+
+        // Remove active class from all tabs
+        tabItems.forEach(tab => tab.classList.remove('active'));
+        tabPanels.forEach(panel => panel.classList.remove('active'));
+
+        // Add active class to clicked tab
+        item.classList.add('active');
+        document.getElementById(`${tabId}-panel`).classList.add('active');
+
+        // Scroll content to top
+        document.querySelector('.mockup-content').scrollTop = 0;
+
+        // Reinitialize icons for the new panel
+        lucide.createIcons();
+      });
+    });
+
+    // Smooth scroll for navigation links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth'
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
