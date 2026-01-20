@@ -84,18 +84,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             }
         }
 
-        // Theme-aware colors
-        let isDarkMode = UITraitCollection.current.userInterfaceStyle == .dark
-        let primaryColor: UIColor
-        let iconColor: UIColor
-
-        if isDarkMode {
-            primaryColor = UIColor(red: 0.2, green: 0.8, blue: 0.7, alpha: 1.0) // Bright teal for dark mode
-            iconColor = UIColor(red: 0.3, green: 0.85, blue: 0.75, alpha: 1.0)
-        } else {
-            primaryColor = UIColor(red: 0.1, green: 0.6, blue: 0.5, alpha: 1.0) // Darker teal for light mode
-            iconColor = UIColor(red: 0.15, green: 0.65, blue: 0.55, alpha: 1.0)
-        }
+        // Sacred Minimalism colors - always dark mode for consistency
+        let sacredGold = UIColor(red: 0.77, green: 0.65, blue: 0.46, alpha: 1.0)
+        let softGreen = UIColor(red: 0.55, green: 0.68, blue: 0.55, alpha: 1.0)
+        let backgroundColor = UIColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1.0)
+        let titleColor = UIColor.white
+        let subtitleColor = UIColor(white: 0.5, alpha: 1.0)
 
         let fullSubtitle = subtitleText + earlyUnlockText
 
@@ -104,24 +98,24 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
         if isStrictMode {
             return ShieldConfiguration(
-                backgroundBlurStyle: .systemUltraThinMaterial,
-                backgroundColor: UIColor.systemBackground,
-                icon: UIImage(systemName: prayerIconName)?.withTintColor(iconColor, renderingMode: .alwaysOriginal),
-                title: ShieldConfiguration.Label(text: "🕌 \(prayerTitle)", color: .label),
-                subtitle: ShieldConfiguration.Label(text: "Open the app and say 'Wallahi I prayed' to unlock", color: .secondaryLabel),
-                primaryButtonLabel: ShieldConfiguration.Label(text: "Open Dhikr App", color: .white),
-                primaryButtonBackgroundColor: primaryColor,
+                backgroundBlurStyle: .systemUltraThinMaterialDark,
+                backgroundColor: backgroundColor,
+                icon: UIImage(systemName: prayerIconName)?.withTintColor(sacredGold, renderingMode: .alwaysOriginal),
+                title: ShieldConfiguration.Label(text: prayerTitle, color: titleColor),
+                subtitle: ShieldConfiguration.Label(text: "Open the app and say 'Wallahi I prayed' to unlock", color: subtitleColor),
+                primaryButtonLabel: ShieldConfiguration.Label(text: "Open Khushoo", color: .white),
+                primaryButtonBackgroundColor: sacredGold,
                 secondaryButtonLabel: nil
             )
         } else {
             return ShieldConfiguration(
-                backgroundBlurStyle: .systemUltraThinMaterial,
-                backgroundColor: UIColor.systemBackground,
-                icon: UIImage(systemName: prayerIconName)?.withTintColor(iconColor, renderingMode: .alwaysOriginal),
-                title: ShieldConfiguration.Label(text: "🕌 \(prayerTitle)", color: .label),
-                subtitle: ShieldConfiguration.Label(text: fullSubtitle, color: .secondaryLabel),
+                backgroundBlurStyle: .systemUltraThinMaterialDark,
+                backgroundColor: backgroundColor,
+                icon: UIImage(systemName: prayerIconName)?.withTintColor(sacredGold, renderingMode: .alwaysOriginal),
+                title: ShieldConfiguration.Label(text: prayerTitle, color: titleColor),
+                subtitle: ShieldConfiguration.Label(text: fullSubtitle, color: subtitleColor),
                 primaryButtonLabel: ShieldConfiguration.Label(text: "Unlock Early", color: .white),
-                primaryButtonBackgroundColor: primaryColor,
+                primaryButtonBackgroundColor: softGreen,
                 secondaryButtonLabel: nil
             )
         }

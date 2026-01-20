@@ -1,5 +1,113 @@
 import SwiftUI
 
+// MARK: - Responsive Sizing System
+struct ResponsiveSize {
+    static let shared = ResponsiveSize()
+
+    // Base reference width (iPhone 14/15 standard)
+    private let baseWidth: CGFloat = 393
+
+    var screenWidth: CGFloat {
+        UIScreen.main.bounds.width
+    }
+
+    var screenHeight: CGFloat {
+        UIScreen.main.bounds.height
+    }
+
+    var isSmallScreen: Bool {
+        screenWidth <= 375
+    }
+
+    var isMiniScreen: Bool {
+        screenWidth <= 360
+    }
+
+    var isLargeScreen: Bool {
+        screenWidth >= 414
+    }
+
+    // Scale factor relative to base width (clamped to prevent extremes)
+    var scaleFactor: CGFloat {
+        let factor = screenWidth / baseWidth
+        return min(max(factor, 0.85), 1.12)
+    }
+
+    // Font scaling (slightly more conservative to maintain readability)
+    func fontSize(_ size: CGFloat) -> CGFloat {
+        let scaled = size * scaleFactor
+        return max(scaled, size * 0.82)
+    }
+
+    // Dimension scaling for UI elements
+    func dimension(_ size: CGFloat) -> CGFloat {
+        size * scaleFactor
+    }
+
+    // Padding/spacing scaling
+    func spacing(_ size: CGFloat) -> CGFloat {
+        let scaled = size * scaleFactor
+        return max(scaled, size * 0.78)
+    }
+
+    // Icon size scaling
+    func iconSize(_ size: CGFloat) -> CGFloat {
+        let scaled = size * scaleFactor
+        return max(scaled, size * 0.82)
+    }
+
+    // Card/Image dimensions (with minimum constraints)
+    func cardSize(_ size: CGFloat, minimum: CGFloat? = nil) -> CGFloat {
+        let scaled = size * scaleFactor
+        if let min = minimum {
+            return max(scaled, min)
+        }
+        return max(scaled, size * 0.78)
+    }
+
+    // Horizontal padding that adapts to screen width
+    var horizontalPadding: CGFloat {
+        if isMiniScreen { return 16 }
+        if isSmallScreen { return 18 }
+        if isLargeScreen { return 24 }
+        return 20
+    }
+
+    // Section spacing
+    var sectionSpacing: CGFloat {
+        if isMiniScreen { return 24 }
+        if isSmallScreen { return 28 }
+        return 32
+    }
+
+    // Corner radius scaling
+    func cornerRadius(_ size: CGFloat) -> CGFloat {
+        let scaled = size * scaleFactor
+        return max(scaled, 8)
+    }
+}
+
+// Global accessor for convenience
+let RS = ResponsiveSize.shared
+
+// View extension for responsive modifiers
+extension View {
+    func responsiveFont(size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> some View {
+        self.font(.system(size: RS.fontSize(size), weight: weight, design: design))
+    }
+
+    func responsivePadding(_ edges: Edge.Set = .all, _ length: CGFloat) -> some View {
+        self.padding(edges, RS.spacing(length))
+    }
+
+    func responsiveFrame(width: CGFloat? = nil, height: CGFloat? = nil) -> some View {
+        self.frame(
+            width: width.map { RS.dimension($0) },
+            height: height.map { RS.dimension($0) }
+        )
+    }
+}
+
 enum AppThemeStyle: String, CaseIterable {
     case auto = "Auto"
     case light = "Light"

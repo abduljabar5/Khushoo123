@@ -138,6 +138,7 @@ class SubscriptionService: ObservableObject {
     func loadProducts() async {
         do {
             let productIDs = SubscriptionProductID.allCases.map { $0.rawValue }
+            print("🔍 [SubscriptionService] Requesting products: \(productIDs)")
 
             let products = try await Product.products(for: productIDs)
 
@@ -145,7 +146,10 @@ class SubscriptionService: ObservableObject {
             await MainActor.run {
                 self.availableProducts = products.sorted { $0.price < $1.price }
                 self.productsLoaded = !products.isEmpty
-                print("✅ [SubscriptionService] Loaded \(products.count) products")
+                print("✅ [SubscriptionService] Loaded \(products.count) products:")
+                for product in products {
+                    print("   - \(product.id): \(product.displayPrice)")
+                }
             }
         } catch {
             print("❌ [SubscriptionService] Failed to load products: \(error)")
@@ -426,8 +430,11 @@ class SubscriptionService: ObservableObject {
 
     // MARK: - Purchase Product
     func purchase(_ product: Product) async {
+        print("🛒 [SubscriptionService] Starting purchase for: \(product.id)")
+
         // Allow purchases without login (will sync to Firebase when user logs in)
         if currentUserId == nil {
+            print("⚠️ [SubscriptionService] No user logged in - purchase will be local only")
         }
 
         purchaseState = .purchasing
@@ -438,6 +445,10 @@ class SubscriptionService: ObservableObject {
                                     product.id == SubscriptionProductID.yearlyReferral.rawValue
             let referralToken = ReferralCodeService.shared.appAccountToken
 
+            print("🔍 [SubscriptionService] Product ID: \(product.id)")
+            print("🔍 [SubscriptionService] Is referral product: \(isReferralProduct)")
+            print("🔍 [SubscriptionService] Has referral token: \(referralToken != nil)")
+
             // Make the purchase - attach appAccountToken for referral tracking
             let result: Product.PurchaseResult
             if isReferralProduct, let token = referralToken {
@@ -445,6 +456,7 @@ class SubscriptionService: ObservableObject {
                 result = try await product.purchase(options: [.appAccountToken(token)])
                 print("✅ [SubscriptionService] Purchase with appAccountToken: \(token.uuidString)")
             } else {
+                print("🛒 [SubscriptionService] Standard purchase (no token)")
                 result = try await product.purchase()
             }
 
@@ -471,15 +483,19 @@ class SubscriptionService: ObservableObject {
                 purchaseState = .success
 
             case .userCancelled:
+                print("⚠️ [SubscriptionService] Purchase cancelled by user")
                 purchaseState = .idle
 
             case .pending:
+                print("⏳ [SubscriptionService] Purchase pending (Ask to Buy or other)")
                 purchaseState = .idle
 
             @unknown default:
+                print("⚠️ [SubscriptionService] Unknown purchase result")
                 purchaseState = .idle
             }
         } catch {
+            print("❌ [SubscriptionService] Purchase error: \(error)")
             purchaseState = .failed(error)
         }
     }

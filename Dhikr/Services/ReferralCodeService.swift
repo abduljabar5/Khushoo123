@@ -103,30 +103,28 @@ class ReferralCodeService: ObservableObject {
         }
     }
 
-    /// Record that a referral code was used for a purchase
-    /// Call this after successful subscription purchase
+    /// Record that a referral code was used for a transaction
+    /// Note: usageCount is now incremented server-side via webhook only on PAID conversions
+    /// This just records the transaction in the usages subcollection for tracking
     func recordCodeUsage(transactionId: String) async {
         guard let code = validatedCode else { return }
 
         do {
             let docRef = db.collection("referralCodes").document(code)
 
-            // Increment usage count
-            try await docRef.updateData([
-                "usageCount": FieldValue.increment(Int64(1))
-            ])
-
-            // Also record the specific usage in a subcollection for tracking
+            // Record the specific usage in a subcollection for tracking
+            // usageCount is handled by the webhook on paid conversions only
             try await docRef.collection("usages").addDocument(data: [
                 "transactionId": transactionId,
                 "usedAt": Timestamp(date: Date()),
-                "platform": "iOS"
+                "platform": "iOS",
+                "type": "trial_or_purchase_start"
             ])
 
-            print("✅ [ReferralCode] Recorded usage for code: \(code)")
+            print("✅ [ReferralCode] Recorded transaction for code: \(code)")
 
         } catch {
-            print("❌ [ReferralCode] Error recording usage: \(error)")
+            print("❌ [ReferralCode] Error recording transaction: \(error)")
         }
     }
 

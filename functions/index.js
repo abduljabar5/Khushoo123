@@ -122,89 +122,86 @@ exports.saveFCMToken = functions.https.onCall(async (data, context) => {
 
 // =================================================================
 // App Store Server Notifications Webhook
-// Handles subscription events for referral commission tracking
+// Comprehensive tracking for referral/influencer commission system
+// Tracks: trials, first payment, renewals, cancellations, refunds
+// Payment logic can be changed server-side without app updates
 // =================================================================
 exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
   console.log('📥 Received App Store Server Notification');
 
-  // Only accept POST requests
   if (req.method !== 'POST') {
-    console.log('❌ Invalid method:', req.method);
     return res.status(405).send('Method Not Allowed');
   }
 
   try {
     const notification = req.body;
 
-    // Apple sends a signed JWT - for production, you should verify the signature
-    // For now, we'll parse the payload directly
-    // The signedPayload contains a JWT with the transaction info
-
     if (!notification.signedPayload) {
-      console.log('⚠️ No signedPayload in notification');
-      return res.status(200).send('OK'); // Always return 200 to Apple
-    }
-
-    // Decode the JWT payload (middle part)
-    // In production, verify the signature using Apple's public key
-    const parts = notification.signedPayload.split('.');
-    if (parts.length !== 3) {
-      console.log('⚠️ Invalid JWT format');
+      console.log('⚠️ No signedPayload');
       return res.status(200).send('OK');
     }
 
-    const payloadBase64 = parts[1];
-    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8');
-    const payload = JSON.parse(payloadJson);
+    // Decode the JWT payload
+    const parts = notification.signedPayload.split('.');
+    if (parts.length !== 3) return res.status(200).send('OK');
 
-    console.log('📋 Notification type:', payload.notificationType);
-    console.log('📋 Subtype:', payload.subtype);
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    const notificationType = payload.notificationType;
+    const subtype = payload.subtype || null;
+
+    console.log('📋 Type:', notificationType, '| Subtype:', subtype);
 
     // Extract transaction info
     const signedTransactionInfo = payload.data?.signedTransactionInfo;
-    if (!signedTransactionInfo) {
-      console.log('⚠️ No signedTransactionInfo');
-      return res.status(200).send('OK');
-    }
+    if (!signedTransactionInfo) return res.status(200).send('OK');
 
-    // Decode transaction info
     const txParts = signedTransactionInfo.split('.');
-    if (txParts.length !== 3) {
-      console.log('⚠️ Invalid transaction JWT');
-      return res.status(200).send('OK');
+    if (txParts.length !== 3) return res.status(200).send('OK');
+
+    const transactionInfo = JSON.parse(Buffer.from(txParts[1], 'base64').toString('utf8'));
+
+    // Also extract renewal info if available
+    let renewalInfo = null;
+    const signedRenewalInfo = payload.data?.signedRenewalInfo;
+    if (signedRenewalInfo) {
+      const renewalParts = signedRenewalInfo.split('.');
+      if (renewalParts.length === 3) {
+        renewalInfo = JSON.parse(Buffer.from(renewalParts[1], 'base64').toString('utf8'));
+      }
     }
 
-    const txPayloadJson = Buffer.from(txParts[1], 'base64').toString('utf8');
-    const transactionInfo = JSON.parse(txPayloadJson);
-
-    console.log('💳 Product ID:', transactionInfo.productId);
-    console.log('🔑 App Account Token:', transactionInfo.appAccountToken);
-    console.log('📝 Original Transaction ID:', transactionInfo.originalTransactionId);
-
-    // Check if this is a referral product
-    const isReferralProduct = transactionInfo.productId?.includes('.referral');
-
-    if (!isReferralProduct) {
-      console.log('ℹ️ Not a referral product, skipping commission tracking');
-      return res.status(200).send('OK');
-    }
-
-    // Get the appAccountToken (UUID we attached during purchase)
+    const productId = transactionInfo.productId;
     const appAccountToken = transactionInfo.appAccountToken;
+    const originalTransactionId = transactionInfo.originalTransactionId;
+    const transactionId = transactionInfo.transactionId;
+    const priceInMillis = transactionInfo.price || 0;
+    const currency = transactionInfo.currency || 'USD';
+    const environment = transactionInfo.environment || 'Production';
+    const offerType = transactionInfo.offerType; // 1=intro/trial, 2=promo, 3=offer code
+
+    console.log('💳 Product:', productId, '| Price:', priceInMillis, currency);
+    console.log('🔑 Token:', appAccountToken);
+
+    // Check if referral product
+    const isReferralProduct = productId?.includes('.referral');
+    if (!isReferralProduct) {
+      console.log('ℹ️ Not a referral product, skipping');
+      return res.status(200).send('OK');
+    }
 
     if (!appAccountToken) {
-      console.log('⚠️ No appAccountToken for referral product');
+      console.log('⚠️ No appAccountToken');
       return res.status(200).send('OK');
     }
 
-    // Look up the pending commission by appAccountToken
+    // Look up pending commission
     const pendingDoc = await admin.firestore()
       .collection('pendingCommissions')
       .doc(appAccountToken)
       .get();
 
     if (!pendingDoc.exists) {
-      console.log('⚠️ No pending commission found for token:', appAccountToken);
+      console.log('⚠️ No pending commission for token');
       return res.status(200).send('OK');
     }
 
@@ -212,81 +209,237 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     const referralCode = pendingData.referralCode;
     const influencerId = pendingData.influencerId;
 
-    console.log('🎯 Found referral code:', referralCode);
-    console.log('👤 Influencer ID:', influencerId);
+    console.log('🎯 Referral:', referralCode, '| Influencer:', influencerId);
 
-    // Handle different notification types
-    const notificationType = payload.notificationType;
+    // =========================================================
+    // COMPREHENSIVE EVENT TRACKING
+    // =========================================================
 
-    if (notificationType === 'SUBSCRIBED' || notificationType === 'DID_RENEW') {
-      // New subscription or renewal - record commission
-      const commissionData = {
-        referralCode: referralCode,
-        influencerId: influencerId,
-        productId: transactionInfo.productId,
-        transactionId: transactionInfo.transactionId,
-        originalTransactionId: transactionInfo.originalTransactionId,
-        appAccountToken: appAccountToken,
-        notificationType: notificationType,
-        priceInMillis: transactionInfo.price || 0,
-        currency: transactionInfo.currency || 'USD',
-        purchaseDate: new Date(transactionInfo.purchaseDate),
-        environment: transactionInfo.environment || 'Production',
-        status: 'pending_payout', // You'll update this when you pay the influencer
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      };
+    const eventData = {
+      referralCode,
+      influencerId,
+      productId,
+      transactionId,
+      originalTransactionId,
+      appAccountToken,
+      notificationType,
+      subtype,
+      offerType: offerType || null,
+      priceInMillis,
+      currency,
+      environment,
+      purchaseDate: transactionInfo.purchaseDate ? new Date(transactionInfo.purchaseDate) : null,
+      expiresDate: transactionInfo.expiresDate ? new Date(transactionInfo.expiresDate) : null,
+      autoRenewStatus: renewalInfo?.autoRenewStatus || null,
+      autoRenewProductId: renewalInfo?.autoRenewProductId || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
 
-      // Save to commissions collection
-      await admin.firestore()
-        .collection('commissions')
-        .add(commissionData);
+    // Log EVERY event for complete history
+    await admin.firestore()
+      .collection('subscriptionEvents')
+      .add(eventData);
 
-      console.log('✅ Commission recorded for:', referralCode);
+    // =========================================================
+    // HANDLE SPECIFIC EVENT TYPES
+    // =========================================================
 
-      // Update the pending commission status
-      await admin.firestore()
-        .collection('pendingCommissions')
-        .doc(appAccountToken)
-        .update({
-          status: 'converted',
-          convertedAt: admin.firestore.FieldValue.serverTimestamp(),
-          transactionId: transactionInfo.transactionId
-        });
+    const codeRef = admin.firestore().collection('referralCodes').doc(referralCode);
+    const pendingRef = admin.firestore().collection('pendingCommissions').doc(appAccountToken);
 
-      // Also update the referral code usage stats
-      await admin.firestore()
-        .collection('referralCodes')
-        .doc(referralCode)
-        .update({
-          totalRevenue: admin.firestore.FieldValue.increment(transactionInfo.price || 0),
-          lastConversionAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+    // Check if this is the FIRST payment for this subscription
+    const existingPayments = await admin.firestore()
+      .collection('payments')
+      .where('originalTransactionId', '==', originalTransactionId)
+      .where('referralCode', '==', referralCode)
+      .get();
 
-    } else if (notificationType === 'REFUND' || notificationType === 'REVOKE') {
-      // Refund or revoke - mark commission as cancelled
-      console.log('💸 Refund/Revoke detected for:', referralCode);
+    const isFirstPayment = existingPayments.empty;
+    const isTrialStart = notificationType === 'SUBSCRIBED' && offerType === 1;
+    const isPaidEvent = notificationType === 'DID_RENEW' ||
+                        (notificationType === 'SUBSCRIBED' && offerType !== 1);
 
-      // Find and update the commission
-      const commissionsSnapshot = await admin.firestore()
-        .collection('commissions')
-        .where('originalTransactionId', '==', transactionInfo.originalTransactionId)
-        .get();
+    // ---------------------------------------------------------
+    // TRIAL STARTED
+    // ---------------------------------------------------------
+    if (isTrialStart) {
+      console.log('🆓 TRIAL STARTED');
 
-      commissionsSnapshot.forEach(async (doc) => {
-        await doc.ref.update({
-          status: 'cancelled',
-          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-          cancelReason: notificationType
-        });
+      await codeRef.update({
+        trialCount: admin.firestore.FieldValue.increment(1),
+        lastTrialAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await pendingRef.update({
+        status: 'trial_started',
+        trialStartedAt: admin.firestore.FieldValue.serverTimestamp()
       });
     }
 
+    // ---------------------------------------------------------
+    // PAID EVENT (First payment or renewal)
+    // ---------------------------------------------------------
+    else if (isPaidEvent) {
+      console.log('💰 PAID EVENT | First payment:', isFirstPayment);
+
+      // Record payment
+      const paymentData = {
+        referralCode,
+        influencerId,
+        productId,
+        transactionId,
+        originalTransactionId,
+        appAccountToken,
+        priceInMillis,
+        currency,
+        environment,
+        isFirstPayment,
+        isRenewal: !isFirstPayment,
+        renewalNumber: existingPayments.size + 1,
+        notificationType,
+        subtype,
+        purchaseDate: transactionInfo.purchaseDate ? new Date(transactionInfo.purchaseDate) : null,
+        // Commission tracking
+        commissionStatus: 'pending', // pending, approved, paid, cancelled
+        commissionAmount: null, // Set this when you calculate commission
+        commissionPaidAt: null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      await admin.firestore().collection('payments').add(paymentData);
+
+      // Update referral code stats
+      const updateData = {
+        totalRevenue: admin.firestore.FieldValue.increment(priceInMillis),
+        totalPayments: admin.firestore.FieldValue.increment(1),
+        lastPaymentAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      if (isFirstPayment) {
+        // First payment = conversion
+        updateData.paidConversions = admin.firestore.FieldValue.increment(1);
+        updateData.firstPaymentRevenue = admin.firestore.FieldValue.increment(priceInMillis);
+      } else {
+        // Renewal
+        updateData.renewalCount = admin.firestore.FieldValue.increment(1);
+        updateData.renewalRevenue = admin.firestore.FieldValue.increment(priceInMillis);
+      }
+
+      await codeRef.update(updateData);
+
+      // Update pending commission
+      await pendingRef.update({
+        status: isFirstPayment ? 'first_payment' : 'renewed',
+        lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
+        totalPaid: admin.firestore.FieldValue.increment(priceInMillis)
+      });
+    }
+
+    // ---------------------------------------------------------
+    // CANCELLATION (user turned off auto-renew)
+    // ---------------------------------------------------------
+    else if (notificationType === 'DID_CHANGE_RENEWAL_STATUS' && subtype === 'AUTO_RENEW_DISABLED') {
+      console.log('⏸️ AUTO-RENEW DISABLED');
+
+      await codeRef.update({
+        cancellationCount: admin.firestore.FieldValue.increment(1),
+        lastCancellationAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await pendingRef.update({
+        status: 'cancelled_auto_renew',
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // ---------------------------------------------------------
+    // REACTIVATION (user turned auto-renew back on)
+    // ---------------------------------------------------------
+    else if (notificationType === 'DID_CHANGE_RENEWAL_STATUS' && subtype === 'AUTO_RENEW_ENABLED') {
+      console.log('▶️ AUTO-RENEW RE-ENABLED');
+
+      await codeRef.update({
+        reactivationCount: admin.firestore.FieldValue.increment(1),
+        lastReactivationAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await pendingRef.update({
+        status: 'reactivated',
+        reactivatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // ---------------------------------------------------------
+    // REFUND
+    // ---------------------------------------------------------
+    else if (notificationType === 'REFUND') {
+      console.log('💸 REFUND');
+
+      await codeRef.update({
+        refundCount: admin.firestore.FieldValue.increment(1),
+        refundedRevenue: admin.firestore.FieldValue.increment(priceInMillis),
+        lastRefundAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Mark related payments as refunded
+      const paymentsToRefund = await admin.firestore()
+        .collection('payments')
+        .where('transactionId', '==', transactionId)
+        .get();
+
+      for (const doc of paymentsToRefund.docs) {
+        await doc.ref.update({
+          commissionStatus: 'refunded',
+          refundedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      await pendingRef.update({
+        status: 'refunded',
+        refundedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // ---------------------------------------------------------
+    // EXPIRED (subscription ended)
+    // ---------------------------------------------------------
+    else if (notificationType === 'EXPIRED') {
+      console.log('⏰ EXPIRED | Subtype:', subtype);
+
+      await codeRef.update({
+        expiredCount: admin.firestore.FieldValue.increment(1),
+        lastExpiredAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await pendingRef.update({
+        status: 'expired',
+        expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiredReason: subtype
+      });
+    }
+
+    // ---------------------------------------------------------
+    // GRACE PERIOD / BILLING RETRY
+    // ---------------------------------------------------------
+    else if (notificationType === 'DID_FAIL_TO_RENEW') {
+      console.log('⚠️ BILLING FAILED');
+
+      await codeRef.update({
+        billingFailureCount: admin.firestore.FieldValue.increment(1),
+        lastBillingFailureAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      await pendingRef.update({
+        status: 'billing_failed',
+        billingFailedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    console.log('✅ Event processed successfully');
     return res.status(200).send('OK');
 
   } catch (error) {
-    console.error('❌ Error processing webhook:', error);
-    // Always return 200 to Apple, even on error
-    // Otherwise Apple will keep retrying
-    return res.status(200).send('OK');
+    console.error('❌ Webhook error:', error);
+    return res.status(200).send('OK'); // Always 200 to Apple
   }
 });

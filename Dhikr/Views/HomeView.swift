@@ -83,7 +83,7 @@ struct HomeView: View {
             pageBackground.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
+                VStack(spacing: RS.sectionSpacing) {
                     headerSection
                         .opacity(sectionAppeared[0] ? 1 : 0)
                         .offset(y: sectionAppeared[0] ? 0 : 20)
@@ -124,9 +124,9 @@ struct HomeView: View {
                         .opacity(sectionAppeared[9] ? 1 : 0)
                         .offset(y: sectionAppeared[9] ? 0 : 20)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, audioPlayerService.currentSurah != nil ? 140 : 100)
+                .padding(.horizontal, RS.horizontalPadding)
+                .padding(.top, RS.spacing(16))
+                .padding(.bottom, audioPlayerService.currentSurah != nil ? RS.spacing(140) : RS.spacing(100))
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -189,13 +189,13 @@ struct HomeView: View {
     // MARK: - Header
     private var headerSection: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: RS.spacing(6)) {
                 Text("السلام عليكم")
-                    .font(.system(size: 20, weight: .regular, design: .serif))
+                    .font(.system(size: RS.fontSize(20), weight: .regular, design: .serif))
                     .foregroundColor(sacredGold)
 
                 Text(getGreeting())
-                    .font(.system(size: 14, weight: .light))
+                    .font(.system(size: RS.fontSize(14), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
 
@@ -204,15 +204,15 @@ struct HomeView: View {
             Button(action: { showingProfile = true }) {
                 Circle()
                     .fill(sacredGold.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .frame(width: RS.dimension(44), height: RS.dimension(44))
                     .overlay(
                         Image(systemName: "person")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: RS.fontSize(16), weight: .medium))
                             .foregroundColor(sacredGold)
                     )
             }
         }
-        .padding(.top, 8)
+        .padding(.top, RS.spacing(8))
     }
 
     // MARK: - Continue Listening
@@ -270,10 +270,10 @@ struct HomeView: View {
 
     // MARK: - Quick Actions
     private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             sacredSectionHeader(title: "QUICK ACCESS")
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: RS.spacing(12)), GridItem(.flexible(), spacing: RS.spacing(12))], spacing: RS.spacing(12)) {
                 SacredQuickAction(icon: "clock", label: "Recent", color: warmGray) {
                     HapticManager.shared.impact(.light)
                     showingRecents = true
@@ -299,7 +299,7 @@ struct HomeView: View {
 
     // MARK: - Favorites
     private var favoritesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             sacredSectionHeader(title: "FAVORITES")
 
             if !favoritesManager.favoriteReciters.isEmpty {
@@ -310,7 +310,7 @@ struct HomeView: View {
                 let favoriteReciters = sortedFavorites.compactMap { reciterDict[$0] }
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
+                    HStack(spacing: RS.spacing(16)) {
                         ForEach(Array(favoriteReciters.prefix(8)), id: \.identifier) { reciter in
                             SacredReciterCard(reciter: reciter, accentColor: sacredGold) {
                                 HapticManager.shared.impact(.light)
@@ -323,33 +323,33 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 2)
                 }
-                .padding(.horizontal, -24)
-                .padding(.leading, 24)
+                .padding(.horizontal, -RS.horizontalPadding)
+                .padding(.leading, RS.horizontalPadding)
             } else {
-                HStack(spacing: 16) {
+                HStack(spacing: RS.spacing(16)) {
                     Image(systemName: "bookmark")
-                        .font(.system(size: 20))
+                        .font(.system(size: RS.fontSize(20)))
                         .foregroundColor(themeManager.theme.secondaryText)
-                        .frame(width: 44, height: 44)
+                        .frame(width: RS.dimension(44), height: RS.dimension(44))
                         .background(Circle().fill(themeManager.theme.secondaryText.opacity(0.1)))
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: RS.spacing(4)) {
                         Text("No favorites yet")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.system(size: RS.fontSize(15), weight: .medium))
                             .foregroundColor(themeManager.theme.primaryText)
 
                         Text("Bookmark reciters to save them here")
-                            .font(.system(size: 13, weight: .light))
+                            .font(.system(size: RS.fontSize(13), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
                     Spacer()
                 }
-                .padding(20)
+                .padding(RS.spacing(20))
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .fill(cardBackground)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16)
+                            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                                 .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                         )
                 )
@@ -359,12 +359,12 @@ struct HomeView: View {
 
     // MARK: - Spotlight
     private var spotlightSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             HStack {
                 sacredSectionHeader(title: "SPOTLIGHT")
                 Spacer()
                 Text("weekly")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: RS.fontSize(10), weight: .medium))
                     .tracking(0.5)
                     .foregroundColor(themeManager.theme.secondaryText)
             }
@@ -385,19 +385,19 @@ struct HomeView: View {
 
     // MARK: - Popular Reciters
     private var popularRecitersSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             HStack {
                 sacredSectionHeader(title: "POPULAR")
                 Spacer()
                 Button(action: { showingAllPopular = true }) {
                     Text("See all")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: RS.fontSize(12), weight: .medium))
                         .foregroundColor(sacredGold)
                 }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: RS.spacing(16)) {
                     if popularReciters.isEmpty {
                         ForEach(0..<4, id: \.self) { _ in SacredReciterSkeleton() }
                     } else {
@@ -414,14 +414,14 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 2)
             }
-            .padding(.horizontal, -24)
-            .padding(.leading, 24)
+            .padding(.horizontal, -RS.horizontalPadding)
+            .padding(.leading, RS.horizontalPadding)
         }
     }
 
     // MARK: - Verse of the Day
     private var verseOfTheDaySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             sacredSectionHeader(title: "VERSE OF THE DAY")
 
             if let verse = verseOfTheDay {
@@ -439,19 +439,19 @@ struct HomeView: View {
 
     // MARK: - Soothing Reciters
     private var soothingRecitersSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             HStack {
                 sacredSectionHeader(title: "SOOTHING VOICES")
                 Spacer()
                 Button(action: { showingAllSoothing = true }) {
                     Text("See all")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: RS.fontSize(12), weight: .medium))
                         .foregroundColor(sacredGold)
                 }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: RS.spacing(16)) {
                     if soothingReciters.isEmpty {
                         ForEach(0..<4, id: \.self) { _ in SacredReciterSkeleton() }
                     } else {
@@ -468,22 +468,22 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 2)
             }
-            .padding(.horizontal, -24)
-            .padding(.leading, 24)
+            .padding(.horizontal, -RS.horizontalPadding)
+            .padding(.leading, RS.horizontalPadding)
         }
     }
 
     // MARK: - Journey Stats
     private var journeyStatsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             HStack {
                 sacredSectionHeader(title: "YOUR JOURNEY")
                 Spacer()
-                HStack(spacing: 5) {
+                HStack(spacing: RS.spacing(5)) {
                     ForEach(0..<3, id: \.self) { index in
                         Circle()
                             .fill(currentStatPage == index ? sacredGold : themeManager.theme.secondaryText.opacity(0.2))
-                            .frame(width: 5, height: 5)
+                            .frame(width: RS.dimension(5), height: RS.dimension(5))
                     }
                 }
             }
@@ -506,14 +506,14 @@ struct HomeView: View {
                 ).tag(2)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            .frame(height: 120)
+            .frame(height: RS.dimension(120))
         }
     }
 
     // MARK: - Section Header
     private func sacredSectionHeader(title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: RS.fontSize(11), weight: .medium))
             .tracking(2)
             .foregroundColor(themeManager.theme.secondaryText)
     }
@@ -675,37 +675,39 @@ struct SacredContinueCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
+            HStack(spacing: RS.spacing(16)) {
                 Circle()
                     .fill(accentColor)
-                    .frame(width: 48, height: 48)
+                    .frame(width: RS.dimension(48), height: RS.dimension(48))
                     .overlay(
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 16))
+                            .font(.system(size: RS.fontSize(16)))
                             .foregroundColor(.white)
                             .offset(x: isPlaying ? 0 : 1)
                     )
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: RS.spacing(6)) {
                     Text(isPlaying ? "NOW PLAYING" : "CONTINUE")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: RS.fontSize(9), weight: .medium))
                         .tracking(1.5)
                         .foregroundColor(accentColor)
 
                     Text(surahName)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: RS.fontSize(16), weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
+                        .lineLimit(1)
 
-                    HStack(spacing: 6) {
+                    HStack(spacing: RS.spacing(6)) {
                         Text(reciterName)
-                            .font(.system(size: 13, weight: .light))
+                            .font(.system(size: RS.fontSize(13), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
+                            .lineLimit(1)
 
                         Text("•")
                             .foregroundColor(themeManager.theme.secondaryText)
 
                         Text(formatTime(time))
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: RS.fontSize(13), weight: .medium))
                             .foregroundColor(accentColor)
                     }
                 }
@@ -713,15 +715,15 @@ struct SacredContinueCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
+                    .font(.system(size: RS.fontSize(12)))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
-            .padding(16)
+            .padding(RS.spacing(16))
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                     .fill(cardBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                             .stroke(accentColor.opacity(0.15), lineWidth: 1)
                     )
             )
@@ -747,33 +749,33 @@ struct SacredEmptyListeningCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: RS.spacing(16)) {
             Circle()
                 .fill(themeManager.theme.secondaryText.opacity(0.1))
-                .frame(width: 48, height: 48)
+                .frame(width: RS.dimension(48), height: RS.dimension(48))
                 .overlay(
                     Image(systemName: "headphones")
-                        .font(.system(size: 18))
+                        .font(.system(size: RS.fontSize(18)))
                         .foregroundColor(themeManager.theme.secondaryText)
                 )
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: RS.spacing(4)) {
                 Text("Begin Your Journey")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: RS.fontSize(16), weight: .medium))
                     .foregroundColor(themeManager.theme.primaryText)
 
                 Text("Choose a reciter below")
-                    .font(.system(size: 13, weight: .light))
+                    .font(.system(size: RS.fontSize(13), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
             Spacer()
         }
-        .padding(16)
+        .padding(RS.spacing(16))
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -798,79 +800,80 @@ struct SacredPrayerCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: RS.spacing(4)) {
                     Text("NEXT PRAYER")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: RS.fontSize(9), weight: .medium))
                         .tracking(1.5)
                         .foregroundColor(themeManager.theme.secondaryText)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: RS.spacing(8)) {
                         Text(prayerNameArabic)
-                            .font(.system(size: 18, weight: .regular, design: .serif))
+                            .font(.system(size: RS.fontSize(18), weight: .regular, design: .serif))
                             .foregroundColor(themeManager.theme.primaryText)
 
                         Text("•")
                             .foregroundColor(themeManager.theme.secondaryText)
 
                         Text(prayerName)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: RS.fontSize(14), weight: .medium))
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
                 }
 
                 Spacer()
 
-                HStack(spacing: 4) {
+                HStack(spacing: RS.spacing(4)) {
                     Image(systemName: "location")
-                        .font(.system(size: 10))
+                        .font(.system(size: RS.fontSize(10)))
                     Text(locationName)
-                        .font(.system(size: 11))
+                        .font(.system(size: RS.fontSize(11)))
+                        .lineLimit(1)
                 }
                 .foregroundColor(themeManager.theme.secondaryText)
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: RS.spacing(12)) {
                 Text(time)
-                    .font(.system(size: 36, weight: .ultraLight))
+                    .font(.system(size: RS.fontSize(36), weight: .ultraLight))
                     .foregroundColor(accentColor)
 
                 Text("in \(timeUntil)")
-                    .font(.system(size: 13, weight: .light))
+                    .font(.system(size: RS.fontSize(13), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
 
             // Prayer progress bar
-            HStack(spacing: 8) {
+            HStack(spacing: RS.spacing(8)) {
                 Text(currentPrayer)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: RS.fontSize(10), weight: .medium))
                     .foregroundColor(accentColor)
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2)
                             .fill(accentColor.opacity(0.15))
-                            .frame(height: 4)
+                            .frame(height: RS.dimension(4))
 
                         RoundedRectangle(cornerRadius: 2)
                             .fill(accentColor)
-                            .frame(width: geo.size.width * progress, height: 4)
+                            .frame(width: geo.size.width * progress, height: RS.dimension(4))
                     }
                 }
-                .frame(height: 4)
+                .frame(height: RS.dimension(4))
 
                 Text("of day")
-                    .font(.system(size: 10, weight: .light))
+                    .font(.system(size: RS.fontSize(10), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
         }
-        .padding(20)
+        .padding(RS.spacing(20))
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                         .stroke(accentColor.opacity(0.2), lineWidth: 1)
                 )
         )
@@ -887,13 +890,13 @@ struct SacredPrayerCardPlaceholder: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.15)).frame(width: 100, height: 12)
-            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.15)).frame(width: 150, height: 32)
+        VStack(alignment: .leading, spacing: RS.spacing(16)) {
+            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.15)).frame(width: RS.dimension(100), height: RS.dimension(12))
+            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.15)).frame(width: RS.dimension(150), height: RS.dimension(32))
         }
-        .padding(20)
+        .padding(RS.spacing(20))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20).fill(cardBackground))
+        .background(RoundedRectangle(cornerRadius: RS.cornerRadius(20)).fill(cardBackground))
     }
 }
 
@@ -924,33 +927,33 @@ struct SacredQuickActionContent: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: RS.spacing(12)) {
             Circle()
                 .fill(color.opacity(0.15))
-                .frame(width: 36, height: 36)
+                .frame(width: RS.dimension(36), height: RS.dimension(36))
                 .overlay(
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: RS.fontSize(14), weight: .medium))
                         .foregroundColor(color)
                 )
 
             Text(label)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: RS.fontSize(13), weight: .medium))
                 .foregroundColor(themeManager.theme.primaryText)
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 10))
+                .font(.system(size: RS.fontSize(10)))
                 .foregroundColor(themeManager.theme.secondaryText)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, RS.spacing(14))
+        .padding(.vertical, RS.spacing(12))
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                         .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -964,43 +967,47 @@ struct SacredReciterCard: View {
     let onPlay: () -> Void
     @StateObject private var themeManager = ThemeManager.shared
 
+    private var cardSize: CGFloat {
+        RS.cardSize(120, minimum: 100)
+    }
+
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: RS.spacing(10)) {
             ZStack(alignment: .bottomTrailing) {
                 KFImage(reciter.artworkURL)
-                    .placeholder { SacredReciterPlaceholder(size: 120, iconSize: 40) }
+                    .placeholder { SacredReciterPlaceholder(size: cardSize, iconSize: RS.iconSize(40)) }
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 120, height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .frame(width: cardSize, height: cardSize)
+                    .clipShape(RoundedRectangle(cornerRadius: RS.cornerRadius(12)))
 
                 Button(action: onPlay) {
                     Circle()
                         .fill(accentColor)
-                        .frame(width: 32, height: 32)
+                        .frame(width: RS.dimension(32), height: RS.dimension(32))
                         .overlay(
                             Image(systemName: "play.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: RS.fontSize(11)))
                                 .foregroundColor(.white)
                                 .offset(x: 1)
                         )
                 }
-                .offset(x: -6, y: -6)
+                .offset(x: -RS.spacing(6), y: -RS.spacing(6))
             }
 
-            VStack(spacing: 2) {
+            VStack(spacing: RS.spacing(2)) {
                 Text(reciter.englishName)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: RS.fontSize(12), weight: .medium))
                     .foregroundColor(themeManager.theme.primaryText)
                     .lineLimit(1)
 
                 if let country = reciter.country {
                     Text(country)
-                        .font(.system(size: 10, weight: .light))
+                        .font(.system(size: RS.fontSize(10), weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
             }
-            .frame(width: 120)
+            .frame(width: cardSize)
         }
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
@@ -1010,18 +1017,22 @@ struct SacredReciterCard: View {
 struct SacredReciterSkeleton: View {
     @StateObject private var themeManager = ThemeManager.shared
 
-    var body: some View {
-        VStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(themeManager.theme.secondaryText.opacity(0.1))
-                .frame(width: 120, height: 120)
+    private var cardSize: CGFloat {
+        RS.cardSize(120, minimum: 100)
+    }
 
-            VStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: 80, height: 10)
-                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: 50, height: 8)
+    var body: some View {
+        VStack(spacing: RS.spacing(10)) {
+            RoundedRectangle(cornerRadius: RS.cornerRadius(12))
+                .fill(themeManager.theme.secondaryText.opacity(0.1))
+                .frame(width: cardSize, height: cardSize)
+
+            VStack(spacing: RS.spacing(4)) {
+                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: RS.dimension(80), height: RS.dimension(10))
+                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: RS.dimension(50), height: RS.dimension(8))
             }
         }
-        .frame(width: 120)
+        .frame(width: cardSize)
     }
 }
 
@@ -1040,28 +1051,28 @@ struct SacredSpotlightCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 16) {
+            HStack(spacing: RS.spacing(16)) {
                 KFImage(reciter.artworkURL)
-                    .placeholder { SacredReciterPlaceholder(size: 80, iconSize: 30) }
+                    .placeholder { SacredReciterPlaceholder(size: RS.cardSize(80, minimum: 64), iconSize: RS.iconSize(30)) }
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 80, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .frame(width: RS.cardSize(80, minimum: 64), height: RS.cardSize(80, minimum: 64))
+                    .clipShape(RoundedRectangle(cornerRadius: RS.cornerRadius(12)))
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: RS.spacing(6)) {
                     Text(reciter.englishName)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: RS.fontSize(16), weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
                         .lineLimit(1)
 
                     if let country = reciter.country {
                         Text(country)
-                            .font(.system(size: 12, weight: .light))
+                            .font(.system(size: RS.fontSize(12), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
 
                     Text(reciter.hasCompleteQuran ? "Complete Quran" : "\(reciter.availableSurahs.count) Surahs")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: RS.fontSize(11), weight: .medium))
                         .foregroundColor(accentColor)
                 }
 
@@ -1070,21 +1081,21 @@ struct SacredSpotlightCard: View {
                 Button(action: onPlay) {
                     Circle()
                         .fill(accentColor)
-                        .frame(width: 40, height: 40)
+                        .frame(width: RS.dimension(40), height: RS.dimension(40))
                         .overlay(
                             Image(systemName: "play.fill")
-                                .font(.system(size: 14))
+                                .font(.system(size: RS.fontSize(14)))
                                 .foregroundColor(.white)
                                 .offset(x: 1)
                         )
                 }
             }
-            .padding(16)
+            .padding(RS.spacing(16))
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                     .fill(cardBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                             .stroke(accentColor.opacity(0.15), lineWidth: 1)
                     )
             )
@@ -1103,16 +1114,16 @@ struct SacredSpotlightPlaceholder: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
-            RoundedRectangle(cornerRadius: 12).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: 80, height: 80)
-            VStack(alignment: .leading, spacing: 8) {
-                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: 120, height: 14)
-                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: 80, height: 10)
+        HStack(spacing: RS.spacing(16)) {
+            RoundedRectangle(cornerRadius: RS.cornerRadius(12)).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: RS.cardSize(80, minimum: 64), height: RS.cardSize(80, minimum: 64))
+            VStack(alignment: .leading, spacing: RS.spacing(8)) {
+                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: RS.dimension(120), height: RS.dimension(14))
+                RoundedRectangle(cornerRadius: 3).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: RS.dimension(80), height: RS.dimension(10))
             }
             Spacer()
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(cardBackground))
+        .padding(RS.spacing(16))
+        .background(RoundedRectangle(cornerRadius: RS.cornerRadius(16)).fill(cardBackground))
     }
 }
 
@@ -1130,35 +1141,35 @@ struct SacredVerseCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: RS.spacing(20)) {
             Text(arabic)
-                .font(.system(size: 26, weight: .regular, design: .serif))
+                .font(.system(size: RS.fontSize(26), weight: .regular, design: .serif))
                 .foregroundColor(themeManager.theme.primaryText)
                 .multilineTextAlignment(.center)
-                .lineSpacing(10)
+                .lineSpacing(RS.spacing(10))
 
             Rectangle()
                 .fill(accentColor.opacity(0.4))
-                .frame(width: 40, height: 1)
+                .frame(width: RS.dimension(40), height: 1)
 
             Text(translation)
-                .font(.system(size: 15, weight: .light))
+                .font(.system(size: RS.fontSize(15), weight: .light))
                 .foregroundColor(themeManager.theme.secondaryText)
                 .multilineTextAlignment(.center)
-                .lineSpacing(6)
+                .lineSpacing(RS.spacing(6))
 
             Text(reference)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: RS.fontSize(12), weight: .medium))
                 .foregroundColor(accentColor)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
-        .padding(.horizontal, 28)
+        .padding(.vertical, RS.spacing(32))
+        .padding(.horizontal, RS.spacing(28))
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                         .stroke(accentColor.opacity(0.15), lineWidth: 1)
                 )
         )
@@ -1175,13 +1186,13 @@ struct SacredVersePlaceholder: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(height: 40)
-            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(height: 24)
-            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: 100, height: 12)
+        VStack(spacing: RS.spacing(16)) {
+            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(height: RS.dimension(40))
+            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(height: RS.dimension(24))
+            RoundedRectangle(cornerRadius: 4).fill(themeManager.theme.secondaryText.opacity(0.1)).frame(width: RS.dimension(100), height: RS.dimension(12))
         }
-        .padding(28)
-        .background(RoundedRectangle(cornerRadius: 20).fill(cardBackground))
+        .padding(RS.spacing(28))
+        .background(RoundedRectangle(cornerRadius: RS.cornerRadius(20)).fill(cardBackground))
     }
 }
 
@@ -1199,64 +1210,68 @@ struct SacredReciterListRow: View {
             : Color.white
     }
 
+    private var rowHeight: CGFloat {
+        RS.cardSize(90, minimum: 72)
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 0) {
                 ZStack(alignment: .topLeading) {
                     KFImage(reciter.artworkURL)
-                        .placeholder { SacredReciterPlaceholder(size: 90, iconSize: 30) }
+                        .placeholder { SacredReciterPlaceholder(size: rowHeight, iconSize: RS.iconSize(30)) }
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 90, height: 90)
+                        .frame(width: rowHeight, height: rowHeight)
                         .clipped()
 
                     Text("\(rank)")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: RS.fontSize(10), weight: .medium))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, RS.spacing(6))
+                        .padding(.vertical, RS.spacing(3))
                         .background(Capsule().fill(Color.black.opacity(0.5)))
-                        .offset(x: 6, y: 6)
+                        .offset(x: RS.spacing(6), y: RS.spacing(6))
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: RS.spacing(6)) {
                     Text(reciter.englishName)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: RS.fontSize(14), weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
                         .lineLimit(1)
 
                     if let country = reciter.country {
                         Text(country)
-                            .font(.system(size: 11, weight: .light))
+                            .font(.system(size: RS.fontSize(11), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
 
                     Text(reciter.hasCompleteQuran ? "114 Surahs" : "\(reciter.availableSurahs.count) Surahs")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.system(size: RS.fontSize(10), weight: .medium))
                         .foregroundColor(accentColor)
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, RS.spacing(12))
 
                 Spacer()
 
                 Button(action: onPlay) {
                     Circle()
                         .fill(accentColor.opacity(0.15))
-                        .frame(width: 36, height: 36)
+                        .frame(width: RS.dimension(36), height: RS.dimension(36))
                         .overlay(
                             Image(systemName: "shuffle")
-                                .font(.system(size: 12))
+                                .font(.system(size: RS.fontSize(12)))
                                 .foregroundColor(accentColor)
                         )
                 }
-                .padding(.trailing, 12)
+                .padding(.trailing, RS.spacing(12))
             }
-            .frame(height: 90)
+            .frame(height: rowHeight)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                     .fill(cardBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                             .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                     )
             )
@@ -1278,32 +1293,32 @@ struct SacredListeningStatCard: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: RS.spacing(8)) {
                 Text("LISTENING TIME")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: RS.fontSize(9), weight: .medium))
                     .tracking(1.5)
                     .foregroundColor(themeManager.theme.secondaryText)
 
                 Text(time)
-                    .font(.system(size: 32, weight: .ultraLight))
+                    .font(.system(size: RS.fontSize(32), weight: .ultraLight))
                     .foregroundColor(accentColor)
 
                 Text("total time spent")
-                    .font(.system(size: 12, weight: .light))
+                    .font(.system(size: RS.fontSize(12), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
             Spacer()
 
             Image(systemName: "headphones")
-                .font(.system(size: 28, weight: .light))
+                .font(.system(size: RS.fontSize(28), weight: .light))
                 .foregroundColor(accentColor.opacity(0.5))
         }
-        .padding(20)
+        .padding(RS.spacing(20))
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -1323,46 +1338,46 @@ struct SacredSurahProgressCard: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: RS.spacing(8)) {
                 Text("SURAHS COMPLETED")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: RS.fontSize(9), weight: .medium))
                     .tracking(1.5)
                     .foregroundColor(themeManager.theme.secondaryText)
 
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: RS.spacing(4)) {
                     Text("\(completed)")
-                        .font(.system(size: 32, weight: .ultraLight))
+                        .font(.system(size: RS.fontSize(32), weight: .ultraLight))
                         .foregroundColor(accentColor)
 
                     Text("/ 114")
-                        .font(.system(size: 16, weight: .light))
+                        .font(.system(size: RS.fontSize(16), weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
 
                 Text("\(Int((Double(completed) / 114.0) * 100))% complete")
-                    .font(.system(size: 12, weight: .light))
+                    .font(.system(size: RS.fontSize(12), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
             Spacer()
 
             ZStack {
                 Circle()
-                    .stroke(accentColor.opacity(0.15), lineWidth: 4)
-                    .frame(width: 50, height: 50)
+                    .stroke(accentColor.opacity(0.15), lineWidth: RS.dimension(4))
+                    .frame(width: RS.dimension(50), height: RS.dimension(50))
 
                 Circle()
                     .trim(from: 0, to: Double(completed) / 114.0)
-                    .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .frame(width: 50, height: 50)
+                    .stroke(accentColor, style: StrokeStyle(lineWidth: RS.dimension(4), lineCap: .round))
+                    .frame(width: RS.dimension(50), height: RS.dimension(50))
                     .rotationEffect(.degrees(-90))
             }
         }
-        .padding(20)
+        .padding(RS.spacing(20))
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -1382,54 +1397,54 @@ struct SacredMostListenedCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: RS.spacing(14)) {
             if let reciter = reciter {
                 KFImage(reciter.artworkURL)
-                    .placeholder { SacredReciterPlaceholder(size: 44, iconSize: 18) }
+                    .placeholder { SacredReciterPlaceholder(size: RS.dimension(44), iconSize: RS.iconSize(18)) }
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 44, height: 44)
+                    .frame(width: RS.dimension(44), height: RS.dimension(44))
                     .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: RS.spacing(4)) {
                     Text("MOST LISTENED")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: RS.fontSize(9), weight: .medium))
                         .tracking(1.5)
                         .foregroundColor(themeManager.theme.secondaryText)
 
                     Text(reciter.englishName)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: RS.fontSize(16), weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
                         .lineLimit(1)
 
                     Text("\(playCount) plays")
-                        .font(.system(size: 12, weight: .light))
+                        .font(.system(size: RS.fontSize(12), weight: .light))
                         .foregroundColor(accentColor)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: RS.spacing(4)) {
                     Text("MOST LISTENED")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: RS.fontSize(9), weight: .medium))
                         .tracking(1.5)
                         .foregroundColor(themeManager.theme.secondaryText)
 
                     Text("Start listening")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: RS.fontSize(16), weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
 
                     Text("Play surahs to track")
-                        .font(.system(size: 12, weight: .light))
+                        .font(.system(size: RS.fontSize(12), weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
             }
             Spacer()
         }
-        .padding(20)
+        .padding(RS.spacing(20))
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -1568,6 +1583,10 @@ struct SacredReciterListRowNavigable: View {
             : Color.white
     }
 
+    private var rowHeight: CGFloat {
+        RS.cardSize(90, minimum: 72)
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             // Navigation area - tapping here opens reciter profile
@@ -1575,38 +1594,38 @@ struct SacredReciterListRowNavigable: View {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
                         KFImage(reciter.artworkURL)
-                            .placeholder { SacredReciterPlaceholder(size: 90, iconSize: 30) }
+                            .placeholder { SacredReciterPlaceholder(size: rowHeight, iconSize: RS.iconSize(30)) }
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 90, height: 90)
+                            .frame(width: rowHeight, height: rowHeight)
                             .clipped()
 
                         Text("\(rank)")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: RS.fontSize(10), weight: .medium))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, RS.spacing(6))
+                            .padding(.vertical, RS.spacing(3))
                             .background(Capsule().fill(Color.black.opacity(0.5)))
-                            .offset(x: 6, y: 6)
+                            .offset(x: RS.spacing(6), y: RS.spacing(6))
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: RS.spacing(6)) {
                         Text(reciter.englishName)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: RS.fontSize(14), weight: .medium))
                             .foregroundColor(themeManager.theme.primaryText)
                             .lineLimit(1)
 
                         if let country = reciter.country {
                             Text(country)
-                                .font(.system(size: 11, weight: .light))
+                                .font(.system(size: RS.fontSize(11), weight: .light))
                                 .foregroundColor(themeManager.theme.secondaryText)
                         }
 
                         Text(reciter.hasCompleteQuran ? "114 Surahs" : "\(reciter.availableSurahs.count) Surahs")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: RS.fontSize(10), weight: .medium))
                             .foregroundColor(accentColor)
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, RS.spacing(12))
 
                     Spacer()
                 }
@@ -1617,22 +1636,22 @@ struct SacredReciterListRowNavigable: View {
             Button(action: onPlay) {
                 Circle()
                     .fill(accentColor.opacity(0.15))
-                    .frame(width: 36, height: 36)
+                    .frame(width: RS.dimension(36), height: RS.dimension(36))
                     .overlay(
                         Image(systemName: "shuffle")
-                            .font(.system(size: 12))
+                            .font(.system(size: RS.fontSize(12)))
                             .foregroundColor(accentColor)
                     )
             }
             .buttonStyle(PlainButtonStyle())
-            .padding(.trailing, 12)
+            .padding(.trailing, RS.spacing(12))
         }
-        .frame(height: 90)
+        .frame(height: rowHeight)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                         .stroke(themeManager.theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )

@@ -79,35 +79,35 @@ struct DhikrWidgetView: View {
 
                 // Today's count - subtle, not dominant
                 todayCountSection
-                    .padding(.top, 32)
+                    .padding(.top, RS.spacing(32))
                     .opacity(sectionAppeared[1] ? 1 : 0)
                     .offset(y: sectionAppeared[1] ? 0 : 20)
 
                 // Journey stats - refined
                 journeyStatsSection
-                    .padding(.top, 40)
+                    .padding(.top, RS.spacing(40))
                     .opacity(sectionAppeared[2] ? 1 : 0)
                     .offset(y: sectionAppeared[2] ? 0 : 20)
 
                 // Dhikr cards - emphasis on Arabic
                 dhikrCardsSection
-                    .padding(.top, 48)
+                    .padding(.top, RS.spacing(48))
                     .opacity(sectionAppeared[3] ? 1 : 0)
                     .offset(y: sectionAppeared[3] ? 0 : 20)
 
                 // Monthly reflection
                 monthlySection
-                    .padding(.top, 48)
+                    .padding(.top, RS.spacing(48))
                     .opacity(sectionAppeared[4] ? 1 : 0)
                     .offset(y: sectionAppeared[4] ? 0 : 20)
 
                 // Lifetime journey
                 lifetimeSection
-                    .padding(.top, 48)
+                    .padding(.top, RS.spacing(48))
                     .opacity(sectionAppeared[5] ? 1 : 0)
                     .offset(y: sectionAppeared[5] ? 0 : 20)
             }
-            .padding(.bottom, 120)
+            .padding(.bottom, RS.spacing(120))
         }
         .background(pageBackground.ignoresSafeArea())
         .onAppear {
@@ -127,14 +127,14 @@ struct DhikrWidgetView: View {
     // MARK: - Header Section
     private var headerSection: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: RS.spacing(4)) {
                 Text("DHIKR")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: RS.fontSize(11), weight: .medium))
                     .tracking(3)
                     .foregroundColor(theme.secondaryText)
 
                 Text("Today's Practice")
-                    .font(.system(size: 24, weight: .light))
+                    .font(.system(size: RS.fontSize(24), weight: .light))
                     .foregroundColor(theme.primaryText)
             }
 
@@ -145,38 +145,38 @@ struct DhikrWidgetView: View {
                 .environmentObject(audioPlayerService)
                 .environmentObject(bluetoothService)
             ) {
-                HStack(spacing: 6) {
+                HStack(spacing: RS.spacing(6)) {
                     Circle()
                         .fill(sacredGold.opacity(0.2))
-                        .frame(width: 32, height: 32)
+                        .frame(width: RS.dimension(32), height: RS.dimension(32))
                         .overlay(
                             Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 13))
+                                .font(.system(size: RS.fontSize(13)))
                                 .foregroundColor(sacredGold)
                         )
                 }
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
+        .padding(.horizontal, RS.horizontalPadding)
+        .padding(.top, RS.spacing(20))
     }
 
     // MARK: - Today Count Section
     private var todayCountSection: some View {
         let stats = dhikrService.getTodayStats()
 
-        return VStack(spacing: 8) {
+        return VStack(spacing: RS.spacing(8)) {
             Text("\(stats.total)")
-                .font(.system(size: 56, weight: .ultraLight))
+                .font(.system(size: RS.fontSize(56), weight: .ultraLight))
                 .foregroundColor(theme.primaryText)
 
             Text("remembrances today")
-                .font(.system(size: 13, weight: .regular))
+                .font(.system(size: RS.fontSize(13), weight: .regular))
                 .foregroundColor(theme.secondaryText)
                 .tracking(0.5)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, RS.spacing(24))
     }
 
     // MARK: - Journey Stats Section
@@ -212,32 +212,32 @@ struct DhikrWidgetView: View {
                 sublabel: nil
             )
         }
-        .padding(.vertical, 20)
+        .padding(.vertical, RS.spacing(20))
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .stroke(theme.secondaryText.opacity(0.1), lineWidth: 1)
                 )
         )
-        .padding(.horizontal, 24)
+        .padding(.horizontal, RS.horizontalPadding)
     }
 
     private func statItem(value: String, label: String, sublabel: String?) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: RS.spacing(6)) {
             Text(value)
-                .font(.system(size: 28, weight: .light))
+                .font(.system(size: RS.fontSize(28), weight: .light))
                 .foregroundColor(theme.primaryText)
 
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: RS.fontSize(10), weight: .medium))
                 .tracking(1.5)
                 .foregroundColor(theme.secondaryText)
 
             if let sublabel = sublabel {
                 Text(sublabel)
-                    .font(.system(size: 11))
+                    .font(.system(size: RS.fontSize(11)))
                     .foregroundColor(theme.secondaryText.opacity(0.6))
             }
         }
@@ -247,21 +247,21 @@ struct DhikrWidgetView: View {
     private var divider: some View {
         Rectangle()
             .fill(theme.secondaryText.opacity(0.15))
-            .frame(width: 1, height: 50)
+            .frame(width: 1, height: RS.dimension(50))
     }
 
     // MARK: - Dhikr Cards Section
     private var dhikrCardsSection: some View {
         let stats = dhikrService.getTodayStats()
 
-        return VStack(alignment: .leading, spacing: 24) {
+        return VStack(alignment: .leading, spacing: RS.spacing(24)) {
             Text("PRACTICE")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: RS.fontSize(11), weight: .medium))
                 .tracking(2)
                 .foregroundColor(theme.secondaryText)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, RS.horizontalPadding)
 
-            VStack(spacing: 16) {
+            VStack(spacing: RS.spacing(16)) {
                 // Astaghfirullah first (seeking forgiveness)
                 SacredDhikrCard(
                     type: .astaghfirullah,
@@ -292,7 +292,7 @@ struct DhikrWidgetView: View {
                     onReset: { dhikrService.setDhikrCount(.subhanAllah, count: 0) }
                 )
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, RS.horizontalPadding)
         }
     }
 
@@ -508,30 +508,30 @@ struct SacredDhikrCard: View {
     var body: some View {
         VStack(spacing: 0) {
             // Main content area
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: RS.spacing(20)) {
                 // Arabic text - PROMINENT
                 Text(type.arabicText)
-                    .font(.system(size: 32, weight: .regular, design: .serif))
+                    .font(.system(size: RS.fontSize(32), weight: .regular, design: .serif))
                     .foregroundColor(theme.primaryText)
 
                 // English transliteration
                 Text(type.rawValue)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: RS.fontSize(13), weight: .medium))
                     .tracking(1)
                     .foregroundColor(theme.secondaryText)
 
                 // Count and goal
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: RS.spacing(8)) {
                     Button(action: {
                         showingInputSheet = true
                     }) {
                         Text("\(count)")
-                            .font(.system(size: 40, weight: .light))
+                            .font(.system(size: RS.fontSize(40), weight: .light))
                             .foregroundColor(accentColor)
                     }
 
                     Text("/ \(goal)")
-                        .font(.system(size: 16, weight: .light))
+                        .font(.system(size: RS.fontSize(16), weight: .light))
                         .foregroundColor(theme.secondaryText)
 
                     Spacer()
@@ -539,17 +539,17 @@ struct SacredDhikrCard: View {
                     // Circular progress indicator
                     ZStack {
                         Circle()
-                            .stroke(accentColor.opacity(0.15), lineWidth: 3)
-                            .frame(width: 44, height: 44)
+                            .stroke(accentColor.opacity(0.15), lineWidth: RS.dimension(3))
+                            .frame(width: RS.dimension(44), height: RS.dimension(44))
 
                         Circle()
                             .trim(from: 0, to: progress)
-                            .stroke(accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                            .frame(width: 44, height: 44)
+                            .stroke(accentColor, style: StrokeStyle(lineWidth: RS.dimension(3), lineCap: .round))
+                            .frame(width: RS.dimension(44), height: RS.dimension(44))
                             .rotationEffect(.degrees(-90))
 
                         Text("\(Int(progress * 100))")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: RS.fontSize(11), weight: .medium))
                             .foregroundColor(accentColor)
                     }
                 }
@@ -569,10 +569,10 @@ struct SacredDhikrCard: View {
                 }
                 .frame(height: 2)
             }
-            .padding(24)
+            .padding(RS.spacing(24))
 
             // Action buttons - subtle, refined
-            HStack(spacing: 12) {
+            HStack(spacing: RS.spacing(12)) {
                 SacredIncrementButton(label: "+1", color: accentColor) {
                     onIncrement(1)
                 }
@@ -592,23 +592,23 @@ struct SacredDhikrCard: View {
                     onReset()
                 }) {
                     Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 14))
+                        .font(.system(size: RS.fontSize(14)))
                         .foregroundColor(theme.secondaryText)
-                        .frame(width: 44, height: 44)
+                        .frame(width: RS.dimension(44), height: RS.dimension(44))
                         .background(
                             Circle()
                                 .fill(theme.secondaryText.opacity(0.08))
                         )
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 20)
+            .padding(.horizontal, RS.spacing(24))
+            .padding(.bottom, RS.spacing(20))
         }
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                         .stroke(theme.secondaryText.opacity(0.08), lineWidth: 1)
                 )
         )
@@ -647,11 +647,11 @@ struct SacredIncrementButton: View {
             action()
         }) {
             Text(label)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: RS.fontSize(14), weight: .medium))
                 .foregroundColor(color)
-                .frame(width: 56, height: 44)
+                .frame(width: RS.dimension(56), height: RS.dimension(44))
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(12))
                         .fill(color.opacity(0.1))
                 )
         }

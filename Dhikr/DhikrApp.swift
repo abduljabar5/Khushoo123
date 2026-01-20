@@ -747,6 +747,7 @@ struct MainContentView: View {
     @StateObject private var prayerTimeViewModel: PrayerTimeViewModel
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var showOnboarding = false
+    @State private var showSplash = true
 
     init(locationService: LocationService) {
         self.locationService = locationService
@@ -754,28 +755,45 @@ struct MainContentView: View {
     }
 
     var body: some View {
-        MainTabView()
-            .environmentObject(prayerTimeViewModel)
-            .fullScreenCover(isPresented: $showOnboarding) {
-                OnboardingFlowView()
-                    .environmentObject(locationService)
-            }
-            .onAppear {
-                // Show onboarding on first launch
-                if !hasCompletedOnboarding {
-                    // Delay slightly to ensure app is ready
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        showOnboarding = true
+        ZStack {
+            // Main content (always rendered underneath)
+            MainTabView()
+                .environmentObject(prayerTimeViewModel)
+                .fullScreenCover(isPresented: $showOnboarding) {
+                    OnboardingFlowView()
+                        .environmentObject(locationService)
+                }
+                .onAppear {
+                    // Show onboarding on first launch
+                    if !hasCompletedOnboarding {
+                        // Delay slightly to ensure app is ready
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            showOnboarding = true
+                        }
                     }
                 }
+                .onChange(of: hasCompletedOnboarding) { completed in
+                    if completed {
+                        print("🎉 [DhikrApp] Onboarding completed - triggering prayer time fetch")
+                        // Trigger prayer time fetch now that onboarding is complete
+                        NotificationCenter.default.post(name: Notification.Name("OnboardingCompleted"), object: nil)
+                    }
+                }
+
+            // Splash screen overlay
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(1)
             }
-            .onChange(of: hasCompletedOnboarding) { completed in
-                if completed {
-                    print("🎉 [DhikrApp] Onboarding completed - triggering prayer time fetch")
-                    // Trigger prayer time fetch now that onboarding is complete
-                    NotificationCenter.default.post(name: Notification.Name("OnboardingCompleted"), object: nil)
+        }
+        .onAppear {
+            // Dismiss splash after delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                withAnimation(.easeOut(duration: 0.5)) {
+                    showSplash = false
                 }
             }
+        }
     }
 }
- 

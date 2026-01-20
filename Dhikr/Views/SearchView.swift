@@ -136,24 +136,24 @@ struct SearchView: View {
         ScrollView {
             VStack(spacing: 0) {
                 // Sacred Header
-                VStack(spacing: 12) {
+                VStack(spacing: RS.spacing(12)) {
                     Text("FOCUS")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: RS.fontSize(11), weight: .medium))
                         .tracking(3)
                         .foregroundColor(warmGray)
 
                     Text("Prayer Time Blocking")
-                        .font(.system(size: 28, weight: .light))
+                        .font(.system(size: RS.fontSize(28), weight: .light))
                         .foregroundColor(themeManager.theme.primaryText)
 
                     Text("Stay present during your prayers")
-                        .font(.system(size: 14, weight: .light))
+                        .font(.system(size: RS.fontSize(14), weight: .light))
                         .foregroundColor(warmGray)
                 }
-                .padding(.top, 24)
-                .padding(.bottom, 32)
+                .padding(.top, RS.spacing(24))
+                .padding(.bottom, RS.spacing(32))
 
-                VStack(spacing: 20) {
+                VStack(spacing: RS.spacing(20)) {
                     // Setup progress banner
                     if blockingStateService.isSchedulingBlocking {
                         SacredSetupProgressBanner()
@@ -190,9 +190,10 @@ struct SearchView: View {
                         prePrayerBuffer: focusManager.prePrayerBuffer,
                         selectedPrayers: focusManager.getSelectedPrayers(),
                         isLoading: isLoadingPrayerTimes,
-                        error: prayerTimesError
+                        error: prayerTimesError,
+                        isLocked: (blockingStateService.isCurrentlyBlocking || blockingStateService.appsActuallyBlocked) && !blockingStateService.isEarlyUnlockedActive
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, RS.horizontalPadding)
 
                     // Select Prayers
                     SacredPrayerToggleSection(
@@ -209,15 +210,15 @@ struct SearchView: View {
                             }
                         }
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, RS.horizontalPadding)
 
                     // Blocking Duration
                     SacredBlockingDurationView(duration: $focusManager.blockingDuration)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, RS.horizontalPadding)
 
                     // Pre-Prayer Buffer
                     SacredPrePrayerBufferView(buffer: $focusManager.prePrayerBuffer)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, RS.horizontalPadding)
 
                     // App Selection
                     SacredSelectAppsView {
@@ -230,12 +231,12 @@ struct SearchView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, RS.horizontalPadding)
 
                     // Screen Time denied warning
                     if screenTimeAuth.authorizationStatus == .denied {
                         SacredScreenTimeWarning()
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, RS.horizontalPadding)
                     }
 
                     // Additional Settings
@@ -244,9 +245,9 @@ struct SearchView: View {
                         prePrayerNotification: $focusManager.prayerRemindersEnabled,
                         showingConfirmationSheet: $showingUnlockConfirmation
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, RS.horizontalPadding)
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, RS.spacing(40))
             }
         }
     }
@@ -675,6 +676,7 @@ private struct SacredTodayScheduleSection: View {
     let selectedPrayers: Set<String>
     let isLoading: Bool
     let error: String?
+    let isLocked: Bool
 
     @StateObject private var themeManager = ThemeManager.shared
 
@@ -774,7 +776,8 @@ private struct SacredTodayScheduleSection: View {
                             prayerName: prayerName,
                             time: getFallbackTime(for: prayerName),
                             duration: duration,
-                            isEnabled: selectedPrayers.contains(prayerName)
+                            isEnabled: selectedPrayers.contains(prayerName),
+                            isLocked: isLocked
                         )
                         if prayerName != "Isha" {
                             Divider()
@@ -789,7 +792,8 @@ private struct SacredTodayScheduleSection: View {
                             prayerName: prayer.name,
                             time: blockingStartTime(for: prayer.date),
                             duration: duration,
-                            isEnabled: selectedPrayers.contains(prayer.name)
+                            isEnabled: selectedPrayers.contains(prayer.name),
+                            isLocked: isLocked
                         )
                         if index < prayersToShow.count - 1 {
                             Divider()
@@ -829,6 +833,7 @@ private struct SacredPrayerScheduleRow: View {
     let time: String
     let duration: Double
     let isEnabled: Bool
+    let isLocked: Bool
 
     @StateObject private var themeManager = ThemeManager.shared
 
@@ -853,30 +858,38 @@ private struct SacredPrayerScheduleRow: View {
         }
     }
 
+    /// Effective opacity based on enabled state and locked state
+    private var effectiveOpacity: Double {
+        if isLocked {
+            return 0.5
+        }
+        return isEnabled ? 1.0 : 0.5
+    }
+
     var body: some View {
         HStack {
             Image(systemName: prayerIcon(for: prayerName))
                 .font(.system(size: 14, weight: .light))
-                .foregroundColor(isEnabled ? softGreen : warmGray.opacity(0.5))
+                .foregroundColor(isEnabled && !isLocked ? softGreen : warmGray.opacity(0.5))
                 .frame(width: 24)
 
             Text(prayerName)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(themeManager.theme.primaryText)
-                .opacity(isEnabled ? 1.0 : 0.5)
+                .opacity(effectiveOpacity)
                 .frame(width: 70, alignment: .leading)
 
             Text(time)
                 .font(.system(size: 13, weight: .light))
                 .foregroundColor(warmGray)
-                .opacity(isEnabled ? 1.0 : 0.5)
+                .opacity(effectiveOpacity)
 
             Spacer()
 
             Text("\(Int(duration)) min")
                 .font(.system(size: 11, weight: .light))
                 .foregroundColor(warmGray)
-                .opacity(isEnabled ? 1.0 : 0.5)
+                .opacity(effectiveOpacity)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

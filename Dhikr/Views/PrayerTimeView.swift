@@ -24,6 +24,8 @@ struct PrayerTimeView: View {
     @State private var animateProgress = false
     @State private var showingDatePicker = false
     @State private var showingPaywall = false
+    @State private var showCelebration = false
+    @State private var previousCompletedCount = 0
 
     // Sacred colors
     private var sacredGold: Color {
@@ -53,40 +55,57 @@ struct PrayerTimeView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                // Top prayer section with mosque background
-                topPrayerSection
+        ZStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Top prayer section with mosque background
+                    topPrayerSection
 
-                // Date navigation
-                dateNavigationSection
-                    .padding(.top, 8)
+                    // Date navigation
+                    dateNavigationSection
+                        .padding(.top, 8)
 
-                // Content sections
-                VStack(spacing: 16) {
-                    if Calendar.current.isDateInToday(viewModel.selectedDate) {
-                        progressSection
+                    // Content sections
+                    VStack(spacing: RS.spacing(16)) {
+                        if Calendar.current.isDateInToday(viewModel.selectedDate) {
+                            progressSection
+                        }
+
+                        // Qibla Compass
+                        SacredQiblaCard()
+
+                        prayerScheduleList
+
+                        footerInfo
                     }
-
-                    // Qibla Compass
-                    SacredQiblaCard()
-
-                    prayerScheduleList
-
-                    footerInfo
+                    .padding(.horizontal, RS.horizontalPadding)
+                    .padding(.top, RS.spacing(20))
+                    .padding(.bottom, RS.spacing(20))
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-                .padding(.bottom, 20)
+            }
+            .ignoresSafeArea(edges: .top)
+            .background(pageBackground)
+
+            // Celebration overlay
+            if showCelebration {
+                SacredCelebrationOverlay(isPresented: $showCelebration)
             }
         }
-        .ignoresSafeArea(edges: .top)
-        .background(pageBackground)
         .onAppear {
             withAnimation(.easeInOut(duration: 1.0)) {
                 animateProgress = true
             }
             viewModel.reloadCompletions()
+            previousCompletedCount = viewModel.completedPrayers
+        }
+        .onChange(of: viewModel.completedPrayers) { oldValue, newValue in
+            // Show celebration when all 5 prayers completed (excluding Sunrise)
+            if newValue == 5 && oldValue < 5 && Calendar.current.isDateInToday(viewModel.selectedDate) {
+                HapticManager.shared.notification(.success)
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    showCelebration = true
+                }
+            }
         }
         .sheet(isPresented: $showingDatePicker) {
             SacredDatePickerSheet(
@@ -106,13 +125,14 @@ struct PrayerTimeView: View {
 
     // MARK: - Top Prayer Section
     private var topPrayerSection: some View {
-        ZStack(alignment: .bottom) {
+        let sectionHeight: CGFloat = RS.cardSize(320, minimum: 280)
+        return ZStack(alignment: .bottom) {
             // Mosque background with gradient
             GeometryReader { geometry in
                 Image("mosque-bg")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: geometry.size.width, height: 320)
+                    .frame(width: geometry.size.width, height: sectionHeight)
                     .clipped()
                     .overlay(
                         LinearGradient(
@@ -127,33 +147,34 @@ struct PrayerTimeView: View {
                         )
                     )
             }
-            .frame(height: 320)
+            .frame(height: sectionHeight)
 
             // Content overlay
             VStack(spacing: 0) {
                 // Status bar spacer
-                Color.clear.frame(height: 50)
+                Color.clear.frame(height: RS.dimension(50))
 
                 // Location
                 Button(action: { viewModel.refreshLocation() }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: RS.spacing(6)) {
                         if viewModel.isRefreshingLocation {
                             ProgressView()
                                 .scaleEffect(0.7)
                                 .tint(.white.opacity(0.8))
                         } else {
                             Image(systemName: "location")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: RS.fontSize(11), weight: .medium))
                                 .foregroundColor(.white.opacity(0.8))
                         }
 
                         Text("\(viewModel.cityName), \(viewModel.countryName)")
-                            .font(.system(size: 12, weight: .light))
+                            .font(.system(size: RS.fontSize(12), weight: .light))
                             .foregroundColor(.white.opacity(0.9))
+                            .lineLimit(1)
 
                         if !viewModel.isRefreshingLocation {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 9))
+                                .font(.system(size: RS.fontSize(9)))
                                 .foregroundColor(.white.opacity(0.5))
                         }
 
@@ -161,32 +182,32 @@ struct PrayerTimeView: View {
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .padding(.horizontal, RS.horizontalPadding)
+                .padding(.bottom, RS.spacing(24))
 
                 // Next prayer
                 if let nextPrayer = viewModel.todaysNextPrayer {
-                    VStack(spacing: 8) {
+                    VStack(spacing: RS.spacing(8)) {
                         Text(getPrayerArabicName(nextPrayer.name))
-                            .font(.system(size: 18, weight: .regular, design: .serif))
+                            .font(.system(size: RS.fontSize(18), weight: .regular, design: .serif))
                             .foregroundColor(.white.opacity(0.9))
 
                         Text(nextPrayer.name)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: RS.fontSize(11), weight: .medium))
                             .tracking(2)
                             .foregroundColor(.white.opacity(0.6))
 
                         Text(nextPrayer.time)
-                            .font(.system(size: 48, weight: .ultraLight))
+                            .font(.system(size: RS.fontSize(48), weight: .ultraLight))
                             .foregroundColor(.white)
 
-                        HStack(spacing: 6) {
+                        HStack(spacing: RS.spacing(6)) {
                             Text("in \(viewModel.timeUntilNextPrayer)")
-                                .font(.system(size: 12, weight: .light))
+                                .font(.system(size: RS.fontSize(12), weight: .light))
                                 .foregroundColor(.white.opacity(0.8))
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, RS.spacing(16))
+                        .padding(.vertical, RS.spacing(8))
                         .background(
                             Capsule()
                                 .fill(.white.opacity(0.1))
@@ -196,16 +217,16 @@ struct PrayerTimeView: View {
                                 )
                         )
                     }
-                    .padding(.bottom, 32)
+                    .padding(.bottom, RS.spacing(32))
                 }
             }
         }
-        .frame(height: 320)
+        .frame(height: sectionHeight)
     }
 
     // MARK: - Date Navigation Section
     private var dateNavigationSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: RS.spacing(16)) {
             // Header
             HStack {
                 sacredSectionHeader(title: "PRAYER TIMES")
@@ -218,19 +239,19 @@ struct PrayerTimeView: View {
                         .tint(sacredGold)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, RS.horizontalPadding)
 
             // Navigation
-            HStack(spacing: 12) {
+            HStack(spacing: RS.spacing(12)) {
                 // Previous
                 Button(action: {
                     let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: viewModel.selectedDate) ?? viewModel.selectedDate
                     viewModel.fetchPrayerTimes(for: previousDay)
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: RS.fontSize(14), weight: .medium))
                         .foregroundColor(sacredGold)
-                        .frame(width: 40, height: 40)
+                        .frame(width: RS.dimension(40), height: RS.dimension(40))
                         .background(
                             Circle()
                                 .fill(cardBackground)
@@ -242,18 +263,18 @@ struct PrayerTimeView: View {
                 }
 
                 // Date display
-                VStack(spacing: 2) {
+                VStack(spacing: RS.spacing(2)) {
                     Text(formattedDate(viewModel.selectedDate))
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: RS.fontSize(15), weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
 
                     if Calendar.current.isDateInToday(viewModel.selectedDate) {
                         Text("Today")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: RS.fontSize(11), weight: .medium))
                             .foregroundColor(sacredGold)
                     } else {
                         Text(dayOfWeek(viewModel.selectedDate))
-                            .font(.system(size: 11, weight: .light))
+                            .font(.system(size: RS.fontSize(11), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
                     }
                 }
@@ -265,9 +286,9 @@ struct PrayerTimeView: View {
                     viewModel.fetchPrayerTimes(for: nextDay)
                 }) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: RS.fontSize(14), weight: .medium))
                         .foregroundColor(sacredGold)
-                        .frame(width: 40, height: 40)
+                        .frame(width: RS.dimension(40), height: RS.dimension(40))
                         .background(
                             Circle()
                                 .fill(cardBackground)
@@ -281,9 +302,9 @@ struct PrayerTimeView: View {
                 // Calendar
                 Button(action: { showingDatePicker = true }) {
                     Image(systemName: "calendar")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: RS.fontSize(14), weight: .medium))
                         .foregroundColor(sacredGold)
-                        .frame(width: 40, height: 40)
+                        .frame(width: RS.dimension(40), height: RS.dimension(40))
                         .background(
                             Circle()
                                 .fill(cardBackground)
@@ -294,78 +315,78 @@ struct PrayerTimeView: View {
                         )
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, RS.horizontalPadding)
         }
     }
 
     // MARK: - Progress Section
     private var progressSection: some View {
-        HStack(spacing: 24) {
+        HStack(spacing: RS.spacing(24)) {
             // Circular Progress
             ZStack {
                 Circle()
-                    .stroke(sacredGold.opacity(0.1), lineWidth: 6)
-                    .frame(width: 80, height: 80)
+                    .stroke(sacredGold.opacity(0.1), lineWidth: RS.dimension(6))
+                    .frame(width: RS.dimension(80), height: RS.dimension(80))
 
                 Circle()
                     .trim(from: 0, to: animateProgress ? viewModel.progressPercentage : 0)
                     .stroke(
                         sacredGold,
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        style: StrokeStyle(lineWidth: RS.dimension(6), lineCap: .round)
                     )
-                    .frame(width: 80, height: 80)
+                    .frame(width: RS.dimension(80), height: RS.dimension(80))
                     .rotationEffect(Angle(degrees: -90))
                     .animation(.spring(response: 1.0, dampingFraction: 0.8), value: animateProgress)
 
-                VStack(spacing: 2) {
+                VStack(spacing: RS.spacing(2)) {
                     Text("\(viewModel.completedPrayers)")
-                        .font(.system(size: 24, weight: .ultraLight))
+                        .font(.system(size: RS.fontSize(24), weight: .ultraLight))
                         .foregroundColor(sacredGold)
                     Text("of \(viewModel.totalPrayers)")
-                        .font(.system(size: 10, weight: .light))
+                        .font(.system(size: RS.fontSize(10), weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
             }
 
             // Streak Info
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: RS.spacing(10)) {
+                HStack(spacing: RS.spacing(6)) {
                     Image(systemName: "flame")
-                        .font(.system(size: 14, weight: .light))
+                        .font(.system(size: RS.fontSize(14), weight: .light))
                         .foregroundColor(viewModel.currentStreak > 0 ? .orange : warmGray)
 
                     Text("CURRENT STREAK")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: RS.fontSize(9), weight: .medium))
                         .tracking(1)
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
 
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: RS.spacing(6)) {
                     Text("\(viewModel.currentStreak)")
-                        .font(.system(size: 28, weight: .ultraLight))
+                        .font(.system(size: RS.fontSize(28), weight: .ultraLight))
                         .foregroundColor(viewModel.currentStreak > 0 ? sacredGold : themeManager.theme.primaryText)
 
                     Text(viewModel.currentStreak == 1 ? "day" : "days")
-                        .font(.system(size: 14, weight: .light))
+                        .font(.system(size: RS.fontSize(14), weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
 
-                HStack(spacing: 16) {
-                    HStack(spacing: 4) {
+                HStack(spacing: RS.spacing(16)) {
+                    HStack(spacing: RS.spacing(4)) {
                         Text("Best:")
-                            .font(.system(size: 10, weight: .light))
+                            .font(.system(size: RS.fontSize(10), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
                         Text("\(viewModel.bestStreak)")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: RS.fontSize(10), weight: .medium))
                             .foregroundColor(sacredGold)
                     }
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: RS.spacing(4)) {
                         Text("Today:")
-                            .font(.system(size: 10, weight: .light))
+                            .font(.system(size: RS.fontSize(10), weight: .light))
                             .foregroundColor(themeManager.theme.secondaryText)
                         Text("\(Int(viewModel.progressPercentage * 100))%")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: RS.fontSize(10), weight: .medium))
                             .foregroundColor(softGreen)
                     }
                 }
@@ -373,12 +394,12 @@ struct PrayerTimeView: View {
 
             Spacer()
         }
-        .padding(20)
+        .padding(RS.spacing(20))
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(20))
                         .stroke(sacredGold.opacity(0.1), lineWidth: 1)
                 )
         )
@@ -386,7 +407,7 @@ struct PrayerTimeView: View {
 
     // MARK: - Prayer Schedule List
     private var prayerScheduleList: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: RS.spacing(10)) {
             let isToday = Calendar.current.isDateInToday(viewModel.selectedDate)
             let isPastDate = viewModel.selectedDate < Date() && !isToday
 
@@ -420,28 +441,28 @@ struct PrayerTimeView: View {
 
     // MARK: - Footer
     private var footerInfo: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: RS.spacing(6)) {
             Text(viewModel.calculationMethod)
-                .font(.system(size: 10, weight: .light))
+                .font(.system(size: RS.fontSize(10), weight: .light))
 
             Text("•")
 
             Text("Based on \(viewModel.cityName)")
-                .font(.system(size: 10, weight: .light))
+                .font(.system(size: RS.fontSize(10), weight: .light))
         }
         .foregroundColor(themeManager.theme.secondaryText)
-        .padding(.vertical, 8)
+        .padding(.vertical, RS.spacing(8))
     }
 
     // MARK: - Helpers
     private func sacredSectionHeader(title: String) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: RS.spacing(10)) {
             Rectangle()
                 .fill(sacredGold.opacity(0.4))
-                .frame(width: 20, height: 1)
+                .frame(width: RS.dimension(20), height: 1)
 
             Text(title)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: RS.fontSize(11), weight: .medium))
                 .tracking(2)
                 .foregroundColor(themeManager.theme.secondaryText)
         }
@@ -484,27 +505,27 @@ struct SacredPrayerRow: View {
     @StateObject private var themeManager = ThemeManager.shared
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: RS.spacing(14)) {
             // Icon
             Image(systemName: prayer.icon)
-                .font(.system(size: 18, weight: .light))
+                .font(.system(size: RS.fontSize(18), weight: .light))
                 .foregroundColor(isActive ? sacredGold : warmGray)
-                .frame(width: 24)
+                .frame(width: RS.dimension(24))
 
             // Name
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: RS.spacing(2)) {
+                HStack(spacing: RS.spacing(8)) {
                     Text(arabicName)
-                        .font(.system(size: 14, weight: .regular, design: .serif))
+                        .font(.system(size: RS.fontSize(14), weight: .regular, design: .serif))
                         .foregroundColor(themeManager.theme.primaryText)
 
                     if isActive {
                         Text("NOW")
-                            .font(.system(size: 8, weight: .medium))
+                            .font(.system(size: RS.fontSize(8), weight: .medium))
                             .tracking(0.5)
                             .foregroundColor(sacredGold)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, RS.spacing(6))
+                            .padding(.vertical, RS.spacing(2))
                             .background(
                                 Capsule()
                                     .fill(sacredGold.opacity(0.15))
@@ -513,7 +534,7 @@ struct SacredPrayerRow: View {
                 }
 
                 Text(prayer.name)
-                    .font(.system(size: 11, weight: .light))
+                    .font(.system(size: RS.fontSize(11), weight: .light))
                     .foregroundColor(themeManager.theme.secondaryText)
             }
 
@@ -521,16 +542,16 @@ struct SacredPrayerRow: View {
 
             // Time
             Text(prayer.time)
-                .font(.system(size: 18, weight: isActive ? .light : .ultraLight))
+                .font(.system(size: RS.fontSize(18), weight: isActive ? .light : .ultraLight))
                 .foregroundColor(isActive ? sacredGold : themeManager.theme.primaryText)
 
             // Reminder
             Button(action: onToggleReminder) {
                 Image(systemName: prayer.hasReminder ? "bell.fill" : "bell")
-                    .font(.system(size: 14, weight: .light))
+                    .font(.system(size: RS.fontSize(14), weight: .light))
                     .foregroundColor(prayer.hasReminder ? sacredGold : warmGray.opacity(0.5))
             }
-            .frame(width: 32)
+            .frame(width: RS.dimension(32))
 
             // Completion
             if prayer.name != "Sunrise" {
@@ -538,36 +559,36 @@ struct SacredPrayerRow: View {
                     Button(action: onToggleComplete) {
                         ZStack {
                             Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 18, weight: .light))
+                                .font(.system(size: RS.fontSize(18), weight: .light))
                                 .foregroundColor(prayer.isCompleted ? softGreen : warmGray.opacity(0.3))
 
                             if !isPremium {
                                 Image(systemName: "lock.fill")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .font(.system(size: RS.fontSize(8), weight: .bold))
                                     .foregroundColor(.white)
                             }
                         }
                     }
-                    .frame(width: 24)
+                    .frame(width: RS.dimension(24))
                 } else if isPastDate {
                     Image(systemName: prayer.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 18, weight: .light))
+                        .font(.system(size: RS.fontSize(18), weight: .light))
                         .foregroundColor(prayer.isCompleted ? softGreen.opacity(0.5) : warmGray.opacity(0.2))
-                        .frame(width: 24)
+                        .frame(width: RS.dimension(24))
                 } else {
-                    Color.clear.frame(width: 24, height: 18)
+                    Color.clear.frame(width: RS.dimension(24), height: RS.dimension(18))
                 }
             } else {
-                Color.clear.frame(width: 24, height: 18)
+                Color.clear.frame(width: RS.dimension(24), height: RS.dimension(18))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, RS.spacing(16))
+        .padding(.vertical, RS.spacing(14))
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                 .fill(cardBackground)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                         .stroke(isActive ? sacredGold.opacity(0.3) : themeManager.theme.secondaryText.opacity(0.06), lineWidth: 1)
                 )
         )
@@ -832,40 +853,40 @@ struct SacredQiblaCard: View {
 
     var body: some View {
         Button(action: { showingCompass = true }) {
-            HStack(spacing: 14) {
+            HStack(spacing: RS.spacing(14)) {
                 // Icon
                 Circle()
                     .fill(sacredGold.opacity(0.1))
-                    .frame(width: 44, height: 44)
+                    .frame(width: RS.dimension(44), height: RS.dimension(44))
                     .overlay(
                         Image(systemName: "location.north")
-                            .font(.system(size: 20, weight: .light))
+                            .font(.system(size: RS.fontSize(20), weight: .light))
                             .foregroundColor(sacredGold)
                     )
 
                 // Text
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: RS.spacing(4)) {
                     Text("القِبلة")
-                        .font(.system(size: 15, weight: .regular, design: .serif))
+                        .font(.system(size: RS.fontSize(15), weight: .regular, design: .serif))
                         .foregroundColor(themeManager.theme.primaryText)
 
                     Text("Find Qibla Direction")
-                        .font(.system(size: 12, weight: .light))
+                        .font(.system(size: RS.fontSize(12), weight: .light))
                         .foregroundColor(themeManager.theme.secondaryText)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
+                    .font(.system(size: RS.fontSize(12)))
                     .foregroundColor(sacredGold.opacity(0.6))
             }
-            .padding(16)
+            .padding(RS.spacing(16))
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                     .fill(cardBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: RS.cornerRadius(16))
                             .stroke(sacredGold.opacity(0.15), lineWidth: 1)
                     )
             )
@@ -1229,6 +1250,204 @@ struct SacredQiblaCompassModal: View {
         let directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
         let index = Int((heading + 22.5) / 45) % 8
         return directions[index]
+    }
+}
+
+// MARK: - Sacred Celebration Overlay
+struct SacredCelebrationOverlay: View {
+    @Binding var isPresented: Bool
+    @StateObject private var themeManager = ThemeManager.shared
+
+    // Animation states
+    @State private var showContent = false
+    @State private var ringScale1: CGFloat = 0.5
+    @State private var ringScale2: CGFloat = 0.5
+    @State private var ringScale3: CGFloat = 0.5
+    @State private var ringOpacity1: Double = 0
+    @State private var ringOpacity2: Double = 0
+    @State private var ringOpacity3: Double = 0
+    @State private var iconScale: CGFloat = 0.3
+    @State private var iconOpacity: Double = 0
+    @State private var textOpacity: Double = 0
+    @State private var textOffset: CGFloat = 20
+    @State private var particlePhase: Double = 0
+
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var overlayBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color.black.opacity(0.85)
+            : Color.white.opacity(0.9)
+    }
+
+    var body: some View {
+        ZStack {
+            // Background
+            overlayBackground
+                .ignoresSafeArea()
+                .onTapGesture {
+                    dismissOverlay()
+                }
+
+            VStack(spacing: 32) {
+                Spacer()
+
+                // Animated rings and icon
+                ZStack {
+                    // Expanding rings
+                    Circle()
+                        .stroke(sacredGold.opacity(ringOpacity1 * 0.3), lineWidth: 1)
+                        .frame(width: 200, height: 200)
+                        .scaleEffect(ringScale1)
+
+                    Circle()
+                        .stroke(sacredGold.opacity(ringOpacity2 * 0.4), lineWidth: 1)
+                        .frame(width: 160, height: 160)
+                        .scaleEffect(ringScale2)
+
+                    Circle()
+                        .stroke(softGreen.opacity(ringOpacity3 * 0.5), lineWidth: 2)
+                        .frame(width: 120, height: 120)
+                        .scaleEffect(ringScale3)
+
+                    // Particles
+                    ForEach(0..<12) { index in
+                        Circle()
+                            .fill(index % 2 == 0 ? sacredGold : softGreen)
+                            .frame(width: 4, height: 4)
+                            .offset(y: -80)
+                            .rotationEffect(.degrees(Double(index) * 30 + particlePhase))
+                            .opacity(showContent ? 0.6 : 0)
+                    }
+
+                    // Center icon
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [softGreen.opacity(0.2), softGreen.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 100, height: 100)
+
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 48, weight: .light))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [softGreen, sacredGold],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                    .scaleEffect(iconScale)
+                    .opacity(iconOpacity)
+                }
+
+                // Text content
+                VStack(spacing: 16) {
+                    Text("ما شاء الله")
+                        .font(.system(size: 32, weight: .regular, design: .serif))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("ALL PRAYERS COMPLETED")
+                        .font(.system(size: 11, weight: .medium))
+                        .tracking(3)
+                        .foregroundColor(sacredGold)
+
+                    Text("You've completed all five prayers today.\nMay Allah accept your prayers.")
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundColor(themeManager.theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                }
+                .opacity(textOpacity)
+                .offset(y: textOffset)
+
+                Spacer()
+
+                // Dismiss hint
+                Text("Tap anywhere to continue")
+                    .font(.system(size: 12, weight: .light))
+                    .foregroundColor(themeManager.theme.secondaryText.opacity(0.6))
+                    .opacity(textOpacity)
+                    .padding(.bottom, 40)
+            }
+            .padding(.horizontal, 40)
+        }
+        .onAppear {
+            startAnimations()
+        }
+    }
+
+    private func startAnimations() {
+        // Icon animation
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1)) {
+            iconScale = 1.0
+            iconOpacity = 1.0
+        }
+
+        // Ring 1 (outer)
+        withAnimation(.easeOut(duration: 1.0).delay(0.2)) {
+            ringScale1 = 1.5
+            ringOpacity1 = 1.0
+        }
+        withAnimation(.easeOut(duration: 0.5).delay(1.0)) {
+            ringOpacity1 = 0
+        }
+
+        // Ring 2 (middle)
+        withAnimation(.easeOut(duration: 0.9).delay(0.3)) {
+            ringScale2 = 1.4
+            ringOpacity2 = 1.0
+        }
+        withAnimation(.easeOut(duration: 0.5).delay(1.0)) {
+            ringOpacity2 = 0
+        }
+
+        // Ring 3 (inner)
+        withAnimation(.easeOut(duration: 0.8).delay(0.4)) {
+            ringScale3 = 1.3
+            ringOpacity3 = 1.0
+        }
+        withAnimation(.easeOut(duration: 0.5).delay(1.0)) {
+            ringOpacity3 = 0
+        }
+
+        // Text animation
+        withAnimation(.easeOut(duration: 0.6).delay(0.5)) {
+            textOpacity = 1.0
+            textOffset = 0
+        }
+
+        // Show content for particles
+        withAnimation(.easeOut(duration: 0.3).delay(0.3)) {
+            showContent = true
+        }
+
+        // Particle rotation
+        withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) {
+            particlePhase = 360
+        }
+
+        // Auto-dismiss after 4 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            dismissOverlay()
+        }
+    }
+
+    private func dismissOverlay() {
+        withAnimation(.easeOut(duration: 0.3)) {
+            isPresented = false
+        }
     }
 }
 

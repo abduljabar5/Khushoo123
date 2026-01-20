@@ -8,6 +8,11 @@
 	</array>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchScreenBackground</string>
+	</dict>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Khodijah Free.ttf</string>

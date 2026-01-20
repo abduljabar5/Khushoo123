@@ -96,16 +96,16 @@ class ShieldActionExtension: ShieldActionDelegate {
     
     private func notifyUserToOpenApp() {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
-        
+
         groupDefaults.set(true, forKey: "userRequestedVoiceUnlock")
         groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastVoiceUnlockRequest")
-        
+
         let content = UNMutableNotificationContent()
-        content.title = "🔒 Voice Unlock Required"
-        content.body = "Open Dhikr app and say \"Wallahi I prayed\" to unlock."
+        content.title = "Voice Unlock Required"
+        content.body = "Open Khushoo and say \"Wallahi I prayed\" to unlock."
         content.sound = .default
         content.userInfo = ["action": "voice_unlock_required"]
-        
+
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
