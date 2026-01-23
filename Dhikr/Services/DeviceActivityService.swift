@@ -733,68 +733,47 @@ class DeviceActivityService: ObservableObject {
         formatter.dateStyle = .short
         formatter.timeStyle = .medium
 
-        // Schedule all prayers concurrently for faster performance
-        let dispatchGroup = DispatchGroup()
-        let queue = DispatchQueue(label: "prayer-scheduling", qos: .userInitiated, attributes: .concurrent)
-        let lockQueue = DispatchQueue(label: "prayer-scheduling-lock")
-
+        // Schedule prayers serially to avoid thread-safety issues with DeviceActivityCenter
         for prayer in prayersToSchedule {
-            dispatchGroup.enter()
-            queue.async {
-                defer { dispatchGroup.leave() }
+            // Skip past prayers (accounting for buffer) - use captured scheduleTime for consistency
+            let effectiveStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+            if effectiveStartTime <= scheduleTime {
+                continue
+            }
 
-                // Skip past prayers (accounting for buffer) - use captured scheduleTime for consistency
-                let effectiveStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
-                if effectiveStartTime <= scheduleTime {
-                    return
-                }
+            // Calculate duration in seconds - duration is measured FROM PRAYER TIME
+            let deviceActivityDurationSeconds = duration * 60
+            // Apply buffer: start blocking BEFORE the actual prayer time
+            // Duration is measured from prayer time, not blocking start
+            let prayerStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+            let prayerEndTime = prayer.date.addingTimeInterval(deviceActivityDurationSeconds)
 
-                // Calculate duration in seconds - duration is measured FROM PRAYER TIME
-                let deviceActivityDurationSeconds = duration * 60
-                // Apply buffer: start blocking BEFORE the actual prayer time
-                // Duration is measured from prayer time, not blocking start
-                let prayerStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
-                let prayerEndTime = prayer.date.addingTimeInterval(deviceActivityDurationSeconds)
-                
-                // Create unique activity name with normalized timestamp
-                let normalizedTs = self.normalizeTimestamp(prayerStartTime)
-                let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
-                
-                // Create schedule
-                var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerStartTime)
-                var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerEndTime)
-                startComponents.calendar = Calendar.current
-                endComponents.calendar = Calendar.current
+            // Create unique activity name with normalized timestamp
+            let normalizedTs = self.normalizeTimestamp(prayerStartTime)
+            let activityName = DeviceActivityName("Prayer_\(prayer.name)_\(normalizedTs)")
 
-                let schedule = DeviceActivitySchedule(
-                    intervalStart: startComponents,
-                    intervalEnd: endComponents,
-                    repeats: false
-                )
-                
-                do {
-                    try self.center.startMonitoring(activityName, during: schedule)
-                    
-                    // Thread-safe updates
-                    lockQueue.sync {
-                        newActivityNames.append(activityName)
-                        successfullyScheduled += 1
-                    }
-                    
-                    // Log only successfully scheduled prayers
-                    
-                } catch {
-                    let formatter = DateFormatter()
-                    formatter.dateStyle = .short
-                    formatter.timeStyle = .medium
-                    let ts = formatter.string(from: prayerStartTime)
-                }
+            // Create schedule
+            var startComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerStartTime)
+            var endComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: prayerEndTime)
+            startComponents.calendar = Calendar.current
+            endComponents.calendar = Calendar.current
+
+            let schedule = DeviceActivitySchedule(
+                intervalStart: startComponents,
+                intervalEnd: endComponents,
+                repeats: false
+            )
+
+            do {
+                try self.center.startMonitoring(activityName, during: schedule)
+                newActivityNames.append(activityName)
+                successfullyScheduled += 1
+            } catch {
+                let ts = formatter.string(from: prayerStartTime)
+                print("⚠️ [PrayerBlocking] Failed to schedule \(prayer.name) at \(ts): \(error)")
             }
         }
-        
-        // Wait for all scheduling to complete
-        dispatchGroup.wait()
-        
+
         // Update tracked activities
         activeActivityNames = newActivityNames
         

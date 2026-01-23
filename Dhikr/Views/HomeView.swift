@@ -284,7 +284,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                SacredQuickAction(icon: "shuffle", label: "Discover", color: softGreen) {
+                SacredQuickAction(icon: "safari", label: "Discover", color: softGreen) {
                     HapticManager.shared.impact(.medium)
                     Task { await playDiscoverTrack() }
                 }

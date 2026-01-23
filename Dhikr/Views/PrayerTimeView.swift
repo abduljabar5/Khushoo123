@@ -21,11 +21,14 @@ struct PrayerTimeView: View {
     @EnvironmentObject var viewModel: PrayerTimeViewModel
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
+    @StateObject private var blockingState = BlockingStateService.shared
     @State private var animateProgress = false
     @State private var showingDatePicker = false
     @State private var showingPaywall = false
     @State private var showCelebration = false
     @State private var previousCompletedCount = 0
+    @State private var showingSettings = false
+    @State private var showingBlockedAlert = false
 
     // Sacred colors
     private var sacredGold: Color {
@@ -90,6 +93,11 @@ struct PrayerTimeView: View {
             if showCelebration {
                 SacredCelebrationOverlay(isPresented: $showCelebration)
             }
+
+            // Settings refresh loading overlay
+            if viewModel.isRefreshingSettings {
+                settingsRefreshOverlay
+            }
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 1.0)) {
@@ -120,6 +128,16 @@ struct PrayerTimeView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
+        }
+        .sheet(isPresented: $showingSettings) {
+            PrayerSettingsView(
+                currentCountry: viewModel.countryName,
+                onSettingsApplied: {
+                    viewModel.refreshForSettingsChange()
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -441,17 +459,81 @@ struct PrayerTimeView: View {
 
     // MARK: - Footer
     private var footerInfo: some View {
-        HStack(spacing: RS.spacing(6)) {
-            Text(viewModel.calculationMethod)
-                .font(.system(size: RS.fontSize(10), weight: .light))
+        Button(action: {
+            // Prevent settings changes while apps are blocked
+            if blockingState.isCurrentlyBlocking {
+                showingBlockedAlert = true
+            } else {
+                showingSettings = true
+            }
+        }) {
+            HStack(spacing: RS.spacing(6)) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: RS.fontSize(10), weight: .light))
 
-            Text("•")
+                Text(viewModel.calculationMethod)
+                    .font(.system(size: RS.fontSize(10), weight: .light))
 
-            Text("Based on \(viewModel.cityName)")
-                .font(.system(size: RS.fontSize(10), weight: .light))
+                Text("•")
+
+                Text(viewModel.asrMethod)
+                    .font(.system(size: RS.fontSize(10), weight: .light))
+
+                Text("•")
+
+                Text(viewModel.cityName)
+                    .font(.system(size: RS.fontSize(10), weight: .light))
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: RS.fontSize(8), weight: .medium))
+            }
+            .foregroundColor(themeManager.theme.secondaryText)
+            .padding(.vertical, RS.spacing(10))
+            .padding(.horizontal, RS.spacing(16))
+            .background(
+                Capsule()
+                    .fill(cardBackground)
+                    .overlay(
+                        Capsule()
+                            .stroke(themeManager.theme.secondaryText.opacity(0.1), lineWidth: 1)
+                    )
+            )
         }
-        .foregroundColor(themeManager.theme.secondaryText)
-        .padding(.vertical, RS.spacing(8))
+        .buttonStyle(PlainButtonStyle())
+        .disabled(viewModel.isRefreshingSettings)
+        .opacity(viewModel.isRefreshingSettings ? 0.5 : 1.0)
+        .alert("Focus Mode Active", isPresented: $showingBlockedAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Settings cannot be changed during prayer time. Please wait until your focus session ends.")
+        }
+    }
+
+    // MARK: - Settings Refresh Overlay
+    private var settingsRefreshOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+
+            VStack(spacing: RS.spacing(20)) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .tint(sacredGold)
+
+                Text("Updating prayer times...")
+                    .font(.system(size: RS.fontSize(14), weight: .medium))
+                    .foregroundColor(.white)
+
+                Text("Applying new calculation settings")
+                    .font(.system(size: RS.fontSize(12), weight: .light))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .padding(RS.spacing(32))
+            .background(
+                RoundedRectangle(cornerRadius: RS.cornerRadius(20))
+                    .fill(cardBackground)
+            )
+        }
     }
 
     // MARK: - Helpers

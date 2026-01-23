@@ -39,45 +39,54 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         // Get duration setting (in minutes)
         let durationMinutes = groupDefaults?.double(forKey: "focusBlockingDuration") ?? 15
 
-        // Early unlock is 5 minutes after PRAYER TIME (not blocking start)
-        let earlyUnlockMinutes = 5
-
         // Calculate unlock times
         var subtitleText = "Take a moment to pray 🤲"
         var earlyUnlockText = ""
 
-        if let startTimestamp = groupDefaults?.object(forKey: "blockingStartTime") as? TimeInterval {
-            // Get the actual prayer time - duration is measured from prayer time
-            let prayerTimestamp = groupDefaults?.object(forKey: "currentPrayerTime") as? TimeInterval ?? startTimestamp
-            let prayerTime = Date(timeIntervalSince1970: prayerTimestamp)
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
 
-            // Full unlock time is prayer time + duration (not blocking start + duration)
-            let fullUnlockTime = prayerTime.addingTimeInterval(durationMinutes * 60)
+        // Get early unlock time (set by monitor extension as prayer time + 5 min)
+        if let earlyUnlockTimestamp = groupDefaults?.object(forKey: "earlyUnlockAvailableAt") as? TimeInterval {
+            let earlyUnlockTime = Date(timeIntervalSince1970: earlyUnlockTimestamp)
 
-            // Early unlock is 5 min after prayer time
-            let earlyUnlockTime = prayerTime.addingTimeInterval(Double(earlyUnlockMinutes) * 60)
+            // Get prayer time if available (for full unlock calculation)
+            let prayerTimestamp = groupDefaults?.object(forKey: "currentPrayerTime") as? TimeInterval
+            let fullUnlockTime: Date
+            if let prayerTs = prayerTimestamp {
+                fullUnlockTime = Date(timeIntervalSince1970: prayerTs).addingTimeInterval(durationMinutes * 60)
+            } else {
+                // Fallback: early unlock + duration - 5 min
+                fullUnlockTime = earlyUnlockTime.addingTimeInterval((durationMinutes - 5) * 60)
+            }
 
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-
-            let now = Date()
-
-            // Check if we're in the pre-prayer buffer period (before prayer time)
-            if now < prayerTime {
-                // In buffer period - prayer time hasn't arrived yet
-                let timeUntilPrayer = Int(prayerTime.timeIntervalSince(now) / 60) + 1
-                if timeUntilPrayer == 1 {
-                    subtitleText = "Prayer time in less than 1 min"
+            // Check if we're in the pre-prayer buffer period
+            if let prayerTs = prayerTimestamp {
+                let prayerTime = Date(timeIntervalSince1970: prayerTs)
+                if now < prayerTime {
+                    // In buffer period - prayer time hasn't arrived yet
+                    let timeUntilPrayer = Int(prayerTime.timeIntervalSince(now) / 60) + 1
+                    if timeUntilPrayer == 1 {
+                        subtitleText = "Prayer time in less than 1 min"
+                    } else {
+                        subtitleText = "Prayer time in \(timeUntilPrayer) min"
+                    }
+                    earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
+                } else if now >= earlyUnlockTime {
+                    // Early unlock is now available
+                    subtitleText = "Open app to unlock early"
+                    earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
                 } else {
-                    subtitleText = "Prayer time in \(timeUntilPrayer) min"
+                    // After prayer time but before early unlock
+                    let timeUntilEarly = Int(earlyUnlockTime.timeIntervalSince(now) / 60) + 1
+                    subtitleText = "Early unlock in \(timeUntilEarly) min"
+                    earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
                 }
-                earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
             } else if now >= earlyUnlockTime {
-                // Early unlock is now available
-                subtitleText = "Early unlock is now available"
+                subtitleText = "Open app to unlock early"
                 earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
             } else {
-                // After prayer time but before early unlock
                 let timeUntilEarly = Int(earlyUnlockTime.timeIntervalSince(now) / 60) + 1
                 subtitleText = "Early unlock in \(timeUntilEarly) min"
                 earlyUnlockText = " • Full unlock at \(formatter.string(from: fullUnlockTime))"
@@ -114,7 +123,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
                 icon: UIImage(systemName: prayerIconName)?.withTintColor(sacredGold, renderingMode: .alwaysOriginal),
                 title: ShieldConfiguration.Label(text: prayerTitle, color: titleColor),
                 subtitle: ShieldConfiguration.Label(text: fullSubtitle, color: subtitleColor),
-                primaryButtonLabel: ShieldConfiguration.Label(text: "Unlock Early", color: .white),
+                primaryButtonLabel: ShieldConfiguration.Label(text: "Open Khushoo", color: .white),
                 primaryButtonBackgroundColor: softGreen,
                 secondaryButtonLabel: nil
             )

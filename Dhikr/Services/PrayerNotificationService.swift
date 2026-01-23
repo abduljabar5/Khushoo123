@@ -34,6 +34,11 @@ class PrayerNotificationService: ObservableObject {
         }
     }
 
+    /// Re-check permission status - call this when app becomes active or view appears
+    func refreshPermissionStatus() {
+        checkPermissionStatus()
+    }
+
     func requestNotificationPermission() async -> Bool {
         guard !isRequestingPermission else { return hasNotificationPermission }
 
@@ -69,12 +74,12 @@ class PrayerNotificationService: ObservableObject {
         isEnabled: Bool,
         minutesBefore: Int = 5
     ) {
+        // Always clear existing notifications first (even if disabled)
+        clearPrePrayerNotifications()
+
         guard isEnabled && hasNotificationPermission else {
             return
         }
-
-        // Clear existing pre-prayer notifications
-        clearPrePrayerNotifications()
 
         // Read the pre-prayer buffer from settings
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")

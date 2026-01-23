@@ -2,7 +2,7 @@
 //  FullScreenPlayer.swift
 //  Dhikr
 //
-//  Pure working version - exact copy from MainTabView before redesign
+//  Sacred Minimalism redesign of Full Screen Player
 //
 
 import SwiftUI
@@ -31,10 +31,21 @@ struct FullScreenPlayer: View {
 
     // Sacred colors
     private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
+    private var softGreen: Color { Color(red: 0.55, green: 0.68, blue: 0.55) }
     private var warmGray: Color {
         themeManager.effectiveTheme == .dark
             ? Color(red: 0.4, green: 0.4, blue: 0.42)
             : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
     }
 
     var body: some View {
@@ -44,7 +55,7 @@ struct FullScreenPlayer: View {
             let isIPad = UIDevice.current.userInterfaceIdiom == .pad
 
             ZStack {
-                themeManager.theme.primaryBackground
+                pageBackground
                     .ignoresSafeArea()
 
                 // Ambient background - full screen, centered
@@ -59,9 +70,9 @@ struct FullScreenPlayer: View {
 
                             LinearGradient(
                                 colors: [
-                                    themeManager.theme.primaryBackground.opacity(0.2),
-                                    themeManager.theme.primaryBackground.opacity(0.6),
-                                    themeManager.theme.primaryBackground
+                                    pageBackground.opacity(0.2),
+                                    pageBackground.opacity(0.6),
+                                    pageBackground
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -72,7 +83,7 @@ struct FullScreenPlayer: View {
                     .allowsHitTesting(false)
                 }
 
-                VStack(spacing: isIPad ? 0 : 10) {
+                VStack(alignment: .center, spacing: isIPad ? 0 : 10) {
                     if isIPad {
                         HStack {
                             Button(action: { isPresented = false }) {
@@ -139,7 +150,7 @@ struct FullScreenPlayer: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .presentationBackground {
-            themeManager.theme.primaryBackground
+            pageBackground
         }
         .onAppear {
             animateEntrance()
@@ -164,9 +175,10 @@ struct FullScreenPlayer: View {
     @ViewBuilder
     func FullScreenPlayerContentView(size: CGSize, safeArea: EdgeInsets) -> some View {
         let isIPad = UIDevice.current.userInterfaceIdiom == .pad
-        let artworkSize = isIPad ? min(size.width * 0.7, 600) : (size.width - 50)
+        let horizontalPadding: CGFloat = isIPad ? 40 : 20
+        let artworkSize = isIPad ? min(size.width * 0.7, 600) : (size.width - (horizontalPadding * 2) - 10)
 
-        VStack(spacing: isIPad ? 20 : 24) {
+        VStack(alignment: .center, spacing: isIPad ? 20 : RS.spacing(24)) {
             ZStack {
                 Group {
                     if let artwork = audioPlayerService.currentArtwork {
@@ -182,7 +194,7 @@ struct FullScreenPlayer: View {
                             )
                     } else {
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(themeManager.theme.cardBackground)
+                            .fill(cardBackground)
                             .frame(width: artworkSize, height: artworkSize)
                             .shadow(color: .black.opacity(0.15), radius: 15, x: 0, y: 8)
                             .overlay(
@@ -207,36 +219,37 @@ struct FullScreenPlayer: View {
             .scaleEffect(artworkAppeared ? 1 : 0.8)
             .opacity(artworkAppeared ? 1 : 0)
 
-            ZStack {
+            ZStack(alignment: .center) {
                 Button(action: {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         showSurahList.toggle()
                     }
                 }) {
-                    VStack(spacing: 8) {
+                    VStack(spacing: RS.spacing(10)) {
                         // Arabic name
                         if let surah = audioPlayerService.currentSurah {
                             Text(surah.name)
-                                .font(.system(size: 16, weight: .regular, design: .serif))
+                                .font(.system(size: isIPad ? 20 : RS.fontSize(16), weight: .regular, design: .serif))
                                 .foregroundColor(warmGray)
                         }
 
-                        HStack(spacing: 8) {
+                        HStack(spacing: RS.spacing(8)) {
                             Text(audioPlayerService.currentSurah?.englishName ?? "")
-                                .font(.system(size: 22, weight: .light))
-                                .foregroundColor(.primary)
+                                .font(.system(size: isIPad ? 26 : RS.fontSize(22), weight: .light))
+                                .foregroundColor(themeManager.theme.primaryText)
                                 .lineLimit(1)
 
                             Image(systemName: showSurahList ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 12, weight: .light))
+                                .font(.system(size: RS.fontSize(12), weight: .light))
                                 .foregroundColor(warmGray)
                         }
 
                         Text(audioPlayerService.currentReciter?.englishName ?? "")
-                            .font(.system(size: 14, weight: .light))
+                            .font(.system(size: isIPad ? 16 : RS.fontSize(14), weight: .light))
                             .foregroundColor(warmGray)
                             .lineLimit(1)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PlainButtonStyle())
 
@@ -251,15 +264,14 @@ struct FullScreenPlayer: View {
                         }
                     }) {
                         Image(systemName: isCurrentSurahLiked() ? "heart.fill" : "heart")
-                            .font(.system(size: 22, weight: .light))
+                            .font(.system(size: isIPad ? 26 : RS.fontSize(22), weight: .light))
                             .foregroundColor(isCurrentSurahLiked() ? Color(red: 0.85, green: 0.4, blue: 0.4) : warmGray)
                             .scaleEffect(isCurrentSurahLiked() ? 1.1 : 1.0)
                     }
                     .buttonStyle(SacredPlayerButtonStyle())
-                    .padding(.trailing, 8)
                 }
             }
-            .padding(.horizontal)
+            .frame(maxWidth: .infinity)
             .opacity(controlsAppeared ? 1 : 0)
             .offset(y: controlsAppeared ? 0 : 20)
 
@@ -286,11 +298,11 @@ struct FullScreenPlayer: View {
             .opacity(controlsAppeared ? 1 : 0)
             .offset(y: controlsAppeared ? 0 : 20)
 
-            HStack(spacing: isIPad ? 80 : 60) {
+            HStack(spacing: isIPad ? 80 : RS.spacing(60)) {
                 Button(action: { audioPlayerService.previousTrack() }) {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: isIPad ? 32 : 26, weight: .light))
-                        .foregroundColor(.primary)
+                        .font(.system(size: isIPad ? 32 : RS.fontSize(26), weight: .light))
+                        .foregroundColor(themeManager.theme.primaryText)
                 }
                 .buttonStyle(SacredPlayerButtonStyle())
 
@@ -298,10 +310,10 @@ struct FullScreenPlayer: View {
                     ZStack {
                         Circle()
                             .fill(sacredGold)
-                            .frame(width: isIPad ? 85 : 72, height: isIPad ? 85 : 72)
+                            .frame(width: isIPad ? 85 : RS.dimension(72), height: isIPad ? 85 : RS.dimension(72))
                             .shadow(color: sacredGold.opacity(0.4), radius: 15, x: 0, y: 8)
                         Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: isIPad ? 32 : 28))
+                            .font(.system(size: isIPad ? 32 : RS.fontSize(28)))
                             .foregroundColor(themeManager.effectiveTheme == .dark ? .black : .white)
                             .offset(x: audioPlayerService.isPlaying ? 0 : 2)
                     }
@@ -310,78 +322,84 @@ struct FullScreenPlayer: View {
 
                 Button(action: { audioPlayerService.nextTrack() }) {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: isIPad ? 32 : 26, weight: .light))
-                        .foregroundColor(.primary)
+                        .font(.system(size: isIPad ? 32 : RS.fontSize(26), weight: .light))
+                        .foregroundColor(themeManager.theme.primaryText)
                 }
                 .buttonStyle(SacredPlayerButtonStyle())
             }
-            .padding(.vertical, isIPad ? 20 : 0)
-            .padding(.top, isIPad ? 0 : 10)
+            .padding(.vertical, isIPad ? 20 : RS.spacing(10))
             .opacity(controlsAppeared ? 1 : 0)
             .scaleEffect(controlsAppeared ? 1 : 0.9)
 
-            HStack(spacing: isIPad ? 60 : 50) {
+            HStack(spacing: isIPad ? 60 : RS.spacing(50)) {
                 Button(action: { audioPlayerService.toggleShuffle() }) {
-                    VStack(spacing: 6) {
+                    VStack(spacing: RS.spacing(6)) {
                         Image(systemName: "shuffle")
-                            .font(.system(size: isIPad ? 22 : 18, weight: .light))
+                            .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
                             .foregroundColor(audioPlayerService.isShuffleEnabled ? sacredGold : warmGray)
+                            .offset(y: audioPlayerService.isShuffleEnabled ? -2 : 0)
+                            .animation(.easeInOut(duration: 0.2), value: audioPlayerService.isShuffleEnabled)
 
                         if audioPlayerService.isShuffleEnabled {
                             Circle()
                                 .fill(sacredGold)
-                                .frame(width: 4, height: 4)
+                                .frame(width: RS.dimension(4), height: RS.dimension(4))
+                                .transition(.opacity.combined(with: .scale))
                         }
                     }
-                    .frame(height: 35)
+                    .frame(height: RS.dimension(35))
+                    .animation(.easeInOut(duration: 0.2), value: audioPlayerService.isShuffleEnabled)
                 }
                 .buttonStyle(SacredPlayerButtonStyle())
 
                 if showSleepTimer {
                     Button(action: { showSleepTimerSheet = true }) {
-                        VStack(spacing: 6) {
-                            ZStack {
-                                Image(systemName: audioPlayerService.sleepTimeRemaining != nil ? "moon.zzz.fill" : "moon.zzz")
-                                    .font(.system(size: isIPad ? 22 : 18, weight: .light))
-                                    .foregroundColor(audioPlayerService.sleepTimeRemaining != nil ? sacredGold : warmGray)
+                        VStack(spacing: RS.spacing(6)) {
+                            Image(systemName: "moon.zzz")
+                                .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
+                                .foregroundColor(audioPlayerService.sleepTimeRemaining != nil ? sacredGold : warmGray)
+                                .offset(y: audioPlayerService.sleepTimeRemaining != nil ? -2 : 0)
+                                .animation(.easeInOut(duration: 0.2), value: audioPlayerService.sleepTimeRemaining != nil)
 
-                                if let remaining = audioPlayerService.sleepTimeRemaining {
-                                    Text(formatSleepTime(remaining))
-                                        .font(.system(size: 8, weight: .medium))
-                                        .foregroundColor(sacredGold)
-                                        .offset(y: 18)
-                                }
+                            if let remaining = audioPlayerService.sleepTimeRemaining {
+                                Text(formatSleepTime(remaining))
+                                    .font(.system(size: RS.fontSize(8), weight: .medium))
+                                    .foregroundColor(sacredGold)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
                             }
-                            .offset(y: audioPlayerService.sleepTimeRemaining != nil ? -5 : 0)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: audioPlayerService.sleepTimeRemaining != nil)
                         }
-                        .frame(height: 35)
+                        .frame(height: RS.dimension(35))
+                        .animation(.easeInOut(duration: 0.2), value: audioPlayerService.sleepTimeRemaining != nil)
                     }
                     .buttonStyle(SacredPlayerButtonStyle())
                 }
 
                 Button(action: { audioPlayerService.toggleRepeatMode() }) {
-                    VStack(spacing: 6) {
+                    VStack(spacing: RS.spacing(6)) {
                         Image(systemName: audioPlayerService.repeatMode.icon)
-                            .font(.system(size: isIPad ? 22 : 18, weight: .light))
+                            .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
                             .foregroundColor(audioPlayerService.repeatMode != .off ? sacredGold : warmGray)
+                            .offset(y: audioPlayerService.repeatMode != .off ? -2 : 0)
+                            .animation(.easeInOut(duration: 0.2), value: audioPlayerService.repeatMode)
 
                         if audioPlayerService.repeatMode != .off {
                             Circle()
                                 .fill(sacredGold)
-                                .frame(width: 4, height: 4)
+                                .frame(width: RS.dimension(4), height: RS.dimension(4))
+                                .transition(.opacity.combined(with: .scale))
                         }
                     }
-                    .frame(height: 35)
+                    .frame(height: RS.dimension(35))
+                    .animation(.easeInOut(duration: 0.2), value: audioPlayerService.repeatMode)
                 }
                 .buttonStyle(SacredPlayerButtonStyle())
             }
-            .padding(.horizontal, isIPad ? 80 : 60)
             .padding(.bottom, isIPad ? 40 : 0)
             .opacity(bottomControlsAppeared ? 1 : 0)
             .offset(y: bottomControlsAppeared ? 0 : 15)
         }
-        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, horizontalPadding)
         .sheet(isPresented: $showSleepTimerSheet) {
             SacredSleepTimerSheet(isPresented: $showSleepTimerSheet)
                 .environmentObject(audioPlayerService)
@@ -396,7 +414,8 @@ struct FullScreenPlayer: View {
 
     @ViewBuilder
     private func surahListView(size: CGSize, isIPad: Bool) -> some View {
-        let artworkSize = isIPad ? min(size.width * 0.7, 600) : (size.width - 50)
+        let horizontalPadding: CGFloat = isIPad ? 40 : 20
+        let artworkSize = isIPad ? min(size.width * 0.7, 600) : (size.width - (horizontalPadding * 2) - 10)
 
         ScrollViewReader { scrollProxy in
             ScrollView {
@@ -436,9 +455,9 @@ struct FullScreenPlayer: View {
 
                                             if audioPlayerService.completedSurahNumbers.contains(surah.number) {
                                                 Image(systemName: "checkmark.circle.fill")
-                                                    .font(.system(size: 14))
-                                                    .foregroundColor(.green)
-                                                    .background(Circle().fill(themeManager.theme.cardBackground).frame(width: 12, height: 12))
+                                                    .font(.system(size: 13))
+                                                    .foregroundColor(softGreen)
+                                                    .background(Circle().fill(cardBackground).frame(width: 11, height: 11))
                                                     .offset(x: 2, y: 2)
                                             }
                                         }
@@ -473,7 +492,7 @@ struct FullScreenPlayer: View {
                                         RoundedRectangle(cornerRadius: 12)
                                             .fill(audioPlayerService.currentSurah?.number == surah.number
                                                   ? sacredGold.opacity(0.1)
-                                                  : themeManager.theme.cardBackground.opacity(0.5))
+                                                  : Color.clear)
                                     )
                                 }
                                 .buttonStyle(PlainButtonStyle())
@@ -487,7 +506,11 @@ struct FullScreenPlayer: View {
             .frame(width: artworkSize, height: artworkSize)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(themeManager.theme.cardBackground)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(sacredGold.opacity(0.15), lineWidth: 1)
+                    )
             )
             .onAppear { loadSurahsIfNeeded() }
             .onChange(of: showSurahList) { isShowing in

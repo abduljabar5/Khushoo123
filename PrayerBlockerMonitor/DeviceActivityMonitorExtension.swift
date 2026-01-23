@@ -20,8 +20,9 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
         let now = Date()
 
-        // Parse prayer name from activity name (format: "Prayer_<Name>_<Timestamp>")
+        // Parse prayer name and timestamp from activity name (format: "Prayer_<Name>_<Timestamp>")
         let prayerName = extractPrayerName(from: activity.rawValue)
+        let prayerTimestamp = extractPrayerTimestamp(from: activity.rawValue)
 
         // 1. Get the selection to apply
         // The Scheduler has already verified Premium status and Prayer Selection.
@@ -44,6 +45,19 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             groupDefaults.set(true, forKey: "appsActuallyBlocked")
             groupDefaults.set(prayerName, forKey: "currentPrayerName")
 
+            // Set actual prayer time for accurate countdown calculations
+            // The timestamp in the activity name is the blocking start time (prayer time - buffer)
+            // We need to calculate the actual prayer time by adding the buffer back
+            if let blockingStartTs = prayerTimestamp {
+                let bufferMinutes = groupDefaults.double(forKey: "focusPrePrayerBuffer")
+                let prayerTime = blockingStartTs + (bufferMinutes * 60)
+                groupDefaults.set(prayerTime, forKey: "currentPrayerTime")
+
+                // Also set early unlock availability (5 min after prayer time)
+                let earlyUnlockTime = prayerTime + (5 * 60)
+                groupDefaults.set(earlyUnlockTime, forKey: "earlyUnlockAvailableAt")
+            }
+
             // Force a ping to the main app
             let nonce = Int(now.timeIntervalSince1970 * 1000)
             groupDefaults.set(nonce, forKey: "currentlyMonitoredNonce")
@@ -60,10 +74,17 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         return "Prayer"
     }
 
+    private func extractPrayerTimestamp(from activityName: String) -> TimeInterval? {
+        // Format: "Prayer_<Name>_<Timestamp>"
+        let parts = activityName.split(separator: "_")
+        if parts.count >= 3, let timestamp = TimeInterval(parts[2]) {
+            return timestamp
+        }
+        return nil
+    }
+
     override func intervalDidEnd(for activity: DeviceActivityName) {
         super.intervalDidEnd(for: activity)
-
-        let now = Date()
 
         // Check if strict mode is enabled via App Group UserDefaults
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
@@ -78,6 +99,9 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             store.clearAllSettings()
             groupDefaults?.set(false, forKey: "appsActuallyBlocked")
             groupDefaults?.removeObject(forKey: "currentPrayerName")
+            groupDefaults?.removeObject(forKey: "currentPrayerTime")
+            groupDefaults?.removeObject(forKey: "blockingStartTime")
+            groupDefaults?.removeObject(forKey: "earlyUnlockAvailableAt")
             groupDefaults?.synchronize()
         }
     }

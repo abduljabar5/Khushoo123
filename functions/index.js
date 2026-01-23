@@ -175,12 +175,21 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     const originalTransactionId = transactionInfo.originalTransactionId;
     const transactionId = transactionInfo.transactionId;
     const priceInMillis = transactionInfo.price || 0;
+    const priceInCents = Math.round(priceInMillis / 10); // Convert millicents to cents
     const currency = transactionInfo.currency || 'USD';
     const environment = transactionInfo.environment || 'Production';
     const offerType = transactionInfo.offerType; // 1=intro/trial, 2=promo, 3=offer code
 
-    console.log('💳 Product:', productId, '| Price:', priceInMillis, currency);
+    // Determine if monthly or annual subscription
+    const isMonthly = productId?.includes('.monthly');
+    const isAnnual = productId?.includes('.yearly');
+
+    console.log('💳 Product:', productId, '| Price:', priceInCents, 'cents', currency);
     console.log('🔑 Token:', appAccountToken);
+
+    // Normalize token to uppercase (iOS stores uppercase, Apple sends lowercase)
+    const normalizedToken = appAccountToken ? appAccountToken.toUpperCase() : null;
+    console.log('🔑 Normalized Token:', normalizedToken);
 
     // Check if referral product
     const isReferralProduct = productId?.includes('.referral');
@@ -189,7 +198,7 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
       return res.status(200).send('OK');
     }
 
-    if (!appAccountToken) {
+    if (!normalizedToken) {
       console.log('⚠️ No appAccountToken');
       return res.status(200).send('OK');
     }
@@ -197,7 +206,7 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     // Look up pending commission
     const pendingDoc = await admin.firestore()
       .collection('pendingCommissions')
-      .doc(appAccountToken)
+      .doc(normalizedToken)
       .get();
 
     if (!pendingDoc.exists) {
@@ -245,7 +254,7 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     // =========================================================
 
     const codeRef = admin.firestore().collection('referralCodes').doc(referralCode);
-    const pendingRef = admin.firestore().collection('pendingCommissions').doc(appAccountToken);
+    const pendingRef = admin.firestore().collection('pendingCommissions').doc(normalizedToken);
 
     // Check if this is the FIRST payment for this subscription
     const existingPayments = await admin.firestore()
@@ -265,10 +274,21 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     if (isTrialStart) {
       console.log('🆓 TRIAL STARTED');
 
-      await codeRef.update({
+      const trialUpdate = {
         trialCount: admin.firestore.FieldValue.increment(1),
         lastTrialAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+
+      // Increment active subscriber count
+      if (isMonthly) {
+        trialUpdate.activeMonthlySubscribers = admin.firestore.FieldValue.increment(1);
+        console.log('📈 +1 active monthly subscriber');
+      } else if (isAnnual) {
+        trialUpdate.activeAnnualSubscribers = admin.firestore.FieldValue.increment(1);
+        console.log('📈 +1 active annual subscriber');
+      }
+
+      await codeRef.update(trialUpdate);
 
       await pendingRef.update({
         status: 'trial_started',
@@ -308,21 +328,33 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
 
       await admin.firestore().collection('payments').add(paymentData);
 
-      // Update referral code stats
+      // Update referral code stats (revenue in cents)
       const updateData = {
-        totalRevenue: admin.firestore.FieldValue.increment(priceInMillis),
+        totalRevenue: admin.firestore.FieldValue.increment(priceInCents),
         totalPayments: admin.firestore.FieldValue.increment(1),
         lastPaymentAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
+      // If direct purchase (SUBSCRIBED without trial), increment active subscriber count
+      if (notificationType === 'SUBSCRIBED') {
+        if (isMonthly) {
+          updateData.activeMonthlySubscribers = admin.firestore.FieldValue.increment(1);
+          console.log('📈 +1 active monthly subscriber (direct purchase)');
+        } else if (isAnnual) {
+          updateData.activeAnnualSubscribers = admin.firestore.FieldValue.increment(1);
+          console.log('📈 +1 active annual subscriber (direct purchase)');
+        }
+      }
+
       if (isFirstPayment) {
-        // First payment = conversion
+        // First payment = conversion (always 499 cents / $4.99 regardless of plan)
+        const FIRST_PAYMENT_CREDIT = 499;
         updateData.paidConversions = admin.firestore.FieldValue.increment(1);
-        updateData.firstPaymentRevenue = admin.firestore.FieldValue.increment(priceInMillis);
+        updateData.firstPaymentRevenue = admin.firestore.FieldValue.increment(FIRST_PAYMENT_CREDIT);
       } else {
         // Renewal
         updateData.renewalCount = admin.firestore.FieldValue.increment(1);
-        updateData.renewalRevenue = admin.firestore.FieldValue.increment(priceInMillis);
+        updateData.renewalRevenue = admin.firestore.FieldValue.increment(priceInCents);
       }
 
       await codeRef.update(updateData);
@@ -331,7 +363,7 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
       await pendingRef.update({
         status: isFirstPayment ? 'first_payment' : 'renewed',
         lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
-        totalPaid: admin.firestore.FieldValue.increment(priceInMillis)
+        totalPaid: admin.firestore.FieldValue.increment(priceInCents)
       });
     }
 
@@ -375,17 +407,38 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     else if (notificationType === 'REFUND') {
       console.log('💸 REFUND');
 
-      await codeRef.update({
-        refundCount: admin.firestore.FieldValue.increment(1),
-        refundedRevenue: admin.firestore.FieldValue.increment(priceInMillis),
-        lastRefundAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      // Mark related payments as refunded
+      // Check if this was a first payment refund
       const paymentsToRefund = await admin.firestore()
         .collection('payments')
         .where('transactionId', '==', transactionId)
         .get();
+
+      const wasFirstPayment = paymentsToRefund.docs.some(doc => doc.data().isFirstPayment === true);
+
+      const refundUpdate = {
+        refundCount: admin.firestore.FieldValue.increment(1),
+        refundedRevenue: admin.firestore.FieldValue.increment(priceInCents),
+        lastRefundAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      // If first payment was refunded, subtract from commission
+      if (wasFirstPayment) {
+        const FIRST_PAYMENT_CREDIT = 499;
+        refundUpdate.firstPaymentRevenue = admin.firestore.FieldValue.increment(-FIRST_PAYMENT_CREDIT);
+        refundUpdate.paidConversions = admin.firestore.FieldValue.increment(-1);
+        console.log('💸 First payment refunded - subtracting 499 cents from commission');
+      }
+
+      // Decrement active subscriber count
+      if (isMonthly) {
+        refundUpdate.activeMonthlySubscribers = admin.firestore.FieldValue.increment(-1);
+        console.log('📉 -1 active monthly subscriber (refund)');
+      } else if (isAnnual) {
+        refundUpdate.activeAnnualSubscribers = admin.firestore.FieldValue.increment(-1);
+        console.log('📉 -1 active annual subscriber (refund)');
+      }
+
+      await codeRef.update(refundUpdate);
 
       for (const doc of paymentsToRefund.docs) {
         await doc.ref.update({
@@ -406,10 +459,21 @@ exports.appStoreWebhook = functions.https.onRequest(async (req, res) => {
     else if (notificationType === 'EXPIRED') {
       console.log('⏰ EXPIRED | Subtype:', subtype);
 
-      await codeRef.update({
+      const expiredUpdate = {
         expiredCount: admin.firestore.FieldValue.increment(1),
         lastExpiredAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+
+      // Decrement active subscriber count
+      if (isMonthly) {
+        expiredUpdate.activeMonthlySubscribers = admin.firestore.FieldValue.increment(-1);
+        console.log('📉 -1 active monthly subscriber (expired)');
+      } else if (isAnnual) {
+        expiredUpdate.activeAnnualSubscribers = admin.firestore.FieldValue.increment(-1);
+        console.log('📉 -1 active annual subscriber (expired)');
+      }
+
+      await codeRef.update(expiredUpdate);
 
       await pendingRef.update({
         status: 'expired',

@@ -47,41 +47,39 @@ class ShieldActionExtension: ShieldActionDelegate {
             completionHandler(.defer)
             return
         }
-        
-        // Check 5-minute timer
-        if let startTimestamp = groupDefaults.object(forKey: "blockingStartTime") as? TimeInterval {
-            let startTime = Date(timeIntervalSince1970: startTimestamp)
+
+        // Check if early unlock is available (5 min after prayer time)
+        if let availableAtTimestamp = groupDefaults.object(forKey: "earlyUnlockAvailableAt") as? TimeInterval {
+            let availableAt = Date(timeIntervalSince1970: availableAtTimestamp)
             let now = Date()
-            let diff = now.timeIntervalSince(startTime)
-            
-            if diff < 300 { // Less than 5 minutes (300 seconds)
-                let remaining = Int(300 - diff)
+
+            if now < availableAt {
+                // Still waiting - show remaining time
+                let remaining = Int(availableAt.timeIntervalSince(now))
                 let minutes = remaining / 60
                 let seconds = remaining % 60
                 let timeStr = minutes > 0 ? "\(minutes)m \(seconds)s" : "\(seconds)s"
-                
+
                 notifyUserWait(timeRemaining: timeStr)
                 completionHandler(.defer) // Keep shield
                 return
             }
         }
-        
-        // If we are here, either timer passed OR no start time recorded (fallback to allow)
-        
-        // Mark as completed and unblock
-        let timestamp = Date().timeIntervalSince1970
-        groupDefaults.set(timestamp, forKey: "lastPrayerCompleted")
-        groupDefaults.set(false, forKey: "appsActuallyBlocked")
-        
-        // Clear restrictions
-        let store = ManagedSettingsStore()
-        store.clearAllSettings()
-        
-        // Clear blocking state
-        groupDefaults.removeObject(forKey: "blockingStartTime")
-        groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
-        
-        completionHandler(.close)
+
+        // Early unlock is available - direct user to open app
+        // Note: Extensions cannot clear ManagedSettings; must be done from main app
+        notifyUserToOpenAppForUnlock()
+        completionHandler(.defer)
+    }
+
+    private func notifyUserToOpenAppForUnlock() {
+        let content = UNMutableNotificationContent()
+        content.title = "Early Unlock Available"
+        content.body = "Open Khushoo to unlock your apps."
+        content.sound = .default
+
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
     
     private func notifyUserWait(timeRemaining: String) {

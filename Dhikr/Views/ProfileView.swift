@@ -50,11 +50,17 @@ struct ProfileView: View {
     @State private var showingHighestStreak = false
     @State private var showingAuth = false
     @State private var showingPaywall = false
+    @State private var showingPrayerSettings = false
+    @State private var showingPrayerSettingsBlockedAlert = false
     @State private var refreshID = UUID()
     @State private var showingDeleteConfirmation = false
     @State private var showingDeleteError = false
     @State private var deleteErrorMessage = ""
     @State private var sectionAppeared: [Bool] = Array(repeating: false, count: 10)
+
+    // Settings manager for prayer calculation
+    @StateObject private var prayerSettingsManager = PrayerCalculationSettingsManager.shared
+    @StateObject private var blockingState = BlockingStateService.shared
 
     // App Storage
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
@@ -139,6 +145,17 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
+        }
+        .sheet(isPresented: $showingPrayerSettings) {
+            PrayerSettingsView(
+                currentCountry: UserDefaults.standard.string(forKey: "savedCountry") ?? "USA",
+                onSettingsApplied: {
+                    // Post notification to refresh prayer times
+                    NotificationCenter.default.post(name: NSNotification.Name("PrayerSettingsChanged"), object: nil)
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -475,6 +492,53 @@ struct ProfileView: View {
                 // Appearance
                 SacredPreferenceGroup(title: "APPEARANCE") {
                     SacredThemeSelector()
+                }
+
+                // Prayer Times
+                SacredPreferenceGroup(title: "PRAYER TIMES") {
+                    Button(action: {
+                        // Prevent settings changes while apps are blocked
+                        if blockingState.isCurrentlyBlocking {
+                            showingPrayerSettingsBlockedAlert = true
+                        } else {
+                            showingPrayerSettings = true
+                        }
+                    }) {
+                        HStack(spacing: 14) {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(sacredGold.opacity(0.1))
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Image(systemName: "clock.badge.checkmark")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(sacredGold)
+                                )
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Calculation Method")
+                                    .font(.system(size: 14, weight: .regular))
+                                    .foregroundColor(themeManager.theme.primaryText)
+
+                                Text("\(prayerSettingsManager.calculationMethod.name) • \(prayerSettingsManager.asrMethod.name)")
+                                    .font(.system(size: 11, weight: .light))
+                                    .foregroundColor(themeManager.theme.secondaryText)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11))
+                                .foregroundColor(themeManager.theme.secondaryText)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .alert("Focus Mode Active", isPresented: $showingPrayerSettingsBlockedAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text("Settings cannot be changed during prayer time. Please wait until your focus session ends.")
+                    }
                 }
 
                 // Audio

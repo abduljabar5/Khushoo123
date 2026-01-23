@@ -167,6 +167,13 @@ struct DhikrApp: App {
             // App became active - check blocking state immediately
             BlockingStateService.shared.forceCheck()
 
+            // CRITICAL: Check if user is blocked but no longer has premium
+            // This handles the case where premium expired while app was in background/closed
+            // Delay slightly to allow subscription service to finish syncing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.checkAndUnblockIfPremiumExpired()
+            }
+
             // If audio is playing, show full-screen player (for lock screen/control center taps)
             if audioPlayerService.isPlaying && audioPlayerService.currentSurah != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -303,8 +310,18 @@ struct DhikrApp: App {
 
             print("🔴 [DhikrApp] Confirmed user lost premium - stopping blocking and clearing settings")
 
+            // CRITICAL: Clear the actual app shields immediately
+            // This ensures users aren't locked out if their premium expires while apps are blocked
+            let store = ManagedSettingsStore()
+            store.clearAllSettings()
+            print("✅ [DhikrApp] Cleared ManagedSettingsStore - apps unblocked")
+
             // Stop all app blocking schedules
             DeviceActivityService.shared.stopAllMonitoring()
+
+            // Clear BlockingStateService state (voice confirmation, blocking flags, etc.)
+            BlockingStateService.shared.clearBlocking()
+            print("✅ [DhikrApp] Cleared BlockingStateService state")
 
             // Turn off all prayer selections
             guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
@@ -314,6 +331,10 @@ struct DhikrApp: App {
             groupDefaults.set(false, forKey: "focusSelectedMaghrib")
             groupDefaults.set(false, forKey: "focusSelectedIsha")
             groupDefaults.set(false, forKey: "isPremiumUser") // Ensure premium flag is false
+            groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation") // Clear voice confirmation
+            groupDefaults.set(false, forKey: "appsActuallyBlocked") // Clear blocking flag
+            groupDefaults.removeObject(forKey: "blockingStartTime")
+            groupDefaults.removeObject(forKey: "blockingEndTime")
             groupDefaults.synchronize()
 
             // Also update main UserDefaults
@@ -323,6 +344,49 @@ struct DhikrApp: App {
             UserDefaults.standard.set(false, forKey: "focusSelectedMaghrib")
             UserDefaults.standard.set(false, forKey: "focusSelectedIsha")
 
+        }
+    }
+
+    /// Check if user is currently blocked but no longer has premium access
+    /// This handles edge cases where premium expired while app was closed/background
+    private func checkAndUnblockIfPremiumExpired() {
+        // Check if user currently has apps blocked or is waiting for voice confirmation
+        let blockingState = BlockingStateService.shared
+        let isBlocked = blockingState.appsActuallyBlocked ||
+                       blockingState.isWaitingForVoiceConfirmation ||
+                       blockingState.isCurrentlyBlocking
+
+        guard isBlocked else {
+            // Not blocked, nothing to check
+            return
+        }
+
+        // Check if user has premium access
+        let hasPremium = subscriptionService.hasPremiumAccess
+
+        if !hasPremium {
+            print("🚨 [DhikrApp] User is blocked but premium expired - unblocking immediately")
+
+            // Clear the actual app shields
+            let store = ManagedSettingsStore()
+            store.clearAllSettings()
+
+            // Stop all monitoring
+            DeviceActivityService.shared.stopAllMonitoring()
+
+            // Clear blocking state
+            blockingState.clearBlocking()
+
+            // Clear UserDefaults flags
+            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
+                groupDefaults.set(false, forKey: "appsActuallyBlocked")
+                groupDefaults.removeObject(forKey: "blockingStartTime")
+                groupDefaults.removeObject(forKey: "blockingEndTime")
+                groupDefaults.synchronize()
+            }
+
+            print("✅ [DhikrApp] Emergency unblock complete - user can now access apps")
         }
     }
 
@@ -417,7 +481,14 @@ struct DhikrApp: App {
             // Check if storage exists and is valid
             if let storage = prayerTimeService.loadStorage() {
                 print("📦 [DhikrApp] Existing storage found with \(storage.prayerTimes.count) days, shouldRefresh: \(storage.shouldRefresh)")
-                if storage.shouldRefresh {
+
+                // Check if calculation settings have changed (method or Asr school)
+                let settingsChanged = prayerTimeService.needsRefreshForSettings(storage: storage)
+                if settingsChanged {
+                    print("⚙️ [DhikrApp] Calculation settings changed - fetching new data")
+                }
+
+                if storage.shouldRefresh || settingsChanged {
                     print("🔄 [DhikrApp] Storage needs refresh - fetching new data")
                     if isPremium {
                         await fetchPrayerTimesWithLocation(prayerTimeService: prayerTimeService, skipPermissionRequest: !hasCompletedOnboarding, daysToFetch: 180)

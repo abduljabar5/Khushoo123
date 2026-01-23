@@ -14,6 +14,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     @Published var stateName: String = "MN"
     @Published var countryName: String = "USA"
     @Published var calculationMethod: String = "ISNA"
+    @Published var asrMethod: String = "Standard"
     @Published var completedPrayers: Int = 0
     @Published var totalPrayers: Int = 5
     @Published var progressPercentage: CGFloat = 0
@@ -22,6 +23,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     @Published var selectedDate: Date = Date()
     @Published var isLoadingFuturePrayers: Bool = false
     @Published var isRefreshingLocation: Bool = false
+    @Published var isRefreshingSettings: Bool = false
 
     // MARK: - Computed Properties
     var locationName: String {
@@ -35,6 +37,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     // MARK: - Private Properties
     private let locationService: LocationService
     private let prayerTimeService = PrayerTimeService()
+    private let settingsManager = PrayerCalculationSettingsManager.shared
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var prayerTimes: Timings?
@@ -49,6 +52,8 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         setupPrayers()
         startTimer()
         setupNotificationObserver()
+        setupSettingsObserver()
+        updateCalculationMethodDisplay()
     }
 
     deinit {
@@ -170,6 +175,262 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             queue: .main
         ) { [weak self] _ in
             self?.reloadTodaysCompletions()
+        }
+
+        // Listen for settings changes from ProfileView
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("PrayerSettingsChanged"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshForSettingsChange()
+        }
+    }
+
+    private func setupSettingsObserver() {
+        // Subscribe to settings changes
+        settingsManager.$calculationMethod
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.updateCalculationMethodDisplay()
+            }
+            .store(in: &cancellables)
+
+        settingsManager.$asrMethod
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.updateCalculationMethodDisplay()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateCalculationMethodDisplay() {
+        calculationMethod = settingsManager.calculationMethod.name
+        asrMethod = settingsManager.asrMethod.name
+    }
+
+    // MARK: - Settings Change Refresh
+    func refreshForSettingsChange() {
+        // Prevent concurrent refresh - critical for blocking consistency
+        guard !isRefreshingSettings else { return }
+        guard let location = locationService.location else { return }
+
+        isRefreshingSettings = true
+
+        Task {
+            // Check if user has premium access (must be on main actor)
+            let hasPremiumAccess = await MainActor.run { SubscriptionService.shared.hasPremiumAccess }
+
+            do {
+                if hasPremiumAccess {
+                    // Premium: Fetch fresh 6-month prayer times with new settings
+                    // IMPORTANT: Fetch FIRST, then clear old data and reschedule
+                    // This ensures user is never left without blocking protection
+                    let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location)
+
+                    await MainActor.run {
+                        // Now that we have new data, clear old cache
+                        self.prayerTimeService.clearStorage()
+                        self.clearAllDailyCache()
+
+                        // Save the new storage
+                        self.prayerTimeService.saveStorage(storage)
+
+                        // Update today's display times
+                        if let todayTimes = self.getTodayTimesFromStorage(storage) {
+                            self.updatePrayerTimesFromStoredTime(todayTimes)
+                        }
+
+                        self.cachePrayerTimes()
+                        self.updateCalculationMethodDisplay()
+
+                        // Stop old blocking and reschedule with new times (atomic operation)
+                        if #available(iOS 15.0, *) {
+                            DeviceActivityService.shared.stopAllMonitoring()
+                            self.rescheduleBlockingWithNewStorage(storage)
+                        }
+
+                        // Reload widgets with new times
+                        WidgetCenter.shared.reloadAllTimelines()
+
+                        self.isRefreshingSettings = false
+                    }
+                } else {
+                    // Free users: Fetch short-term storage (3 days) so widget also updates
+                    let storage = try await prayerTimeService.fetch6MonthPrayerTimes(for: location, daysToFetch: 3)
+
+                    await MainActor.run {
+                        // Clear old cache after successful fetch
+                        self.prayerTimeService.clearStorage()
+                        self.clearAllDailyCache()
+
+                        self.prayerTimeService.saveStorage(storage)
+
+                        // Update today's display times
+                        if let todayTimes = self.getTodayTimesFromStorage(storage) {
+                            self.updatePrayerTimesFromStoredTime(todayTimes)
+                        }
+
+                        self.cachePrayerTimes()
+                        self.updateCalculationMethodDisplay()
+
+                        // Reload widgets with new times
+                        WidgetCenter.shared.reloadAllTimelines()
+
+                        self.isRefreshingSettings = false
+                    }
+                }
+            } catch {
+                // Fetch failed - DO NOT clear storage, keep old data
+                // User keeps old prayer times (better than nothing)
+                await MainActor.run {
+                    // Just update the method display name (settings were already saved)
+                    // But prayer times remain from old method until next successful fetch
+                    self.updateCalculationMethodDisplay()
+                    self.isRefreshingSettings = false
+
+                    // Note: On next app launch, needsRefreshForSettings() will detect
+                    // mismatch and retry the fetch
+                }
+            }
+        }
+    }
+
+    private func getTodayTimesFromStorage(_ storage: PrayerTimeStorage) -> StoredPrayerTime? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return storage.prayerTimes.first { calendar.isDate($0.date, inSameDayAs: today) }
+    }
+
+    private func updatePrayerTimesFromStoredTime(_ storedTime: StoredPrayerTime) {
+        let formatter24 = DateFormatter()
+        formatter24.dateFormat = "HH:mm"
+
+        let formatter12 = DateFormatter()
+        formatter12.dateFormat = "h:mm a"
+
+        // Parse times from storage (format: "HH:mm" or "HH:mm (TZ)")
+        func parseAndFormat(_ timeString: String) -> String? {
+            let cleanTime = timeString.components(separatedBy: " ").first ?? timeString
+            guard let time = formatter24.date(from: cleanTime) else { return nil }
+            return formatter12.string(from: time)
+        }
+
+        if let fajr = parseAndFormat(storedTime.fajr),
+           let dhuhr = parseAndFormat(storedTime.dhuhr),
+           let asr = parseAndFormat(storedTime.asr),
+           let maghrib = parseAndFormat(storedTime.maghrib),
+           let isha = parseAndFormat(storedTime.isha) {
+
+            // Calculate sunrise (approximately 90 minutes after Fajr)
+            let fajrClean = storedTime.fajr.components(separatedBy: " ").first ?? storedTime.fajr
+            if let fajrTime = formatter24.date(from: fajrClean) {
+                let sunriseTime = fajrTime.addingTimeInterval(90 * 60)
+                let sunrise = formatter12.string(from: sunriseTime)
+
+                prayers[0].time = fajr
+                prayers[1].time = sunrise
+                prayers[2].time = dhuhr
+                prayers[3].time = asr
+                prayers[4].time = maghrib
+                prayers[5].time = isha
+
+                todaysPrayers = prayers
+                updatePrayerStates()
+            }
+        }
+    }
+
+    private func rescheduleBlockingWithNewStorage(_ storage: PrayerTimeStorage) {
+        guard #available(iOS 15.0, *) else { return }
+
+        // Get user's blocking settings
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") ?? .standard
+
+        // Check if blocking is enabled
+        let isBlockingEnabled = groupDefaults.bool(forKey: "focusModeEnabled")
+        guard isBlockingEnabled else { return }
+
+        // Get selected prayers
+        var selectedPrayers: Set<String> = []
+        if groupDefaults.bool(forKey: "focusSelectedFajr") { selectedPrayers.insert("Fajr") }
+        if groupDefaults.bool(forKey: "focusSelectedDhuhr") { selectedPrayers.insert("Dhuhr") }
+        if groupDefaults.bool(forKey: "focusSelectedAsr") { selectedPrayers.insert("Asr") }
+        if groupDefaults.bool(forKey: "focusSelectedMaghrib") { selectedPrayers.insert("Maghrib") }
+        if groupDefaults.bool(forKey: "focusSelectedIsha") { selectedPrayers.insert("Isha") }
+
+        guard !selectedPrayers.isEmpty else { return }
+
+        // Get duration and buffer
+        let duration = groupDefaults.double(forKey: "focusBlockingDuration")
+        let buffer = groupDefaults.double(forKey: "focusPrePrayerBuffer")
+
+        // Schedule the rolling window with new storage
+        DeviceActivityService.shared.scheduleRollingWindow(
+            from: storage,
+            duration: duration > 0 ? duration : 15.0,
+            selectedPrayers: selectedPrayers,
+            prePrayerBuffer: buffer
+        )
+
+        // Also reschedule pre-prayer notifications with new times
+        reschedulePrePrayerNotifications(from: storage, selectedPrayers: selectedPrayers)
+    }
+
+    private func reschedulePrePrayerNotifications(from storage: PrayerTimeStorage, selectedPrayers: Set<String>) {
+        // Convert storage to PrayerTime array for notification service
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+
+        var prayerTimes: [PrayerTime] = []
+
+        for storedTime in storage.prayerTimes {
+            let prayers = [
+                ("Fajr", storedTime.fajr),
+                ("Dhuhr", storedTime.dhuhr),
+                ("Asr", storedTime.asr),
+                ("Maghrib", storedTime.maghrib),
+                ("Isha", storedTime.isha)
+            ]
+
+            for (name, timeString) in prayers {
+                guard selectedPrayers.contains(name) else { continue }
+
+                let cleanTimeString = timeString.components(separatedBy: " ").first ?? timeString
+                guard let time = timeFormatter.date(from: cleanTimeString) else { continue }
+
+                let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+                if let prayerDate = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                                  minute: timeComponents.minute ?? 0,
+                                                  second: 0,
+                                                  of: storedTime.date) {
+                    prayerTimes.append(PrayerTime(name: name, date: prayerDate))
+                }
+            }
+        }
+
+        // Check if notifications are enabled
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") ?? .standard
+        let notificationsEnabled = groupDefaults.bool(forKey: "focusPrePrayerNotifications")
+
+        // Schedule notifications with new times
+        PrayerNotificationService.shared.schedulePrePrayerNotifications(
+            prayerTimes: prayerTimes,
+            selectedPrayers: selectedPrayers,
+            isEnabled: notificationsEnabled,
+            minutesBefore: 5
+        )
+    }
+
+    private func clearAllDailyCache() {
+        let userDefaults = UserDefaults.standard
+        let allKeys = userDefaults.dictionaryRepresentation().keys
+
+        for key in allKeys {
+            if key.hasPrefix("cachedPrayerTimes_") || key.hasPrefix("cachedLocation_") {
+                userDefaults.removeObject(forKey: key)
+            }
         }
     }
 
@@ -710,6 +971,10 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         UserDefaults.standard.set(cityName, forKey: "savedCity")
         UserDefaults.standard.set(stateName, forKey: "savedState")
         UserDefaults.standard.set(countryName, forKey: "savedCountry")
+
+        // Set initial calculation method based on location (first time only)
+        settingsManager.setInitialMethodBasedOnLocation(countryName)
+        updateCalculationMethodDisplay()
     }
 }
 

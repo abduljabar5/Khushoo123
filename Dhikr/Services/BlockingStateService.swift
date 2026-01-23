@@ -132,6 +132,28 @@ class BlockingStateService: ObservableObject {
         }
     }
     
+    /// Handle early unlock request from widget
+    private func handleWidgetUnlockRequest(groupDefaults: UserDefaults) {
+        // Check if widget requested early unlock
+        guard groupDefaults.bool(forKey: "userRequestedEarlyUnlock") else { return }
+
+        // Clear the request flag immediately
+        groupDefaults.removeObject(forKey: "userRequestedEarlyUnlock")
+        groupDefaults.removeObject(forKey: "earlyUnlockRequestTime")
+
+        // Check if strict mode is enabled (widget shouldn't be able to unlock in strict mode)
+        guard !isStrictModeEnabled else { return }
+
+        // Check if early unlock is available
+        guard let availableAtTs = groupDefaults.object(forKey: "earlyUnlockAvailableAt") as? TimeInterval else { return }
+        let availableAt = Date(timeIntervalSince1970: availableAtTs)
+
+        guard Date() >= availableAt else { return }
+
+        // Perform the early unlock
+        earlyUnlockCurrentInterval()
+    }
+
     /// Validate and recover from state mismatches between extension and main app
     private func validateAndRecoverBlockingState() {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
@@ -168,7 +190,10 @@ class BlockingStateService: ObservableObject {
             updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
             return
         }
-        
+
+        // Check if widget requested early unlock
+        handleWidgetUnlockRequest(groupDefaults: groupDefaults)
+
         // Validate state before proceeding
         validateAndRecoverBlockingState()
         
@@ -520,6 +545,8 @@ class BlockingStateService: ObservableObject {
             groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
             groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
             groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
+            // Clean up prayer time tracking
+            groupDefaults.removeObject(forKey: "currentPrayerTime")
         }
         earlyUnlockAvailableAt = nil
     }
@@ -559,6 +586,12 @@ class BlockingStateService: ObservableObject {
             groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
             groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
             groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
+            // Clean up prayer time tracking
+            groupDefaults.removeObject(forKey: "currentPrayerTime")
+            groupDefaults.removeObject(forKey: "blockingStartTime")
+            // Clear any pending widget unlock request
+            groupDefaults.removeObject(forKey: "userRequestedEarlyUnlock")
+            groupDefaults.removeObject(forKey: "earlyUnlockRequestTime")
         }
 
         // Update local state
@@ -567,9 +600,6 @@ class BlockingStateService: ObservableObject {
         appsActuallyBlocked = false
         earlyUnlockAvailableAt = nil
         updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.removeObject(forKey: "blockingStartTime")
-        }
     }
 
     private func markPrayersAsCompleted() {

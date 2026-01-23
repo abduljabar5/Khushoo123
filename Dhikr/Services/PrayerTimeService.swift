@@ -8,8 +8,34 @@ struct PrayerTimeStorage: Codable {
     let latitude: Double
     let longitude: Double
     let method: Int
+    let school: Int  // Asr juristic method (0 = Standard, 1 = Hanafi)
     let prayerTimes: [StoredPrayerTime]
     let fetchedAt: Date
+
+    // Custom decoder to handle migration from old cache format (without school field)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        endDate = try container.decode(Date.self, forKey: .endDate)
+        latitude = try container.decode(Double.self, forKey: .latitude)
+        longitude = try container.decode(Double.self, forKey: .longitude)
+        method = try container.decode(Int.self, forKey: .method)
+        school = try container.decodeIfPresent(Int.self, forKey: .school) ?? 0  // Default to Standard
+        prayerTimes = try container.decode([StoredPrayerTime].self, forKey: .prayerTimes)
+        fetchedAt = try container.decode(Date.self, forKey: .fetchedAt)
+    }
+
+    // Standard memberwise init for creating new storage
+    init(startDate: Date, endDate: Date, latitude: Double, longitude: Double, method: Int, school: Int, prayerTimes: [StoredPrayerTime], fetchedAt: Date) {
+        self.startDate = startDate
+        self.endDate = endDate
+        self.latitude = latitude
+        self.longitude = longitude
+        self.method = method
+        self.school = school
+        self.prayerTimes = prayerTimes
+        self.fetchedAt = fetchedAt
+    }
 
     var isValid: Bool {
         // Check if data is still valid (covers current date + reasonable future coverage)
@@ -65,7 +91,16 @@ struct StoredPrayerTime: Codable {
 
 class PrayerTimeService {
     private let storageKey = "PrayerTimeStorage_v1"
-    private let calculationMethod = 2 // Islamic Society of North America (ISNA)
+
+    // Dynamic calculation method from settings
+    private var calculationMethod: Int {
+        PrayerCalculationSettingsManager.shared.calculationMethod.rawValue
+    }
+
+    // Dynamic Asr juristic method from settings
+    private var asrSchool: Int {
+        PrayerCalculationSettingsManager.shared.asrMethod.rawValue
+    }
 
     // MARK: - Single Day Fetch (existing functionality)
     func fetchPrayerTimes(for location: CLLocation, on date: Date = Date()) async throws -> Timings {
@@ -76,7 +111,7 @@ class PrayerTimeService {
         dateFormatter.dateFormat = "dd-MM-yyyy"
         let dateString = dateFormatter.string(from: date)
 
-        let urlString = "https://api.aladhan.com/v1/timings/\(dateString)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
+        let urlString = "https://api.aladhan.com/v1/timings/\(dateString)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)&school=\(asrSchool)"
 
 
         guard let url = URL(string: urlString) else {
@@ -124,7 +159,7 @@ class PrayerTimeService {
             let month = calendar.component(.month, from: currentDate)
 
             // Use calendar API to fetch entire month at once
-            let urlString = "https://api.aladhan.com/v1/calendar/\(year)/\(month)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)"
+            let urlString = "https://api.aladhan.com/v1/calendar/\(year)/\(month)?latitude=\(latitude)&longitude=\(longitude)&method=\(calculationMethod)&school=\(asrSchool)"
 
             guard let url = URL(string: urlString) else {
                 throw URLError(.badURL)
@@ -184,6 +219,7 @@ class PrayerTimeService {
             latitude: latitude,
             longitude: longitude,
             method: calculationMethod,
+            school: asrSchool,
             prayerTimes: storedTimes,
             fetchedAt: Date()
         )
@@ -218,6 +254,7 @@ class PrayerTimeService {
             latitude: newStorage.latitude,
             longitude: newStorage.longitude,
             method: newStorage.method,
+            school: newStorage.school,
             prayerTimes: allPrayerTimes,
             fetchedAt: Date()
         )
@@ -266,6 +303,25 @@ class PrayerTimeService {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
         groupDefaults.removeObject(forKey: storageKey)
         groupDefaults.synchronize()
+    }
+
+    // MARK: - Settings Validation
+    func needsRefreshForSettings(storage: PrayerTimeStorage) -> Bool {
+        // Check if calculation method or Asr school has changed
+        let currentMethod = PrayerCalculationSettingsManager.shared.calculationMethod.rawValue
+        let currentSchool = PrayerCalculationSettingsManager.shared.asrMethod.rawValue
+
+        // Handle migration: if school is missing (old cache format), assume it needs refresh
+        // Note: Codable will use default value of 0 for missing school field
+        if storage.method != currentMethod {
+            return true
+        }
+
+        if storage.school != currentSchool {
+            return true
+        }
+
+        return false
     }
 
     // MARK: - Location Validation (Tiered System)
