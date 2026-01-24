@@ -393,9 +393,9 @@ class DeviceActivityService: ObservableObject {
         
         // Add new activities to tracked list (don't replace, append)
         activeActivityNames.append(contentsOf: newActivityNames)
-        
+
         // Persist the schedules we attempted to schedule, so other components have consistent view
-        saveScheduleToUserDefaults(prayersToAdd, duration: duration)
+        saveScheduleToUserDefaults(prayersToAdd, duration: duration, prePrayerBuffer: prePrayerBuffer)
 
         // Summary log to show how many the OS accepted vs attempted
         let fmt = DateFormatter(); fmt.dateStyle = .short; fmt.timeStyle = .medium
@@ -780,31 +780,37 @@ class DeviceActivityService: ObservableObject {
         // Summary log to match the format from regular scheduling
         let attemptedCount = prayersToSchedule.count
         let failedCount = attemptedCount - successfullyScheduled
-        
+
         // Save the new schedule to UserDefaults for future cleanup
-        saveScheduleToUserDefaults(prayersToSchedule, duration: duration)
+        saveScheduleToUserDefaults(prayersToSchedule, duration: duration, prePrayerBuffer: prePrayerBuffer)
     }
     
     /// Save prayer schedule to UserDefaults for cleanup tracking
-    private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime], duration: Double) {
-        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { 
-            return 
+    /// Saves the actual BLOCKING START TIME (prayer time - buffer), not the prayer time
+    private func saveScheduleToUserDefaults(_ prayerTimes: [PrayerTime], duration: Double, prePrayerBuffer: Double = 0) {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
+            return
         }
-        
+
+        let bufferSeconds = prePrayerBuffer * 60
+
         let schedules = prayerTimes.map { prayer -> [String: Any] in
             let deviceActivityDurationSeconds = duration * 60
-            
-            let normalizedTs = normalizeTimestamp(prayer.date)
+
+            // Calculate actual blocking start time (prayer time - buffer)
+            let blockingStartTime = prayer.date.addingTimeInterval(-bufferSeconds)
+            let normalizedTs = normalizeTimestamp(blockingStartTime)
+
             let schedule: [String: Any] = [
                 "name": prayer.name,
-                "date": prayer.date.timeIntervalSince1970,
+                "date": blockingStartTime.timeIntervalSince1970, // Save blocking start, not prayer time
                 "duration": deviceActivityDurationSeconds,
                 "activityName": "Prayer_\(prayer.name)_\(normalizedTs)"
             ]
-            
+
             return schedule
         }
-        
+
         groupDefaults.set(schedules, forKey: prayerScheduleKey)
         groupDefaults.synchronize() // Force immediate write to disk
     }
