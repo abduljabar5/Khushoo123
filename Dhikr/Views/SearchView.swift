@@ -183,14 +183,8 @@ struct SearchView: View {
                     // Early unlock section
                     SacredEarlyUnlockSection()
 
-                    // Today's Schedule
+                    // Today's Schedule (reads from actual saved blocking schedule)
                     SacredTodayScheduleSection(
-                        prayerTimes: prayerTimes,
-                        duration: focusManager.blockingDuration,
-                        prePrayerBuffer: focusManager.prePrayerBuffer,
-                        selectedPrayers: focusManager.getSelectedPrayers(),
-                        isLoading: isLoadingPrayerTimes,
-                        error: prayerTimesError,
                         isLocked: (blockingStateService.isCurrentlyBlocking || blockingStateService.appsActuallyBlocked) && !blockingStateService.isEarlyUnlockedActive
                     )
                     .padding(.horizontal, RS.horizontalPadding)
@@ -670,12 +664,6 @@ private struct SacredEarlyUnlockSection: View {
 // MARK: - Sacred Today Schedule Section
 
 private struct SacredTodayScheduleSection: View {
-    let prayerTimes: [PrayerTime]
-    let duration: Double
-    let prePrayerBuffer: Double
-    let selectedPrayers: Set<String>
-    let isLoading: Bool
-    let error: String?
     let isLocked: Bool
 
     @StateObject private var themeManager = ThemeManager.shared
@@ -706,16 +694,49 @@ private struct SacredTodayScheduleSection: View {
         return formatter
     }()
 
-    private func blockingStartTime(for prayerDate: Date) -> String {
-        let blockingStart = prayerDate.addingTimeInterval(-prePrayerBuffer * 60)
-        return timeFormatter.string(from: blockingStart)
+    /// Represents a scheduled prayer from the saved blocking schedule
+    private struct ScheduledPrayer: Identifiable {
+        let id = UUID()
+        let name: String
+        let blockingStartTime: Date
+        let durationSeconds: Double
     }
 
-    private var todayPrayers: [PrayerTime] {
-        let today = Date()
-        return prayerTimes.filter { prayer in
-            Calendar.current.isDate(prayer.date, inSameDayAs: today)
+    /// Read today's scheduled prayers directly from the saved blocking schedule
+    private var todayScheduledPrayers: [ScheduledPrayer] {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+              let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] else {
+            return []
         }
+
+        let today = Date()
+        let calendar = Calendar.current
+
+        // Filter for today's prayers and convert to ScheduledPrayer
+        let todayPrayers = schedules.compactMap { schedule -> ScheduledPrayer? in
+            guard let name = schedule["name"] as? String,
+                  let timestamp = schedule["date"] as? TimeInterval,
+                  let duration = schedule["duration"] as? Double else {
+                return nil
+            }
+
+            let blockingStart = Date(timeIntervalSince1970: timestamp)
+
+            // Check if this prayer's blocking start is today
+            guard calendar.isDate(blockingStart, inSameDayAs: today) else {
+                return nil
+            }
+
+            return ScheduledPrayer(name: name, blockingStartTime: blockingStart, durationSeconds: duration)
+        }
+
+        // Sort by blocking start time
+        return todayPrayers.sorted { $0.blockingStartTime < $1.blockingStartTime }
+    }
+
+    /// Get the set of prayer names that are scheduled for today
+    private var scheduledPrayerNames: Set<String> {
+        Set(todayScheduledPrayers.map { $0.name })
     }
 
     var body: some View {
@@ -729,7 +750,7 @@ private struct SacredTodayScheduleSection: View {
 
                 Spacer()
 
-                if selectedPrayers.count == 5 {
+                if scheduledPrayerNames.count == 5 {
                     Text("All active")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(softGreen)
@@ -738,6 +759,16 @@ private struct SacredTodayScheduleSection: View {
                         .background(
                             Capsule()
                                 .fill(softGreen.opacity(0.15))
+                        )
+                } else if scheduledPrayerNames.isEmpty {
+                    Text("No prayers scheduled")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(warmGray.opacity(0.7))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(warmGray.opacity(0.1))
                         )
                 }
             }
@@ -755,28 +786,14 @@ private struct SacredTodayScheduleSection: View {
                 .padding(.top, 14)
                 .padding(.bottom, 10)
 
-                if isLoading {
-                    HStack(spacing: 12) {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .tint(sacredGold)
-                        Text("Loading prayer times...")
-                            .font(.system(size: 13, weight: .light))
-                            .foregroundColor(warmGray)
-                    }
-                    .padding(.vertical, 20)
-                } else if let error = error {
-                    Text(error)
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundColor(.red.opacity(0.8))
-                        .padding()
-                } else if todayPrayers.isEmpty {
+                if todayScheduledPrayers.isEmpty {
+                    // No schedules - show placeholder for all prayers
                     ForEach(["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"], id: \.self) { prayerName in
                         SacredPrayerScheduleRow(
                             prayerName: prayerName,
-                            time: getFallbackTime(for: prayerName),
-                            duration: duration,
-                            isEnabled: selectedPrayers.contains(prayerName),
+                            time: "Not scheduled",
+                            duration: 0,
+                            isEnabled: false,
                             isLocked: isLocked
                         )
                         if prayerName != "Isha" {
@@ -786,16 +803,16 @@ private struct SacredTodayScheduleSection: View {
                         }
                     }
                 } else {
-                    let prayersToShow = Array(todayPrayers.prefix(5))
-                    ForEach(Array(prayersToShow.enumerated()), id: \.element.id) { index, prayer in
+                    // Show scheduled prayers from saved schedule
+                    ForEach(Array(todayScheduledPrayers.enumerated()), id: \.element.id) { index, prayer in
                         SacredPrayerScheduleRow(
                             prayerName: prayer.name,
-                            time: blockingStartTime(for: prayer.date),
-                            duration: duration,
-                            isEnabled: selectedPrayers.contains(prayer.name),
+                            time: timeFormatter.string(from: prayer.blockingStartTime),
+                            duration: prayer.durationSeconds / 60, // Convert to minutes for display
+                            isEnabled: true,
                             isLocked: isLocked
                         )
-                        if index < prayersToShow.count - 1 {
+                        if index < todayScheduledPrayers.count - 1 {
                             Divider()
                                 .background(warmGray.opacity(0.2))
                                 .padding(.horizontal, 16)
@@ -811,17 +828,6 @@ private struct SacredTodayScheduleSection: View {
                             .stroke(sacredGold.opacity(0.15), lineWidth: 1)
                     )
             )
-        }
-    }
-
-    private func getFallbackTime(for prayer: String) -> String {
-        switch prayer {
-        case "Fajr": return "5:48 AM"
-        case "Dhuhr": return "1:04 PM"
-        case "Asr": return "4:21 PM"
-        case "Maghrib": return "6:59 PM"
-        case "Isha": return "8:14 PM"
-        default: return "12:00 PM"
         }
     }
 }
