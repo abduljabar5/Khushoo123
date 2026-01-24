@@ -225,7 +225,17 @@ class SubscriptionService: ObservableObject {
         }
 
         // STEP 2: Sync to Firebase if user is signed in (optional)
-        if let userId = currentUserId {
+        // FIX: Check Auth.auth().currentUser directly instead of currentUserId
+        // This fixes a race condition where the first sync runs before auth listener sets currentUserId,
+        // causing hasGrantedAccess users to be incorrectly treated as signed out
+        let effectiveUserId = currentUserId ?? Auth.auth().currentUser?.uid
+
+        if let userId = effectiveUserId {
+            // Update currentUserId if it wasn't set yet (fixes race condition)
+            if currentUserId == nil {
+                currentUserId = userId
+            }
+
             // Always fetch granted access status (influencers, gifts, etc.)
             await fetchGrantedAccessFromFirebase(userId: userId)
 
@@ -249,13 +259,20 @@ class SubscriptionService: ObservableObject {
                 }
             }
         } else {
-            // User signed out - clear granted access (it's tied to their account)
-            self.hasGrantedAccess = false
-            if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                groupDefaults.set(false, forKey: "hasGrantedAccess")
-                groupDefaults.synchronize()
+            // User is actually signed out - but preserve cached hasGrantedAccess if we haven't verified yet
+            // This prevents clearing the cache before Firebase auth has fully initialized
+            if hasCompletedSuccessfulCheck {
+                // We've done a successful check before, so user is truly signed out
+                self.hasGrantedAccess = false
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(false, forKey: "hasGrantedAccess")
+                    groupDefaults.synchronize()
+                }
+                print("ℹ️ [SubscriptionService] User signed out - cleared granted access")
+            } else {
+                // First sync and no user - keep cached value until we can verify
+                print("⚠️ [SubscriptionService] No user ID yet - preserving cached hasGrantedAccess: \(self.hasGrantedAccess)")
             }
-            print("ℹ️ [SubscriptionService] User signed out - cleared granted access")
         }
 
         let wasPremium = self.isPremium
