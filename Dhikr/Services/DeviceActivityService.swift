@@ -813,6 +813,11 @@ class DeviceActivityService: ObservableObject {
 
         groupDefaults.set(schedules, forKey: prayerScheduleKey)
         groupDefaults.synchronize() // Force immediate write to disk
+
+        // Notify UI that schedule was updated
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: NSNotification.Name("PrayerScheduleUpdated"), object: nil)
+        }
     }
     
     /// Reset the initial scheduling flag (for debugging or complete reset)

@@ -667,6 +667,8 @@ private struct SacredTodayScheduleSection: View {
     let isLocked: Bool
 
     @StateObject private var themeManager = ThemeManager.shared
+    @State private var refreshTrigger = UUID() // Forces re-read from UserDefaults
+    @State private var cachedPrayers: [ScheduledPrayer] = []
 
     private var sacredGold: Color {
         Color(red: 0.77, green: 0.65, blue: 0.46)
@@ -703,7 +705,7 @@ private struct SacredTodayScheduleSection: View {
     }
 
     /// Read today's scheduled prayers directly from the saved blocking schedule
-    private var todayScheduledPrayers: [ScheduledPrayer] {
+    private func loadTodayScheduledPrayers() -> [ScheduledPrayer] {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] else {
             return []
@@ -736,7 +738,7 @@ private struct SacredTodayScheduleSection: View {
 
     /// Get the set of prayer names that are scheduled for today
     private var scheduledPrayerNames: Set<String> {
-        Set(todayScheduledPrayers.map { $0.name })
+        Set(cachedPrayers.map { $0.name })
     }
 
     var body: some View {
@@ -786,7 +788,7 @@ private struct SacredTodayScheduleSection: View {
                 .padding(.top, 14)
                 .padding(.bottom, 10)
 
-                if todayScheduledPrayers.isEmpty {
+                if cachedPrayers.isEmpty {
                     // No schedules - show placeholder for all prayers
                     ForEach(["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"], id: \.self) { prayerName in
                         SacredPrayerScheduleRow(
@@ -804,7 +806,7 @@ private struct SacredTodayScheduleSection: View {
                     }
                 } else {
                     // Show scheduled prayers from saved schedule
-                    ForEach(Array(todayScheduledPrayers.enumerated()), id: \.element.id) { index, prayer in
+                    ForEach(Array(cachedPrayers.enumerated()), id: \.element.id) { index, prayer in
                         SacredPrayerScheduleRow(
                             prayerName: prayer.name,
                             time: timeFormatter.string(from: prayer.blockingStartTime),
@@ -812,7 +814,7 @@ private struct SacredTodayScheduleSection: View {
                             isEnabled: true,
                             isLocked: isLocked
                         )
-                        if index < todayScheduledPrayers.count - 1 {
+                        if index < cachedPrayers.count - 1 {
                             Divider()
                                 .background(warmGray.opacity(0.2))
                                 .padding(.horizontal, 16)
@@ -829,6 +831,13 @@ private struct SacredTodayScheduleSection: View {
                     )
             )
         }
+        .onAppear {
+            cachedPrayers = loadTodayScheduledPrayers()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PrayerScheduleUpdated"))) { _ in
+            cachedPrayers = loadTodayScheduledPrayers()
+        }
+        .id(refreshTrigger) // Force view identity change when trigger changes
     }
 }
 
