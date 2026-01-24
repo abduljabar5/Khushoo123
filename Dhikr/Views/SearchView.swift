@@ -669,6 +669,7 @@ private struct SacredTodayScheduleSection: View {
     @StateObject private var themeManager = ThemeManager.shared
     @State private var refreshTrigger = UUID() // Forces re-read from UserDefaults
     @State private var cachedPrayers: [ScheduledPrayer] = []
+    @State private var isShowingTomorrow: Bool = false
 
     private var sacredGold: Color {
         Color(red: 0.77, green: 0.65, blue: 0.46)
@@ -704,36 +705,55 @@ private struct SacredTodayScheduleSection: View {
         let durationSeconds: Double
     }
 
-    /// Read today's scheduled prayers directly from the saved blocking schedule
-    private func loadTodayScheduledPrayers() -> [ScheduledPrayer] {
+    /// Result of loading scheduled prayers - includes which day they're for
+    private struct ScheduleLoadResult {
+        let prayers: [ScheduledPrayer]
+        let isForTomorrow: Bool
+    }
+
+    /// Read scheduled prayers - today's first, then tomorrow's if today is empty
+    private func loadScheduledPrayers() -> ScheduleLoadResult {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] else {
-            return []
+            return ScheduleLoadResult(prayers: [], isForTomorrow: false)
         }
 
-        let today = Date()
+        let now = Date()
         let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else {
+            return ScheduleLoadResult(prayers: [], isForTomorrow: false)
+        }
 
-        // Filter for today's prayers and convert to ScheduledPrayer
-        let todayPrayers = schedules.compactMap { schedule -> ScheduledPrayer? in
+        // Convert all schedules to ScheduledPrayer with their dates
+        let allPrayers = schedules.compactMap { schedule -> ScheduledPrayer? in
             guard let name = schedule["name"] as? String,
                   let timestamp = schedule["date"] as? TimeInterval,
                   let duration = schedule["duration"] as? Double else {
                 return nil
             }
-
-            let blockingStart = Date(timeIntervalSince1970: timestamp)
-
-            // Check if this prayer's blocking start is today
-            guard calendar.isDate(blockingStart, inSameDayAs: today) else {
-                return nil
-            }
-
-            return ScheduledPrayer(name: name, blockingStartTime: blockingStart, durationSeconds: duration)
+            return ScheduledPrayer(
+                name: name,
+                blockingStartTime: Date(timeIntervalSince1970: timestamp),
+                durationSeconds: duration
+            )
         }
 
-        // Sort by blocking start time
-        return todayPrayers.sorted { $0.blockingStartTime < $1.blockingStartTime }
+        // First try today's prayers (only future ones)
+        let todayPrayers = allPrayers.filter { prayer in
+            calendar.isDate(prayer.blockingStartTime, inSameDayAs: today) && prayer.blockingStartTime > now
+        }.sorted { $0.blockingStartTime < $1.blockingStartTime }
+
+        if !todayPrayers.isEmpty {
+            return ScheduleLoadResult(prayers: todayPrayers, isForTomorrow: false)
+        }
+
+        // If no today prayers left, show tomorrow's
+        let tomorrowPrayers = allPrayers.filter { prayer in
+            calendar.isDate(prayer.blockingStartTime, inSameDayAs: tomorrow)
+        }.sorted { $0.blockingStartTime < $1.blockingStartTime }
+
+        return ScheduleLoadResult(prayers: tomorrowPrayers, isForTomorrow: true)
     }
 
     /// Get the set of prayer names that are scheduled for today
@@ -745,7 +765,7 @@ private struct SacredTodayScheduleSection: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack {
-                Text("TODAY'S SCHEDULE")
+                Text(isShowingTomorrow ? "TOMORROW'S SCHEDULE" : "TODAY'S SCHEDULE")
                     .font(.system(size: 11, weight: .medium))
                     .tracking(2)
                     .foregroundColor(warmGray)
@@ -777,11 +797,18 @@ private struct SacredTodayScheduleSection: View {
 
             // Content
             VStack(spacing: 0) {
-                // Date
+                // Date with tomorrow indicator
                 HStack {
-                    Text(Date(), style: .date)
-                        .font(.system(size: 12, weight: .light))
-                        .foregroundColor(warmGray)
+                    if isShowingTomorrow {
+                        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                        Text(tomorrow, style: .date)
+                            .font(.system(size: 12, weight: .light))
+                            .foregroundColor(warmGray)
+                    } else {
+                        Text(Date(), style: .date)
+                            .font(.system(size: 12, weight: .light))
+                            .foregroundColor(warmGray)
+                    }
                     Spacer()
                 }
                 .padding(.horizontal, 16)
@@ -832,10 +859,14 @@ private struct SacredTodayScheduleSection: View {
             )
         }
         .onAppear {
-            cachedPrayers = loadTodayScheduledPrayers()
+            let result = loadScheduledPrayers()
+            cachedPrayers = result.prayers
+            isShowingTomorrow = result.isForTomorrow
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PrayerScheduleUpdated"))) { _ in
-            cachedPrayers = loadTodayScheduledPrayers()
+            let result = loadScheduledPrayers()
+            cachedPrayers = result.prayers
+            isShowingTomorrow = result.isForTomorrow
         }
         .id(refreshTrigger) // Force view identity change when trigger changes
     }
