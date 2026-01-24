@@ -18,6 +18,7 @@ class PrayerNotificationService: ObservableObject {
 
     private let notificationCenter = UNUserNotificationCenter.current()
     private let prePrayerIdentifierPrefix = "prayer_reminder_"
+    private let prayerReminderIdentifierPrefix = "prayer_time_reminder_"
 
     private init() {
         checkPermissionStatus()
@@ -203,6 +204,128 @@ class PrayerNotificationService: ObservableObject {
             return "Ephemeral"
         @unknown default:
             return "Unknown"
+        }
+    }
+
+    // MARK: - Individual Prayer Reminders
+
+    /// Schedule a reminder notification for a specific prayer
+    /// - Parameters:
+    ///   - prayerName: Name of the prayer (e.g., "Fajr", "Dhuhr")
+    ///   - prayerTime: The time of the prayer
+    ///   - minutesBefore: How many minutes before the prayer to send the reminder (default: 0 = at prayer time)
+    func schedulePrayerReminder(
+        prayerName: String,
+        prayerTime: Date,
+        minutesBefore: Int = 0
+    ) {
+        guard hasNotificationPermission else {
+            print("⚠️ [PrayerReminder] No notification permission")
+            return
+        }
+
+        let now = Date()
+        let reminderTime = prayerTime.addingTimeInterval(-TimeInterval(minutesBefore * 60))
+
+        // Skip if reminder time is in the past
+        guard reminderTime > now else {
+            print("⚠️ [PrayerReminder] Reminder time is in the past for \(prayerName)")
+            return
+        }
+
+        // Create unique identifier based on prayer name and date
+        let calendar = Calendar.current
+        let dayComponents = calendar.dateComponents([.year, .month, .day], from: prayerTime)
+        let identifier = "\(prayerReminderIdentifierPrefix)\(prayerName)_\(dayComponents.year ?? 0)_\(dayComponents.month ?? 0)_\(dayComponents.day ?? 0)"
+
+        // Create notification content
+        let content = UNMutableNotificationContent()
+        content.title = "\(prayerName) Prayer"
+        content.body = "It's time for \(prayerName) prayer"
+        content.sound = .default
+        content.categoryIdentifier = "PRAYER_REMINDER"
+
+        // Create trigger
+        let triggerComponents = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: reminderTime
+        )
+        let trigger = UNCalendarNotificationTrigger(
+            dateMatching: triggerComponents,
+            repeats: false
+        )
+
+        // Create request
+        let request = UNNotificationRequest(
+            identifier: identifier,
+            content: content,
+            trigger: trigger
+        )
+
+        // Schedule notification
+        notificationCenter.add(request) { error in
+            if let error = error {
+                print("❌ [PrayerReminder] Failed to schedule \(prayerName): \(error)")
+            } else {
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .short
+                print("✅ [PrayerReminder] Scheduled \(prayerName) notification for \(formatter.string(from: prayerTime))")
+            }
+        }
+    }
+
+    /// Cancel reminder for a specific prayer
+    func cancelPrayerReminder(prayerName: String, prayerTime: Date) {
+        let calendar = Calendar.current
+        let dayComponents = calendar.dateComponents([.year, .month, .day], from: prayerTime)
+        let identifier = "\(prayerReminderIdentifierPrefix)\(prayerName)_\(dayComponents.year ?? 0)_\(dayComponents.month ?? 0)_\(dayComponents.day ?? 0)"
+
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: [identifier])
+        print("🔕 [PrayerReminder] Cancelled reminder for \(prayerName)")
+    }
+
+    /// Schedule reminders for all prayers with reminders enabled
+    func scheduleAllPrayerReminders(prayers: [(name: String, time: Date, hasReminder: Bool)], minutesBefore: Int = 0) {
+        guard hasNotificationPermission else {
+            print("⚠️ [PrayerReminder] No notification permission - requesting...")
+            return
+        }
+
+        // Clear existing prayer time reminders first
+        clearPrayerTimeReminders()
+
+        let now = Date()
+        var scheduledCount = 0
+
+        for prayer in prayers {
+            guard prayer.hasReminder else { continue }
+            guard prayer.time > now else { continue }
+
+            schedulePrayerReminder(
+                prayerName: prayer.name,
+                prayerTime: prayer.time,
+                minutesBefore: minutesBefore
+            )
+            scheduledCount += 1
+        }
+
+        print("📅 [PrayerReminder] Scheduled \(scheduledCount) prayer reminders")
+    }
+
+    /// Clear all prayer time reminders (not focus mode reminders)
+    func clearPrayerTimeReminders() {
+        notificationCenter.getPendingNotificationRequests { [weak self] requests in
+            let prayerReminderRequests = requests.filter {
+                $0.identifier.hasPrefix(self?.prayerReminderIdentifierPrefix ?? "")
+            }
+
+            let identifiersToRemove = prayerReminderRequests.map { $0.identifier }
+
+            if !identifiersToRemove.isEmpty {
+                self?.notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
+                print("🧹 [PrayerReminder] Cleared \(identifiersToRemove.count) prayer reminders")
+            }
         }
     }
 

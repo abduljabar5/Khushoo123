@@ -26,13 +26,48 @@ class DeviceActivityService: ObservableObject {
 
     private init() {
     }
-    
+
+    /// Protection window in seconds - prayers starting within this time won't be cancelled
+    private let imminentPrayerProtectionSeconds: TimeInterval = 10 * 60 // 10 minutes
+
     /// Normalize a date to minute precision for consistent activity naming
     private func normalizeTimestamp(_ date: Date) -> Int {
         let calendar = Calendar.current
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let normalized = calendar.date(from: components) ?? date
         return Int(normalized.timeIntervalSince1970)
+    }
+
+    /// Get activity names for prayers that are about to start (within protection window)
+    /// These should NOT be cancelled during rescheduling
+    private func getImminentPrayerActivityNames() -> Set<DeviceActivityName> {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+              let schedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] else {
+            return []
+        }
+
+        let now = Date()
+        var imminentActivities: Set<DeviceActivityName> = []
+
+        for schedule in schedules {
+            guard let name = schedule["name"] as? String,
+                  let timestamp = schedule["date"] as? TimeInterval else {
+                continue
+            }
+
+            let blockingStartTime = Date(timeIntervalSince1970: timestamp)
+            let timeUntilStart = blockingStartTime.timeIntervalSince(now)
+
+            // If prayer starts within protection window (and hasn't passed), protect it
+            if timeUntilStart > 0 && timeUntilStart <= imminentPrayerProtectionSeconds {
+                let normalizedTs = normalizeTimestamp(blockingStartTime)
+                let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
+                imminentActivities.insert(activityName)
+                print("🛡️ [PrayerBlocking] Protecting imminent prayer: \(name) starting in \(Int(timeUntilStart/60)) min")
+            }
+        }
+
+        return imminentActivities
     }
 
     // MARK: - Rolling Window Management
@@ -130,8 +165,11 @@ class DeviceActivityService: ObservableObject {
 
         print("📅 [PrayerBlocking] Scheduling \(prayersToSchedule.count) prayers (max \(maxSchedules))")
 
-        // Stop all existing schedules first
-        stopAllMonitoring()
+        // Get imminent prayers that should be protected from cancellation
+        let imminentPrayers = getImminentPrayerActivityNames()
+
+        // Stop all existing schedules first, but preserve imminent prayers
+        stopAllMonitoring(preserveActivities: imminentPrayers)
 
         // Schedule the prayers with buffer time, passing the captured timestamp
         let success = schedulePrayerTimeBlocking(prayerTimes: prayersToSchedule, duration: duration, selectedPrayers: selectedPrayers, prePrayerBuffer: prePrayerBuffer, scheduleTime: scheduleTime)
@@ -443,19 +481,20 @@ class DeviceActivityService: ObservableObject {
     }
     
     /// Stop all active monitoring sessions
-    func stopAllMonitoring() {
+    /// - Parameter preserveActivities: Optional set of activity names to NOT stop (for imminent prayers)
+    func stopAllMonitoring(preserveActivities: Set<DeviceActivityName> = []) {
         // Create a comprehensive list of activities to stop
         var allActivitiesToStop: Set<DeviceActivityName> = []
-        
+
         // Add all tracked activities
         if !activeActivityNames.isEmpty {
             allActivitiesToStop.formUnion(activeActivityNames)
         }
-        
+
         // Add activities from saved schedules
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
            let existingSchedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] {
-            
+
             for schedule in existingSchedules {
                 if let name = schedule["name"] as? String,
                    let timestamp = schedule["date"] as? TimeInterval {
@@ -465,21 +504,19 @@ class DeviceActivityService: ObservableObject {
                 }
             }
         }
-        
+
         // Add common activity patterns
         allActivitiesToStop.insert(DeviceActivityName("ManualBlocking"))
         allActivitiesToStop.insert(DeviceActivityName("PrayerTimeBlocking"))
-        
-        // No cleaner activities used
-        
+
         // Generate potential activity names for recent and upcoming prayers
         let now = Date()
         let calendar = Calendar.current
-        
+
         // Check past 2 days and next 5 days
         for dayOffset in -2...5 {
             guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
-            
+
             for prayerName in ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"] {
                 // Try multiple timestamp formats
                 let dayStart = calendar.startOfDay(for: targetDate)
@@ -490,25 +527,55 @@ class DeviceActivityService: ObservableObject {
                     normalizeTimestamp(targetDate.addingTimeInterval(3600)), // +1 hour
                     normalizeTimestamp(targetDate.addingTimeInterval(-3600)) // -1 hour
                 ]
-                
+
                 for timestamp in Set(possibleTimestamps) { // Use Set to avoid duplicates
                     allActivitiesToStop.insert(DeviceActivityName("Prayer_\(prayerName)_\(timestamp)"))
                 }
             }
         }
-        
-        // Stop all activities at once
+
+        // Remove preserved activities (imminent prayers) from the stop list
+        if !preserveActivities.isEmpty {
+            allActivitiesToStop.subtract(preserveActivities)
+            print("🛡️ [PrayerBlocking] Preserving \(preserveActivities.count) imminent prayer(s) during cleanup")
+        }
+
+        // Stop all activities at once (except preserved ones)
         if !allActivitiesToStop.isEmpty {
             let activitiesArray = Array(allActivitiesToStop)
             center.stopMonitoring(activitiesArray)
         }
-        
-        // Clear tracked activities
-        activeActivityNames.removeAll()
-        
-        // Clear saved schedules
+
+        // Clear tracked activities (but keep preserved ones)
+        if preserveActivities.isEmpty {
+            activeActivityNames.removeAll()
+        } else {
+            activeActivityNames = activeActivityNames.filter { preserveActivities.contains($0) }
+        }
+
+        // Clear saved schedules (but keep preserved prayer data)
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.removeObject(forKey: prayerScheduleKey)
+            if preserveActivities.isEmpty {
+                groupDefaults.removeObject(forKey: prayerScheduleKey)
+            } else {
+                // Keep only the schedules for preserved prayers
+                if let existingSchedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] {
+                    let preservedSchedules = existingSchedules.filter { schedule in
+                        guard let name = schedule["name"] as? String,
+                              let timestamp = schedule["date"] as? TimeInterval else {
+                            return false
+                        }
+                        let normalizedTs = normalizeTimestamp(Date(timeIntervalSince1970: timestamp))
+                        let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
+                        return preserveActivities.contains(activityName)
+                    }
+                    if preservedSchedules.isEmpty {
+                        groupDefaults.removeObject(forKey: prayerScheduleKey)
+                    } else {
+                        groupDefaults.set(preservedSchedules, forKey: prayerScheduleKey)
+                    }
+                }
+            }
         }
     }
     
@@ -621,8 +688,9 @@ class DeviceActivityService: ObservableObject {
     }
     
     /// Perform aggressive cleanup to stop ALL possible prayer activities
-    private func performAggressiveCleanup() -> Int {
-        
+    /// - Parameter preserveActivities: Optional set of activity names to NOT stop (for imminent prayers)
+    private func performAggressiveCleanup(preserveActivities: Set<DeviceActivityName> = []) -> Int {
+
         var activitiesToStop: [DeviceActivityName] = []
         
         // Stop all tracked activities
@@ -663,16 +731,25 @@ class DeviceActivityService: ObservableObject {
             }
         }
         
-        // Remove duplicates
-        let uniqueActivities = Array(Set(activitiesToStop))
-        
-        if !uniqueActivities.isEmpty {
-            center.stopMonitoring(uniqueActivities)
+        // Remove duplicates and filter out preserved activities
+        var uniqueActivities = Set(activitiesToStop)
+
+        if !preserveActivities.isEmpty {
+            uniqueActivities.subtract(preserveActivities)
+            print("🛡️ [PrayerBlocking] Aggressive cleanup preserving \(preserveActivities.count) imminent prayer(s)")
         }
-        
-        // Clear tracked activities
-        activeActivityNames.removeAll()
-        
+
+        if !uniqueActivities.isEmpty {
+            center.stopMonitoring(Array(uniqueActivities))
+        }
+
+        // Clear tracked activities (but keep preserved ones)
+        if preserveActivities.isEmpty {
+            activeActivityNames.removeAll()
+        } else {
+            activeActivityNames = activeActivityNames.filter { preserveActivities.contains($0) }
+        }
+
         return uniqueActivities.count
     }
     
@@ -696,17 +773,16 @@ class DeviceActivityService: ObservableObject {
 
         lastRescheduleTime = scheduleTime
 
-        // Stop ALL existing monitoring
-        stopAllMonitoring()
+        // Get imminent prayers that should be protected from cancellation
+        let imminentPrayers = getImminentPrayerActivityNames()
 
+        // Stop existing monitoring, but preserve imminent prayers
+        stopAllMonitoring(preserveActivities: imminentPrayers)
 
-        // Clear all saved schedules
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.removeObject(forKey: prayerScheduleKey)
-        }
+        // Note: stopAllMonitoring already handles preserving imminent prayer schedules in UserDefaults
 
-        // Aggressive cleanup
-        performAggressiveCleanup()
+        // Aggressive cleanup (skip imminent prayers)
+        performAggressiveCleanup(preserveActivities: imminentPrayers)
 
         // Clear any active blocking state
         let store = ManagedSettingsStore()

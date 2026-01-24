@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreLocation
+import UIKit
 
 // MARK: - Prayer Model
 struct Prayer {
@@ -105,6 +106,12 @@ struct PrayerTimeView: View {
             }
             viewModel.reloadCompletions()
             previousCompletedCount = viewModel.completedPrayers
+            // Check notification permission and update reminders accordingly
+            viewModel.checkNotificationPermissionAndUpdateReminders()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Refresh when returning from Settings
+            viewModel.checkNotificationPermissionAndUpdateReminders()
         }
         .onChange(of: viewModel.completedPrayers) { oldValue, newValue in
             // Show celebration when all 5 prayers completed (excluding Sunrise)
@@ -138,6 +145,16 @@ struct PrayerTimeView: View {
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .alert("Notifications Disabled", isPresented: $viewModel.showNotificationSettingsAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("To receive prayer reminders, please enable notifications in Settings.")
         }
     }
 

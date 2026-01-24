@@ -2,6 +2,7 @@ import SwiftUI
 import CoreLocation
 import Combine
 import WidgetKit
+import UserNotifications
 
 class PrayerTimeViewModel: NSObject, ObservableObject {
     // MARK: - Published Properties
@@ -24,6 +25,7 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     @Published var isLoadingFuturePrayers: Bool = false
     @Published var isRefreshingLocation: Bool = false
     @Published var isRefreshingSettings: Bool = false
+    @Published var showNotificationSettingsAlert: Bool = false
 
     // MARK: - Computed Properties
     var locationName: String {
@@ -130,13 +132,14 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             formatter.dateFormat = "HH:mm"
 
             // Default times (will be updated with actual API data)
+            // Load saved reminder preferences (default to false - no reminders unless user enables)
             prayers = [
-                Prayer(name: "Fajr", time: "5:35 AM", icon: "sunrise.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Sunrise", time: "7:02 AM", icon: "sun.max.fill", hasReminder: false, isCompleted: false),
-                Prayer(name: "Dhuhr", time: "1:08 PM", icon: "sun.min.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Asr", time: "4:51 PM", icon: "sun.dust.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Maghrib", time: "7:42 PM", icon: "sunset.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Isha", time: "9:15 PM", icon: "moon.stars.fill", hasReminder: true, isCompleted: false)
+                Prayer(name: "Fajr", time: "5:35 AM", icon: "sunrise.fill", hasReminder: loadReminderPreference(for: "Fajr", defaultValue: false), isCompleted: false),
+                Prayer(name: "Sunrise", time: "7:02 AM", icon: "sun.max.fill", hasReminder: loadReminderPreference(for: "Sunrise", defaultValue: false), isCompleted: false),
+                Prayer(name: "Dhuhr", time: "1:08 PM", icon: "sun.min.fill", hasReminder: loadReminderPreference(for: "Dhuhr", defaultValue: false), isCompleted: false),
+                Prayer(name: "Asr", time: "4:51 PM", icon: "sun.dust.fill", hasReminder: loadReminderPreference(for: "Asr", defaultValue: false), isCompleted: false),
+                Prayer(name: "Maghrib", time: "7:42 PM", icon: "sunset.fill", hasReminder: loadReminderPreference(for: "Maghrib", defaultValue: false), isCompleted: false),
+                Prayer(name: "Isha", time: "9:15 PM", icon: "moon.stars.fill", hasReminder: loadReminderPreference(for: "Isha", defaultValue: false), isCompleted: false)
             ]
         }
 
@@ -620,12 +623,12 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
             let sunriseTime = fajrTime.addingTimeInterval(90 * 60)
 
             updatedPrayers = [
-                Prayer(name: "Fajr", time: formatter12.string(from: fajrTime), icon: "sunrise.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Sunrise", time: formatter12.string(from: sunriseTime), icon: "sun.max.fill", hasReminder: false, isCompleted: false),
-                Prayer(name: "Dhuhr", time: formatter12.string(from: dhuhrTime), icon: "sun.min.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Asr", time: formatter12.string(from: asrTime), icon: "sun.dust.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Maghrib", time: formatter12.string(from: maghribTime), icon: "sunset.fill", hasReminder: true, isCompleted: false),
-                Prayer(name: "Isha", time: formatter12.string(from: ishaTime), icon: "moon.stars.fill", hasReminder: true, isCompleted: false)
+                Prayer(name: "Fajr", time: formatter12.string(from: fajrTime), icon: "sunrise.fill", hasReminder: loadReminderPreference(for: "Fajr", defaultValue: false), isCompleted: false),
+                Prayer(name: "Sunrise", time: formatter12.string(from: sunriseTime), icon: "sun.max.fill", hasReminder: loadReminderPreference(for: "Sunrise", defaultValue: false), isCompleted: false),
+                Prayer(name: "Dhuhr", time: formatter12.string(from: dhuhrTime), icon: "sun.min.fill", hasReminder: loadReminderPreference(for: "Dhuhr", defaultValue: false), isCompleted: false),
+                Prayer(name: "Asr", time: formatter12.string(from: asrTime), icon: "sun.dust.fill", hasReminder: loadReminderPreference(for: "Asr", defaultValue: false), isCompleted: false),
+                Prayer(name: "Maghrib", time: formatter12.string(from: maghribTime), icon: "sunset.fill", hasReminder: loadReminderPreference(for: "Maghrib", defaultValue: false), isCompleted: false),
+                Prayer(name: "Isha", time: formatter12.string(from: ishaTime), icon: "moon.stars.fill", hasReminder: loadReminderPreference(for: "Isha", defaultValue: false), isCompleted: false)
             ]
 
             prayers = updatedPrayers
@@ -645,16 +648,166 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
                 // Keep today's next prayer and countdown intact
             } else {
                 updatePrayerStates()
+                // Schedule reminders for today's prayers
+                scheduleAllPrayerReminders()
+            }
+        }
+    }
+
+    /// Schedule reminders for all prayers that have reminders enabled
+    private func scheduleAllPrayerReminders() {
+        let notificationService = PrayerNotificationService.shared
+
+        // Build array of prayers with their dates
+        var prayersWithDates: [(name: String, time: Date, hasReminder: Bool)] = []
+
+        for prayer in prayers {
+            if let prayerDate = getPrayerDate(for: prayer) {
+                prayersWithDates.append((name: prayer.name, time: prayerDate, hasReminder: prayer.hasReminder))
+            }
+        }
+
+        // Schedule all reminders
+        notificationService.scheduleAllPrayerReminders(prayers: prayersWithDates)
+    }
+
+    /// Check notification permission and update reminder states accordingly
+    func checkNotificationPermissionAndUpdateReminders() {
+        let notificationService = PrayerNotificationService.shared
+
+        // Use async check to get fresh permission status
+        Task {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+
+            await MainActor.run {
+                let isDenied = settings.authorizationStatus == .denied
+                let isAuthorized = settings.authorizationStatus == .authorized
+
+                // Update the notification service's published properties
+                notificationService.hasNotificationPermission = isAuthorized
+                notificationService.isNotificationPermissionDenied = isDenied
+
+                // If notifications are denied, disable all reminders
+                if isDenied {
+                    for i in 0..<prayers.count {
+                        if prayers[i].hasReminder {
+                            prayers[i].hasReminder = false
+                            UserDefaults.standard.set(false, forKey: "reminder_\(prayers[i].name)")
+                        }
+                    }
+                    // Clear any pending notifications
+                    notificationService.clearPrayerTimeReminders()
+                }
             }
         }
     }
 
     func toggleReminder(for prayerName: String) {
-        if let index = prayers.firstIndex(where: { $0.name == prayerName }) {
-            prayers[index].hasReminder.toggle()
-            // Save reminder preference
-            UserDefaults.standard.set(prayers[index].hasReminder, forKey: "reminder_\(prayerName)")
+        guard let index = prayers.firstIndex(where: { $0.name == prayerName }) else { return }
+
+        // If trying to enable reminder, check notification permission first
+        if !prayers[index].hasReminder {
+            // Check permission directly (fresh check)
+            Task {
+                let settings = await UNUserNotificationCenter.current().notificationSettings()
+
+                await MainActor.run {
+                    switch settings.authorizationStatus {
+                    case .denied:
+                        // Notifications denied - show alert to open settings
+                        HapticManager.shared.notification(.warning)
+                        showNotificationSettingsAlert = true
+
+                    case .notDetermined:
+                        // Request permission first
+                        Task {
+                            let granted = await PrayerNotificationService.shared.requestNotificationPermission()
+                            await MainActor.run {
+                                if granted {
+                                    enableReminder(for: prayerName, at: index)
+                                } else {
+                                    HapticManager.shared.notification(.error)
+                                }
+                            }
+                        }
+
+                    case .authorized, .provisional, .ephemeral:
+                        // Permission granted, enable reminder
+                        enableReminder(for: prayerName, at: index)
+
+                    @unknown default:
+                        break
+                    }
+                }
+            }
+        } else {
+            // Disabling reminder - always allowed
+            disableReminder(for: prayerName, at: index)
         }
+    }
+
+    private func enableReminder(for prayerName: String, at index: Int) {
+        prayers[index].hasReminder = true
+        UserDefaults.standard.set(true, forKey: "reminder_\(prayerName)")
+
+        if let prayerDate = getPrayerDate(for: prayers[index]) {
+            PrayerNotificationService.shared.schedulePrayerReminder(
+                prayerName: prayerName,
+                prayerTime: prayerDate,
+                minutesBefore: 0
+            )
+        }
+
+        HapticManager.shared.impact(.medium)
+    }
+
+    private func disableReminder(for prayerName: String, at index: Int) {
+        prayers[index].hasReminder = false
+        UserDefaults.standard.set(false, forKey: "reminder_\(prayerName)")
+
+        if let prayerDate = getPrayerDate(for: prayers[index]) {
+            PrayerNotificationService.shared.cancelPrayerReminder(prayerName: prayerName, prayerTime: prayerDate)
+        }
+
+        HapticManager.shared.impact(.light)
+    }
+
+    /// Convert a Prayer's time string to a Date (today or tomorrow if passed)
+    private func getPrayerDate(for prayer: Prayer) -> Date? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+
+        guard let time = formatter.date(from: prayer.time) else {
+            return nil
+        }
+
+        let calendar = Calendar.current
+        let now = Date()
+
+        var components = calendar.dateComponents([.hour, .minute], from: time)
+        components.year = calendar.component(.year, from: now)
+        components.month = calendar.component(.month, from: now)
+        components.day = calendar.component(.day, from: now)
+
+        guard var prayerDate = calendar.date(from: components) else {
+            return nil
+        }
+
+        // If prayer time has passed today, schedule for tomorrow
+        if prayerDate <= now {
+            prayerDate = calendar.date(byAdding: .day, value: 1, to: prayerDate) ?? prayerDate
+        }
+
+        return prayerDate
+    }
+
+    /// Load saved reminder preference for a prayer
+    private func loadReminderPreference(for prayerName: String, defaultValue: Bool) -> Bool {
+        // Check if there's a saved preference
+        if UserDefaults.standard.object(forKey: "reminder_\(prayerName)") != nil {
+            return UserDefaults.standard.bool(forKey: "reminder_\(prayerName)")
+        }
+        return defaultValue
     }
 
     func togglePrayerCompletion(for prayerName: String) {
@@ -806,8 +959,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         countryName = location.countryName
 
         // Convert cached prayers back to Prayer objects
+        // Use loadReminderPreference to get the current saved preference (default false)
         prayers = prayerTimes.map { cached in
-            Prayer(name: cached.name, time: cached.time, icon: cached.icon, hasReminder: cached.hasReminder, isCompleted: false)
+            Prayer(name: cached.name, time: cached.time, icon: cached.icon, hasReminder: loadReminderPreference(for: cached.name, defaultValue: false), isCompleted: false)
         }
 
         return true
