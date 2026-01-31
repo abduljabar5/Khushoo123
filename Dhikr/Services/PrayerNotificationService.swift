@@ -48,8 +48,13 @@ class PrayerNotificationService: ObservableObject {
         }
 
         do {
+            // Request time-sensitive authorization for prayer reminders
+            var options: UNAuthorizationOptions = [.alert, .sound, .badge]
+            if #available(iOS 15.0, *) {
+                options.insert(.timeSensitive)
+            }
             let granted = try await notificationCenter.requestAuthorization(
-                options: [.alert, .sound, .badge]
+                options: options
             )
 
             await MainActor.run {
@@ -101,6 +106,9 @@ class PrayerNotificationService: ObservableObject {
 
         var scheduledCount = 0
 
+        // Get location for notification
+        let cityName = getSavedCityName()
+
         for prayer in futurePrayers {
             // Notification should fire before BLOCKING starts (not prayer time)
             // Blocking starts at: prayer.date - bufferMinutes
@@ -114,18 +122,34 @@ class PrayerNotificationService: ObservableObject {
 
             let identifier = "\(prePrayerIdentifierPrefix)\(prayer.name)_\(Int(prayer.date.timeIntervalSince1970))"
 
+            // Format prayer time
+            let timeString = formatPrayerTime(prayer.date)
+            let emoji = iconForPrayer(prayer.name)
+
             // Create notification content
             let content = UNMutableNotificationContent()
-            content.title = "Focus Mode Starting Soon"
-            if bufferMinutes > 0 {
-                // With buffer: blocking starts before prayer
-                content.body = "\(prayer.name) prayer in \(Int(bufferMinutes) + minutesBefore) min. Focus mode starts in \(minutesBefore) min."
+
+            // Title format: "Fajr at 5:30 AM (Minneapolis)" or without city if not available
+            if !cityName.isEmpty {
+                content.title = "\(prayer.name) at \(timeString) (\(cityName)) \(emoji)"
             } else {
-                // No buffer: blocking starts at prayer time
-                content.body = "\(prayer.name) prayer starts in \(minutesBefore) minutes. Your apps will be blocked soon."
+                content.title = "\(prayer.name) at \(timeString) \(emoji)"
+            }
+
+            // Body: Focus mode warning with timing
+            if bufferMinutes > 0 {
+                let totalMinutes = Int(bufferMinutes) + minutesBefore
+                content.body = "Focus mode starts in \(minutesBefore) min. Prepare for prayer in \(totalMinutes) min."
+            } else {
+                content.body = "Focus mode starting in \(minutesBefore) min. Prepare your heart for prayer."
             }
             content.sound = .default
             content.badge = 1
+
+            // Set time-sensitive interruption level (iOS 15+)
+            if #available(iOS 15.0, *) {
+                content.interruptionLevel = .timeSensitive
+            }
 
             // Create trigger
             let triggerComponents = Calendar.current.dateComponents(
@@ -238,12 +262,31 @@ class PrayerNotificationService: ObservableObject {
         let dayComponents = calendar.dateComponents([.year, .month, .day], from: prayerTime)
         let identifier = "\(prayerReminderIdentifierPrefix)\(prayerName)_\(dayComponents.year ?? 0)_\(dayComponents.month ?? 0)_\(dayComponents.day ?? 0)"
 
-        // Create notification content
+        // Get location and format time
+        let cityName = getSavedCityName()
+        let timeString = formatPrayerTime(prayerTime)
+        let emoji = iconForPrayer(prayerName)
+        let quote = getQuoteForPrayer(prayerName)
+
+        // Create notification content with rich formatting like Muslim Pro
         let content = UNMutableNotificationContent()
-        content.title = "\(prayerName) Prayer"
-        content.body = "It's time for \(prayerName) prayer"
+
+        // Title format: "Fajr at 5:30 AM (Minneapolis)" or "Fajr at 5:30 AM" if no city
+        if !cityName.isEmpty {
+            content.title = "\(prayerName) at \(timeString) (\(cityName))"
+        } else {
+            content.title = "\(prayerName) at \(timeString)"
+        }
+
+        // Body: Hadith quote with emoji
+        content.body = "\(quote) \(emoji)"
         content.sound = .default
         content.categoryIdentifier = "PRAYER_REMINDER"
+
+        // Set time-sensitive interruption level (iOS 15+)
+        if #available(iOS 15.0, *) {
+            content.interruptionLevel = .timeSensitive
+        }
 
         // Create trigger
         let triggerComponents = calendar.dateComponents(
@@ -336,9 +379,82 @@ class PrayerNotificationService: ObservableObject {
         case "Fajr": return "🌅"
         case "Dhuhr": return "☀️"
         case "Asr": return "🌤️"
-        case "Maghrib": return "🌅"
+        case "Maghrib": return "🌇"
         case "Isha": return "🌙"
         default: return "🕌"
         }
+    }
+
+    // MARK: - Hadith & Islamic Quotes for Each Prayer
+
+    private func getQuoteForPrayer(_ prayerName: String) -> String {
+        let fajrQuotes = [
+            "\"Whoever prays Fajr is under Allah's protection.\" (Muslim)",
+            "\"The two Rak'ahs of Fajr are better than the world and all it contains.\" (Muslim)",
+            "\"Whoever prays the two cool prayers (Fajr & Asr) will enter Paradise.\" (Bukhari)",
+            "\"Angels take turns among you by night and by day.\" (Bukhari)",
+            "\"The most burdensome prayers for the hypocrites are Isha and Fajr.\" (Bukhari)"
+        ]
+
+        let dhuhrQuotes = [
+            "\"The best of deeds is prayer at its proper time.\" (Bukhari)",
+            "\"Between a man and disbelief is abandoning prayer.\" (Muslim)",
+            "\"Prayer is the pillar of the religion.\" (Tirmidhi)",
+            "\"The first matter to be judged on the Day of Resurrection will be prayer.\" (Nasa'i)",
+            "\"Pray as you have seen me praying.\" (Bukhari)"
+        ]
+
+        let asrQuotes = [
+            "\"Whoever misses Asr prayer, it is as if he lost his family and property.\" (Bukhari)",
+            "\"Whoever prays the two cool prayers (Fajr & Asr) will enter Paradise.\" (Bukhari)",
+            "\"Guard strictly the prayers, especially the middle prayer.\" (Quran 2:238)",
+            "\"The angels of night and day meet at Asr prayer.\" (Bukhari)",
+            "\"Do not miss Asr prayer intentionally.\" (Bukhari)"
+        ]
+
+        let maghribQuotes = [
+            "\"Pray Maghrib when the sun sets.\" (Bukhari)",
+            "\"Hasten to break your fast and delay your Suhur.\" (Tirmidhi)",
+            "\"The supplication at the time of breaking fast is not rejected.\" (Ibn Majah)",
+            "\"Whoever feeds a fasting person will have a reward like his.\" (Tirmidhi)",
+            "\"Between each Adhan and Iqamah there is a prayer.\" (Bukhari)"
+        ]
+
+        let ishaQuotes = [
+            "\"Those who go to the masjid at night will have perfect light on the Day of Judgement.\" (Tabarani)",
+            "\"Whoever prays Isha in congregation, it is as if he prayed half the night.\" (Muslim)",
+            "\"The best prayer after the obligatory is the night prayer.\" (Muslim)",
+            "\"Our Lord descends every night to the lowest heaven.\" (Bukhari)",
+            "\"End your day strong; pray & track for consistency.\" 🌙"
+        ]
+
+        let quotes: [String]
+        switch prayerName {
+        case "Fajr": quotes = fajrQuotes
+        case "Dhuhr": quotes = dhuhrQuotes
+        case "Asr": quotes = asrQuotes
+        case "Maghrib": quotes = maghribQuotes
+        case "Isha": quotes = ishaQuotes
+        default: quotes = dhuhrQuotes
+        }
+
+        return quotes.randomElement() ?? quotes[0]
+    }
+
+    // MARK: - Location Helper
+
+    private func getSavedCityName() -> String {
+        if let city = UserDefaults.standard.string(forKey: "savedCity"), !city.isEmpty {
+            return city
+        }
+        return ""
+    }
+
+    // MARK: - Time Formatting
+
+    private func formatPrayerTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: date)
     }
 }

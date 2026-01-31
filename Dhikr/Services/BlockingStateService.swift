@@ -322,9 +322,9 @@ class BlockingStateService: ObservableObject {
         let bufferSeconds = bufferMinutes * 60
 
         // Discover the active schedule window (if any) and track next upcoming start
-        // Note: "date" in schedule is the ACTUAL prayer time, but blocking starts buffer minutes before
-        // Duration is measured FROM PRAYER TIME (not blocking start)
-        var activeStart: Date?  // The actual blocking start (prayer time - buffer)
+        // Note: "date" in schedule is the BLOCKING START TIME (prayer time - buffer)
+        // We need to add buffer back to get the actual prayer time
+        var activeStart: Date?  // The actual blocking start (stored as "date")
         var activeEnd: Date?    // The actual blocking end (prayer time + duration)
         var activeName: String?
         var activePrayerTime: Date?  // The original prayer time (for early unlock calculation)
@@ -333,10 +333,11 @@ class BlockingStateService: ObservableObject {
             guard let name = schedule["name"] as? String,
                   let timestamp = schedule["date"] as? TimeInterval,
                   let duration = schedule["duration"] as? Double else { continue }
-            let prayerTime = Date(timeIntervalSince1970: timestamp)
-            // Blocking starts before prayer time by buffer amount
-            let blockingStart = prayerTime.addingTimeInterval(-bufferSeconds)
-            // Duration is measured from PRAYER TIME, not blocking start
+            // "date" is the blocking start time (prayer time - buffer), NOT the prayer time
+            let blockingStart = Date(timeIntervalSince1970: timestamp)
+            // Calculate actual prayer time by adding buffer back
+            let prayerTime = blockingStart.addingTimeInterval(bufferSeconds)
+            // Duration is measured from PRAYER TIME, so end = prayer time + duration
             let blockingEnd = prayerTime.addingTimeInterval(duration)
             if now >= blockingStart && now <= blockingEnd {
                 activeStart = blockingStart
@@ -355,22 +356,23 @@ class BlockingStateService: ObservableObject {
         if appsActuallyBlocked && earlyUnlockAvailableAt == nil {
             if let blkStart = blockingStartTime {
                 // Find the prayer that best matches when blocking started
-                // Note: prayer.start is the PRAYER time, blocking starts at prayer.start - buffer
+                // Note: "date" in schedule is BLOCKING START TIME, add buffer to get prayer time
                 let mappedPrayer = prayerSchedules
-                    .compactMap { schedule -> (name: String, prayerTime: Date, duration: Double)? in
+                    .compactMap { schedule -> (name: String, prayerTime: Date, blockingStart: Date, duration: Double)? in
                         guard let name = schedule["name"] as? String,
                               let ts = schedule["date"] as? TimeInterval,
                               let duration = schedule["duration"] as? Double else { return nil }
-                        return (name, Date(timeIntervalSince1970: ts), duration)
+                        // "date" is blocking start, add buffer to get actual prayer time
+                        let blockingStart = Date(timeIntervalSince1970: ts)
+                        let prayerTime = blockingStart.addingTimeInterval(bufferSeconds)
+                        return (name, prayerTime, blockingStart, duration)
                     }
                     .filter { prayer in
-                        // Blocking starts at prayer time - buffer
                         // Duration is measured from prayer time
-                        let blockingStart = prayer.prayerTime.addingTimeInterval(-bufferSeconds)
                         let blockingEnd = prayer.prayerTime.addingTimeInterval(prayer.duration)
-                        return blockingStart <= blkStart && blkStart <= blockingEnd
+                        return prayer.blockingStart <= blkStart && blkStart <= blockingEnd
                     }
-                    .min(by: { abs($0.prayerTime.timeIntervalSince(blkStart)) < abs($1.prayerTime.timeIntervalSince(blkStart)) })
+                    .min(by: { abs($0.blockingStart.timeIntervalSince(blkStart)) < abs($1.blockingStart.timeIntervalSince(blkStart)) })
 
                 if let prayer = mappedPrayer {
                     // Early unlock is 5 min after PRAYER TIME (not blocking start)
@@ -465,8 +467,8 @@ class BlockingStateService: ObservableObject {
         let waitingForVoiceFromMonitor = groupDefaults.bool(forKey: "isWaitingForVoiceConfirmation")
         
         // Find if we're currently in a blocking period
-        // Note: "date" in schedule is the ACTUAL prayer time, but blocking starts buffer minutes before
-        // Duration is measured FROM PRAYER TIME (not blocking start)
+        // Note: "date" in schedule is the BLOCKING START TIME (prayer time - buffer)
+        // We need to add buffer back to get the actual prayer time
         for (_, schedule) in prayerSchedules.enumerated() {
             guard let name = schedule["name"] as? String,
                   let timestamp = schedule["date"] as? TimeInterval,
@@ -474,11 +476,11 @@ class BlockingStateService: ObservableObject {
                 continue
             }
 
-            // Early stop fields removed; use duration as the end time
-            let prayerTime = Date(timeIntervalSince1970: timestamp)
-            // Blocking starts before prayer time by buffer amount
-            let blockingStartTime = prayerTime.addingTimeInterval(-bufferSeconds)
-            // Duration is measured from PRAYER TIME, not blocking start
+            // "date" is the blocking start time (prayer time - buffer), NOT the prayer time
+            let blockingStartTime = Date(timeIntervalSince1970: timestamp)
+            // Calculate actual prayer time by adding buffer back
+            let prayerTime = blockingStartTime.addingTimeInterval(bufferSeconds)
+            // Duration is measured from PRAYER TIME, so end = prayer time + duration
             let effectiveEndTime = prayerTime.addingTimeInterval(duration)
 
             // Check if we're currently in the blocking period (using buffer-adjusted times)
@@ -573,12 +575,23 @@ class BlockingStateService: ObservableObject {
         // Mark prayers as completed when user confirms with Wallahi
         markPrayersAsCompleted()
 
-        // Clear the actual ManagedSettings restrictions
+        // Clear the actual ManagedSettings restrictions (preserve Haya Mode if enabled)
         let store = ManagedSettingsStore()
-        store.clearAllSettings()
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let hayaModeEnabled = groupDefaults?.bool(forKey: "focusHayaMode") ?? false
+
+        // Clear app shields
+        store.shield.applications = nil
+        store.shield.applicationCategories = nil
+        store.shield.webDomains = nil
+
+        // Only clear web content filter if Haya Mode is OFF
+        if !hayaModeEnabled {
+            store.webContent.blockedByFilter = nil
+        }
 
         // Clear the voice confirmation flag in UserDefaults
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+        if let groupDefaults = groupDefaults {
             groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
             groupDefaults.removeObject(forKey: "earlyUnlockedUntil")
             groupDefaults.set(false, forKey: "appsActuallyBlocked")
@@ -673,9 +686,16 @@ class BlockingStateService: ObservableObject {
     /// Returns time remaining (in seconds) until early unlock becomes available.
     /// This counts down to 5 minutes after the prayer start time, regardless of when shields applied.
     func timeUntilEarlyUnlock() -> TimeInterval {
-        let target = earlyUnlockAvailableAt ?? (blockingStartTime?.addingTimeInterval(5 * 60))
-        guard let availableAt = target else { return 0 }
-        return max(0, availableAt.timeIntervalSince(Date()))
+        if let target = earlyUnlockAvailableAt {
+            return max(0, target.timeIntervalSince(Date()))
+        }
+        // Fallback: calculate from blocking start time
+        // Early unlock = blocking start + buffer (to get prayer time) + 5 minutes
+        guard let blockingStart = blockingStartTime else { return 0 }
+        let bufferMinutes = UserDefaults(suiteName: "group.fm.mrc.Dhikr")?.double(forKey: "focusPrePrayerBuffer") ?? 0
+        let prayerTime = blockingStart.addingTimeInterval(bufferMinutes * 60)
+        let earlyUnlockTarget = prayerTime.addingTimeInterval(5 * 60)
+        return max(0, earlyUnlockTarget.timeIntervalSince(Date()))
     }
     
     /// Perform early unlock for the current interval (strict mode must be off)
@@ -686,12 +706,23 @@ class BlockingStateService: ObservableObject {
         // Mark current prayer as completed when user early unlocks
         markCurrentPrayerAsCompleted()
 
-        // Clear ManagedSettings to unblock immediately
+        // Clear ManagedSettings to unblock immediately (preserve Haya Mode if enabled)
         let store = ManagedSettingsStore()
-        store.clearAllSettings()
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let hayaModeEnabled = groupDefaults?.bool(forKey: "focusHayaMode") ?? false
+
+        // Clear app shields
+        store.shield.applications = nil
+        store.shield.applicationCategories = nil
+        store.shield.webDomains = nil
+
+        // Only clear web content filter if Haya Mode is OFF
+        if !hayaModeEnabled {
+            store.webContent.blockedByFilter = nil
+        }
 
         // Mark early-unlocked window until the scheduled end and immediately hide banners
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+        if let groupDefaults = groupDefaults {
             groupDefaults.set(endTime.timeIntervalSince1970, forKey: "earlyUnlockedUntil")
             groupDefaults.set(false, forKey: "appsActuallyBlocked")
             groupDefaults.removeObject(forKey: "blockingStartTime")

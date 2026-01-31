@@ -660,7 +660,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
-                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.1", accentColor: warmGray)
+                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.3", accentColor: warmGray)
 
                 SacredDivider()
 

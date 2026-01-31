@@ -788,6 +788,15 @@ class DeviceActivityService: ObservableObject {
         let store = ManagedSettingsStore()
         store.clearAllSettings()
 
+        // Clear early unlock keys to prevent stale state affecting first blocking after reschedule
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+            groupDefaults.removeObject(forKey: "earlyUnlockPrayerName")
+            groupDefaults.removeObject(forKey: "earlyUnlockPrayerStart")
+            groupDefaults.removeObject(forKey: "currentPrayerTime")
+            groupDefaults.synchronize()
+        }
+
         // Brief pause to allow activities to stop (reduced from 2 seconds)
         Thread.sleep(forTimeInterval: 0.1)
 

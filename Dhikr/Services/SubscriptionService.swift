@@ -45,6 +45,12 @@ class SubscriptionService: ObservableObject {
         return isPremium || hasGrantedAccess
     }
 
+    /// Whether the subscription service has completed a verified check with StoreKit
+    /// Use this to avoid race conditions - only trust hasPremiumAccess if this is true
+    var hasVerifiedPremiumStatus: Bool {
+        return hasCompletedSuccessfulCheck
+    }
+
     private var updateListenerTask: Task<Void, Error>?
     private let db = Firestore.firestore()
     private var authStateHandle: AuthStateDidChangeListenerHandle?

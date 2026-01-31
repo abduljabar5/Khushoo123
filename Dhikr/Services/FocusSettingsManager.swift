@@ -3,6 +3,7 @@ import Combine
 import SwiftUI
 import DeviceActivity
 import FamilyControls
+import ManagedSettings
 
 @MainActor
 class FocusSettingsManager: ObservableObject {
@@ -68,6 +69,108 @@ class FocusSettingsManager: ObservableObject {
         }
     }
 
+    /// Haya Mode - blocks adult content when enabled (persists until turned off)
+    /// Note: Do not set this directly for disabling - use requestHayaModeDisable() instead
+    @Published var hayaMode: Bool {
+        didSet {
+            dirtyMetadata = true
+            if hayaMode {
+                // Enabling - apply immediately and clear any pending disable
+                hayaModeDisableRequestedAt = nil
+                applyHayaModeFilter(true)
+            }
+            // Note: Disabling is handled by completeHayaModeDisable() after 48-hour delay
+            subject.send()
+        }
+    }
+
+    /// Timestamp when user requested to disable Haya Mode (48-hour delay)
+    @Published var hayaModeDisableRequestedAt: Date? {
+        didSet {
+            syncHayaModeDisableRequest()
+        }
+    }
+
+    /// Whether a disable request is pending (waiting for 48 hours)
+    var hayaModeDisablePending: Bool {
+        return hayaModeDisableRequestedAt != nil
+    }
+
+    /// Time remaining until Haya Mode can be disabled (in seconds)
+    var hayaModeTimeUntilDisable: TimeInterval {
+        guard let requestedAt = hayaModeDisableRequestedAt else { return 0 }
+        let disableTime = requestedAt.addingTimeInterval(48 * 60 * 60) // 48 hours
+        return max(0, disableTime.timeIntervalSince(Date()))
+    }
+
+    /// Formatted time remaining (e.g., "47h 32m")
+    var hayaModeTimeUntilDisableFormatted: String {
+        let remaining = hayaModeTimeUntilDisable
+        if remaining <= 0 { return "Ready" }
+        let hours = Int(remaining) / 3600
+        let minutes = (Int(remaining) % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+
+    /// Request to disable Haya Mode (starts 48-hour countdown)
+    func requestHayaModeDisable() {
+        hayaModeDisableRequestedAt = Date()
+        print("🛡️ Haya Mode: Disable requested - 48 hour countdown started")
+    }
+
+    /// Cancel a pending disable request
+    func cancelHayaModeDisableRequest() {
+        hayaModeDisableRequestedAt = nil
+        print("🛡️ Haya Mode: Disable request cancelled")
+    }
+
+    /// Complete the disable if 48 hours have passed
+    /// Returns true if disable was completed, false if still waiting
+    @discardableResult
+    func completeHayaModeDisableIfReady() -> Bool {
+        guard hayaModeDisableRequestedAt != nil else { return false }
+
+        if hayaModeTimeUntilDisable <= 0 {
+            // 48 hours have passed - actually disable
+            hayaModeDisableRequestedAt = nil
+            hayaMode = false
+            applyHayaModeFilter(false)
+            print("🛡️ Haya Mode: 48 hours passed - filter DISABLED")
+            return true
+        }
+        return false
+    }
+
+    private func syncHayaModeDisableRequest() {
+        let defaults = UserDefaults.standard
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+
+        if let timestamp = hayaModeDisableRequestedAt?.timeIntervalSince1970 {
+            defaults.set(timestamp, forKey: "hayaModeDisableRequestedAt")
+            groupDefaults?.set(timestamp, forKey: "hayaModeDisableRequestedAt")
+        } else {
+            defaults.removeObject(forKey: "hayaModeDisableRequestedAt")
+            groupDefaults?.removeObject(forKey: "hayaModeDisableRequestedAt")
+        }
+        groupDefaults?.synchronize()
+    }
+
+    /// Apply or remove the adult content filter based on Haya Mode state
+    private func applyHayaModeFilter(_ enabled: Bool) {
+        let store = ManagedSettingsStore()
+        if enabled {
+            store.webContent.blockedByFilter = .auto()
+            print("🛡️ Haya Mode: Adult content filter ENABLED")
+        } else {
+            store.webContent.blockedByFilter = nil
+            print("🛡️ Haya Mode: Adult content filter DISABLED")
+        }
+    }
+
     // App selection state (for UI to know if prayers should be disabled)
     @Published var hasAppsSelected: Bool = false
 
@@ -108,6 +211,19 @@ class FocusSettingsManager: ObservableObject {
 
         self.strictMode = groupDefaults?.bool(forKey: "focusStrictMode") ?? defaults.bool(forKey: "focusStrictMode")
         self.prayerRemindersEnabled = groupDefaults?.bool(forKey: "prayerRemindersEnabled") ?? defaults.bool(forKey: "prayerRemindersEnabled")
+        self.hayaMode = groupDefaults?.bool(forKey: "focusHayaMode") ?? defaults.bool(forKey: "focusHayaMode")
+
+        // Load pending disable request timestamp
+        if let disableTimestamp = groupDefaults?.double(forKey: "hayaModeDisableRequestedAt"), disableTimestamp > 0 {
+            self.hayaModeDisableRequestedAt = Date(timeIntervalSince1970: disableTimestamp)
+        }
+
+        // Re-apply Haya Mode filter on app launch if it was enabled
+        if self.hayaMode {
+            applyHayaModeFilter(true)
+            // Check if 48 hours have passed while app was closed
+            completeHayaModeDisableIfReady()
+        }
 
         // Check initial app selection state
         refreshAppSelection()
@@ -277,6 +393,7 @@ class FocusSettingsManager: ObservableObject {
         setBoth(selectedIsha, forKey: "focusSelectedIsha")
         setBoth(strictMode, forKey: "focusStrictMode")
         setBoth(prayerRemindersEnabled, forKey: "prayerRemindersEnabled")
+        setBoth(hayaMode, forKey: "focusHayaMode")
 
         groupDefaults?.synchronize()
     }

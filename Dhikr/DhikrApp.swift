@@ -169,10 +169,8 @@ struct DhikrApp: App {
 
             // CRITICAL: Check if user is blocked but no longer has premium
             // This handles the case where premium expired while app was in background/closed
-            // Delay slightly to allow subscription service to finish syncing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.checkAndUnblockIfPremiumExpired()
-            }
+            // Use retry mechanism to wait for subscription verification to complete
+            checkPremiumStatusWithRetry(attempt: 1, maxAttempts: 3)
 
             // If audio is playing, show full-screen player (for lock screen/control center taps)
             if audioPlayerService.isPlaying && audioPlayerService.currentSurah != nil {
@@ -347,9 +345,37 @@ struct DhikrApp: App {
         }
     }
 
+    /// Retry checking premium status until verification completes or max attempts reached
+    private func checkPremiumStatusWithRetry(attempt: Int, maxAttempts: Int) {
+        // Delay increases with each attempt: 1s, 2s, 3s
+        let delay = Double(attempt)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            // If verification completed, run the check
+            if self.subscriptionService.hasVerifiedPremiumStatus {
+                self.checkAndUnblockIfPremiumExpired()
+            } else if attempt < maxAttempts {
+                // Retry if not yet verified and attempts remaining
+                print("⏳ [DhikrApp] Premium verification pending, retry \(attempt + 1)/\(maxAttempts)")
+                self.checkPremiumStatusWithRetry(attempt: attempt + 1, maxAttempts: maxAttempts)
+            } else {
+                // Max attempts reached - verification never completed
+                // This is fine, user probably has premium (cached) and StoreKit is just slow
+                print("⏳ [DhikrApp] Premium verification didn't complete after \(maxAttempts) attempts - skipping check")
+            }
+        }
+    }
+
     /// Check if user is currently blocked but no longer has premium access
     /// This handles edge cases where premium expired while app was closed/background
     private func checkAndUnblockIfPremiumExpired() {
+        // CRITICAL: Only proceed if subscription service has completed verification
+        // This prevents race condition where we check before StoreKit sync completes
+        guard subscriptionService.hasVerifiedPremiumStatus else {
+            print("⏳ [DhikrApp] Subscription status not yet verified - skipping premium check")
+            return
+        }
+
         // Check if user currently has apps blocked or is waiting for voice confirmation
         let blockingState = BlockingStateService.shared
         let isBlocked = blockingState.appsActuallyBlocked ||
@@ -361,11 +387,11 @@ struct DhikrApp: App {
             return
         }
 
-        // Check if user has premium access
+        // Now we can trust hasPremiumAccess since verification completed
         let hasPremium = subscriptionService.hasPremiumAccess
 
         if !hasPremium {
-            print("🚨 [DhikrApp] User is blocked but premium expired - unblocking immediately")
+            print("🚨 [DhikrApp] User is blocked but premium VERIFIED as expired - unblocking immediately")
 
             // Clear the actual app shields
             let store = ManagedSettingsStore()

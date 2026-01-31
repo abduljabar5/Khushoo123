@@ -1650,6 +1650,12 @@ private struct SacredAdditionalSettingsView: View {
     @StateObject private var focusManager = FocusSettingsManager.shared
     @State private var showingPermissionDeniedAlert = false
     @State private var showingNotificationDeniedAlert = false
+    // Haya Mode alerts
+    @State private var showingHayaModeEnableAlert = false
+    @State private var showingHayaModeDisableStep1Alert = false
+    @State private var showingHayaModeDisableStep2Alert = false
+    // Timer for Haya Mode countdown
+    private let hayaModeTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private var sacredGold: Color {
         Color(red: 0.77, green: 0.65, blue: 0.46)
@@ -1729,6 +1735,61 @@ private struct SacredAdditionalSettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .opacity(isDisabled ? 0.5 : 1.0)
+
+                Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
+
+                // Haya Mode - Adult Content Filter
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Haya Mode")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(themeManager.theme.primaryText)
+
+                        if focusManager.hayaModeDisablePending {
+                            Text("Disabling in \(focusManager.hayaModeTimeUntilDisableFormatted)")
+                                .font(.system(size: 12, weight: .light))
+                                .foregroundColor(sacredGold)
+                        } else {
+                            Text("Block adult content")
+                                .font(.system(size: 12, weight: .light))
+                                .foregroundColor(warmGray)
+                        }
+                    }
+
+                    Spacer()
+
+                    if focusManager.hayaModeDisablePending {
+                        // Show cancel button when disable is pending
+                        Button(action: {
+                            focusManager.cancelHayaModeDisableRequest()
+                        }) {
+                            Text("Cancel")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(sacredGold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(sacredGold.opacity(0.15))
+                                .cornerRadius(8)
+                        }
+                    } else {
+                        Toggle("", isOn: Binding(
+                            get: { focusManager.hayaMode },
+                            set: { newValue in
+                                if newValue {
+                                    // Trying to enable - show warning first
+                                    showingHayaModeEnableAlert = true
+                                } else {
+                                    // Trying to disable - show guilt warning first
+                                    showingHayaModeDisableStep1Alert = true
+                                }
+                            }
+                        ))
+                        .toggleStyle(SwitchToggleStyle(tint: softGreen))
+                        .labelsHidden()
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
 
                 Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
 
@@ -1827,6 +1888,45 @@ private struct SacredAdditionalSettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Pre-prayer notifications require notification permissions. Please enable them in Settings.")
+        }
+        // Haya Mode - Enable Warning
+        .alert("Enable Haya Mode?", isPresented: $showingHayaModeEnableAlert) {
+            Button("Enable", role: .destructive) {
+                focusManager.hayaMode = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Haya Mode blocks adult content to help you maintain modesty and focus.\n\nOnce enabled, it takes 48 hours to disable. This waiting period helps you stay committed during moments of weakness.")
+        }
+        // Haya Mode - Disable Step 1 (Guilt)
+        .alert("Remember Your Intention", isPresented: $showingHayaModeDisableStep1Alert) {
+            Button("I Still Want to Disable", role: .destructive) {
+                showingHayaModeDisableStep2Alert = true
+            }
+            Button("Keep It On", role: .cancel) { }
+        } message: {
+            Text("You enabled Haya Mode to protect yourself from content that distances you from Allah.\n\n\"Indeed, Allah is with those who are patient.\" - Quran 2:153\n\nAre you sure you want to disable this protection?")
+        }
+        // Haya Mode - Disable Step 2 (48hr Notice)
+        .alert("48-Hour Waiting Period", isPresented: $showingHayaModeDisableStep2Alert) {
+            Button("Start 48hr Countdown", role: .destructive) {
+                focusManager.requestHayaModeDisable()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("To help you overcome momentary temptation, Haya Mode will remain active for 48 more hours.\n\nIf you still want it disabled after this period, it will turn off automatically.")
+        }
+        .onReceive(hayaModeTimer) { _ in
+            // Check if 48 hours have passed and complete disable if ready
+            if focusManager.hayaModeDisablePending {
+                focusManager.completeHayaModeDisableIfReady()
+            }
+        }
+        .onAppear {
+            // Check on appear in case 48 hours passed while view was not visible
+            if focusManager.hayaModeDisablePending {
+                focusManager.completeHayaModeDisableIfReady()
+            }
         }
     }
 }

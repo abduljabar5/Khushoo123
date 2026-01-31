@@ -76,8 +76,15 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         store.shield.webDomains = selection.webDomainTokens.isEmpty ? nil : selection.webDomainTokens
         log("✅ Shield restrictions applied successfully", activity: activity.rawValue)
 
+        // 3. Apply Haya Mode (adult content filter) if enabled
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let hayaModeEnabled = groupDefaults?.bool(forKey: "focusHayaMode") ?? false
+        if hayaModeEnabled {
+            store.webContent.blockedByFilter = .auto()
+            log("🛡️ Haya Mode: Adult content filter applied", activity: activity.rawValue)
+        }
 
-        // 3. Update State for Main App
+        // 4. Update State for Main App
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.set(now.timeIntervalSince1970, forKey: "blockingStartTime")
             groupDefaults.set(true, forKey: "appsActuallyBlocked")
@@ -140,7 +147,22 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         } else {
             // In normal mode, clear restrictions immediately
             log("🔓 Normal mode - clearing all restrictions", activity: activity.rawValue)
-            store.clearAllSettings()
+
+            // Check if Haya Mode is enabled - if so, preserve the web content filter
+            let hayaModeEnabled = groupDefaults?.bool(forKey: "focusHayaMode") ?? false
+
+            // Clear app shields
+            store.shield.applications = nil
+            store.shield.applicationCategories = nil
+            store.shield.webDomains = nil
+
+            // Only clear web content filter if Haya Mode is OFF
+            if !hayaModeEnabled {
+                store.webContent.blockedByFilter = nil
+            } else {
+                log("🛡️ Haya Mode active - preserving adult content filter", activity: activity.rawValue)
+            }
+
             groupDefaults?.set(false, forKey: "appsActuallyBlocked")
             groupDefaults?.removeObject(forKey: "currentPrayerName")
             groupDefaults?.removeObject(forKey: "currentPrayerTime")
