@@ -73,7 +73,20 @@ struct PrayerProvider: TimelineProvider {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else {
             return false
         }
-        return groupDefaults.bool(forKey: "isPremiumUser") || groupDefaults.bool(forKey: "hasGrantedAccess")
+        // Check paid subscription
+        if groupDefaults.bool(forKey: "isPremiumUser") {
+            return true
+        }
+        // Check manual grant (influencers, gifts)
+        if groupDefaults.bool(forKey: "hasManualGrant") {
+            return true
+        }
+        // Check active trial
+        if let trialExpiration = groupDefaults.object(forKey: "trialExpirationDate") as? Date,
+           Date() < trialExpiration {
+            return true
+        }
+        return false
     }
 
     private func loadPrayers() -> [PrayerItem] {

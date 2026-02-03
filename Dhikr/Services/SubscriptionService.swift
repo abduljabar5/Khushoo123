@@ -35,14 +35,20 @@ class SubscriptionService: ObservableObject {
     static let shared = SubscriptionService()
 
     @Published private(set) var isPremium: Bool = false
-    @Published private(set) var hasGrantedAccess: Bool = false  // Manually granted access (influencers, gifts, etc.)
+    @Published private(set) var hasManualGrant: Bool = false  // Manually granted access (influencers, gifts, etc.) - permanent
     @Published private(set) var subscriptionStatus: Product.SubscriptionInfo.Status?
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var purchaseState: PurchaseState = .idle
 
-    /// Combined check: user has premium access if they have a subscription OR granted access
+    /// Combined check: user has premium access if they have a subscription, active trial, OR manual grant
     var hasPremiumAccess: Bool {
-        return isPremium || hasGrantedAccess
+        return isPremium || isOnTrial || hasManualGrant
+    }
+
+    /// Legacy property - use hasPremiumAccess instead
+    @available(*, deprecated, message: "Use hasPremiumAccess, isOnTrial, or hasManualGrant instead")
+    var hasGrantedAccess: Bool {
+        return isOnTrial || hasManualGrant
     }
 
     /// Whether the subscription service has completed a verified check with StoreKit
@@ -57,7 +63,7 @@ class SubscriptionService: ObservableObject {
     private var currentUserId: String?
     private var isInitialSync: Bool = true  // Track if this is the first sync to avoid false "became premium" triggers
     private var productsLoaded: Bool = false  // Track if products have been loaded
-    private var hasCompletedSuccessfulCheck: Bool = false  // Track if we've done a successful StoreKit check
+    @Published private(set) var hasCompletedSuccessfulCheck: Bool = false  // Track if we've done a successful StoreKit check
 
     enum PurchaseState: Equatable {
         case idle
@@ -87,15 +93,34 @@ class SubscriptionService: ObservableObject {
                 print("✅ [SubscriptionService] Loaded cached premium status: true")
             }
 
-            // Load cached granted access status
-            let cachedGrantedAccess = groupDefaults.bool(forKey: "hasGrantedAccess")
-            if cachedGrantedAccess {
-                self.hasGrantedAccess = true
-                print("✅ [SubscriptionService] Loaded cached granted access: true")
+            // Load cached manual grant status (from Firestore - influencers, gifts)
+            let cachedManualGrant = groupDefaults.bool(forKey: "hasManualGrant")
+            if cachedManualGrant {
+                self.hasManualGrant = true
+                print("✅ [SubscriptionService] Loaded cached manual grant: true")
+            }
+
+            // Check for 7-day trial for new users
+            if let trialExpirationDate = groupDefaults.object(forKey: "trialExpirationDate") as? Date {
+                // Existing user - trial status will be computed via isOnTrial
+                if Date() < trialExpirationDate {
+                    print("✅ [SubscriptionService] Trial still active until: \(trialExpirationDate)")
+                } else {
+                    print("⏰ [SubscriptionService] Trial expired on: \(trialExpirationDate)")
+                }
+            } else {
+                // New user - grant 7-day trial
+                let trialExpiration = Date().addingTimeInterval(7 * 24 * 60 * 60)
+                groupDefaults.set(trialExpiration, forKey: "trialExpirationDate")
+                groupDefaults.synchronize()
+                print("🎁 [SubscriptionService] New user - granted trial until: \(trialExpiration)")
+
+                // Track trial started
+                AnalyticsService.shared.trackTrialStarted()
             }
 
             // Refresh widgets immediately if user has cached premium access
-            if cachedPremium || cachedGrantedAccess {
+            if cachedPremium || self.hasManualGrant || self.isOnTrial {
                 WidgetCenter.shared.reloadAllTimelines()
             }
         }
@@ -265,19 +290,12 @@ class SubscriptionService: ObservableObject {
                 }
             }
         } else {
-            // User is actually signed out - but preserve cached hasGrantedAccess if we haven't verified yet
-            // This prevents clearing the cache before Firebase auth has fully initialized
-            if hasCompletedSuccessfulCheck {
-                // We've done a successful check before, so user is truly signed out
-                self.hasGrantedAccess = false
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(false, forKey: "hasGrantedAccess")
-                    groupDefaults.synchronize()
-                }
-                print("ℹ️ [SubscriptionService] User signed out - cleared granted access")
+            // User is signed out - trial is computed via isOnTrial
+            // hasManualGrant requires Firebase, so it stays as cached
+            if isOnTrial {
+                print("✅ [SubscriptionService] Signed out but trial active")
             } else {
-                // First sync and no user - keep cached value until we can verify
-                print("⚠️ [SubscriptionService] No user ID yet - preserving cached hasGrantedAccess: \(self.hasGrantedAccess)")
+                print("ℹ️ [SubscriptionService] Signed out, no active trial")
             }
         }
 
@@ -329,7 +347,7 @@ class SubscriptionService: ObservableObject {
             isInitialSync = false
         }
 
-        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium), hasGrantedAccess: \(self.hasGrantedAccess), hasPremiumAccess: \(self.hasPremiumAccess)")
+        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium), isOnTrial: \(self.isOnTrial), hasManualGrant: \(self.hasManualGrant), hasPremiumAccess: \(self.hasPremiumAccess)")
 
         // Refresh all widgets so they pick up the new premium status
         WidgetCenter.shared.reloadAllTimelines()
@@ -418,36 +436,51 @@ class SubscriptionService: ObservableObject {
         }
     }
 
-    /// Fetch granted access status from Firebase (for influencers, gifts, etc.)
-    /// This is separate from subscription status and is manually managed
+    /// Fetch manual grant status from Firebase (for influencers, gifts, etc.)
+    /// This is separate from trial and subscription - manually managed in Firestore
     private func fetchGrantedAccessFromFirebase(userId: String) async {
         do {
             let document = try await db.collection("users").document(userId).getDocument()
 
             if let data = document.data(),
-               let grantedAccess = data["hasGrantedAccess"] as? Bool {
-                self.hasGrantedAccess = grantedAccess
+               let manualGrant = data["hasManualGrant"] as? Bool,
+               manualGrant {
+                // Firebase has explicit manual grant (influencer, gift, etc.)
+                self.hasManualGrant = true
+                let reason = data["grantReason"] as? String ?? "unknown"
+                print("✅ [SubscriptionService] User has manual grant from Firebase (reason: \(reason))")
 
-                // Cache the granted access status
+                // Cache it
                 if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(grantedAccess, forKey: "hasGrantedAccess")
+                    groupDefaults.set(true, forKey: "hasManualGrant")
                     groupDefaults.synchronize()
                 }
+            } else if let data = document.data(),
+                      let legacyGrant = data["hasGrantedAccess"] as? Bool,
+                      legacyGrant {
+                // Legacy field - treat as manual grant if explicitly set in Firestore
+                self.hasManualGrant = true
+                let reason = data["grantReason"] as? String ?? "legacy"
+                print("✅ [SubscriptionService] User has legacy grant from Firebase (reason: \(reason))")
 
-                if grantedAccess {
-                    let reason = data["grantReason"] as? String ?? "unknown"
-                    print("✅ [SubscriptionService] User has granted access (reason: \(reason))")
+                // Cache it
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(true, forKey: "hasManualGrant")
+                    groupDefaults.synchronize()
                 }
             } else {
-                // No granted access field found - default to false
-                self.hasGrantedAccess = false
+                // No Firebase grant - hasManualGrant remains false
+                // Trial is handled separately via isOnTrial computed property
+                self.hasManualGrant = false
                 if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(false, forKey: "hasGrantedAccess")
+                    groupDefaults.set(false, forKey: "hasManualGrant")
                     groupDefaults.synchronize()
                 }
+                print("ℹ️ [SubscriptionService] No manual grant in Firebase")
             }
         } catch {
-            print("❌ [SubscriptionService] Error fetching granted access: \(error)")
+            print("❌ [SubscriptionService] Error fetching manual grant: \(error)")
+            // On error, preserve cached status
         }
     }
 
@@ -502,6 +535,9 @@ class SubscriptionService: ObservableObject {
 
                 // Finish the transaction
                 await transaction.finish()
+
+                // Track subscription started
+                AnalyticsService.shared.trackSubscriptionStarted(productId: product.id)
 
                 purchaseState = .success
 
@@ -619,5 +655,70 @@ extension SubscriptionService {
             $0.id == SubscriptionProductID.monthlyReferral.rawValue ||
             $0.id == SubscriptionProductID.yearlyReferral.rawValue
         }.sorted { $0.price < $1.price }
+    }
+
+    // MARK: - Trial Status
+
+    /// Returns the trial expiration date, if any
+    var trialExpirationDate: Date? {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return nil }
+        return groupDefaults.object(forKey: "trialExpirationDate") as? Date
+    }
+
+    /// Returns remaining trial time in seconds (0 if expired or no trial)
+    var trialTimeRemaining: TimeInterval {
+        guard let expiration = trialExpirationDate else { return 0 }
+        return max(0, expiration.timeIntervalSinceNow)
+    }
+
+    /// Whether to show the trial countdown banner
+    /// Shows when: trial is active, not a paid subscriber, and within countdown threshold
+    var shouldShowTrialBanner: Bool {
+        // Don't show if user has paid subscription
+        guard !isPremium else { return false }
+
+        // Don't show if no trial or trial expired
+        guard let expiration = trialExpirationDate, Date() < expiration else { return false }
+
+        // Show banner when 2 days or less remaining
+        let bannerThreshold: TimeInterval = 2 * 24 * 60 * 60
+
+        return trialTimeRemaining <= bannerThreshold
+    }
+
+    /// Whether user is on an active trial (not paid subscription)
+    var isOnTrial: Bool {
+        guard !isPremium else { return false }
+        guard let expiration = trialExpirationDate else { return false }
+        return Date() < expiration
+    }
+
+    // MARK: - Share Referral Reward
+
+    /// Whether user has earned referral access by sharing
+    var hasEarnedReferralAccess: Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return false }
+        return groupDefaults.bool(forKey: "hasEarnedReferralAccess")
+    }
+
+    /// Whether user can earn referral access (hasn't earned yet)
+    var canEarnReferralAccess: Bool {
+        return !hasEarnedReferralAccess
+    }
+
+    /// Mark user as having earned referral access by sharing
+    /// This unlocks the 7-day trial paywall instead of 3-day
+    func claimReferralAccess() {
+        guard canEarnReferralAccess else {
+            print("⚠️ [SubscriptionService] Already has referral access")
+            return
+        }
+
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+
+        groupDefaults.set(true, forKey: "hasEarnedReferralAccess")
+        groupDefaults.synchronize()
+
+        print("🎁 [SubscriptionService] Referral access earned! User will see 7-day trial paywall")
     }
 }

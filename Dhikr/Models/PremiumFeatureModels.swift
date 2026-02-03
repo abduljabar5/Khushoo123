@@ -10,6 +10,7 @@ import Foundation
 // MARK: - Premium Features
 enum PremiumFeature: String, CaseIterable {
     case focus = "Focus Mode"
+    case hayaMode = "Haya Mode"
     case widgets = "Home & Lock Screen Widgets"
     case reciterSearch = "Reciter Search"
     case prayerSelection = "Prayer Selection"
@@ -18,6 +19,8 @@ enum PremiumFeature: String, CaseIterable {
         switch self {
         case .focus:
             return "moon.stars.fill"
+        case .hayaMode:
+            return "eye.slash.fill"
         case .widgets:
             return "square.grid.2x2"
         case .reciterSearch:
@@ -31,6 +34,8 @@ enum PremiumFeature: String, CaseIterable {
         switch self {
         case .focus:
             return "Block apps during prayer times to stay focused"
+        case .hayaMode:
+            return "Block adult content to protect your spiritual wellbeing"
         case .widgets:
             return "Prayer times, dhikr counter, and Qibla on your home screen"
         case .reciterSearch:

@@ -658,10 +658,10 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     private func scheduleAllPrayerReminders() {
         let notificationService = PrayerNotificationService.shared
 
-        // Build array of prayers with their dates
+        // Build array of prayers with their dates (exclude Sunrise - it's informational only)
         var prayersWithDates: [(name: String, time: Date, hasReminder: Bool)] = []
 
-        for prayer in prayers {
+        for prayer in prayers where prayer.name != "Sunrise" {
             if let prayerDate = getPrayerDate(for: prayer) {
                 prayersWithDates.append((name: prayer.name, time: prayerDate, hasReminder: prayer.hasReminder))
             }
@@ -703,6 +703,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
     }
 
     func toggleReminder(for prayerName: String) {
+        // Sunrise is informational only - no reminders allowed
+        guard prayerName != "Sunrise" else { return }
+
         guard let index = prayers.firstIndex(where: { $0.name == prayerName }) else { return }
 
         // If trying to enable reminder, check notification permission first

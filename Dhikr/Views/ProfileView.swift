@@ -79,6 +79,22 @@ struct ProfileView: View {
         }
     }
 
+    private var trialDaysRemainingText: String {
+        let remaining = subscriptionService.trialTimeRemaining
+        let days = Int(remaining / 86400)
+        let hours = Int(remaining / 3600) % 24
+
+        if days > 1 {
+            return "\(days) days left on trial"
+        } else if days == 1 {
+            return "1 day left on trial"
+        } else if hours > 0 {
+            return "\(hours) hours left on trial"
+        } else {
+            return "Trial ending soon"
+        }
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
@@ -100,13 +116,19 @@ struct ProfileView: View {
                     .opacity(sectionAppeared[2] ? 1 : 0)
                     .offset(y: sectionAppeared[2] ? 0 : 20)
 
-                // Subscription Prompt
-                if !subscriptionService.hasPremiumAccess {
+                // Subscription Prompt (show for non-premium users AND trial users)
+                if !subscriptionService.isPremium {
                     subscriptionPromptCard
                         .padding(.horizontal, 24)
                         .opacity(sectionAppeared[3] ? 1 : 0)
                         .offset(y: sectionAppeared[3] ? 0 : 20)
                 }
+
+                // Share Referral Card
+                ShareReferralCard()
+                    .padding(.horizontal, 24)
+                    .opacity(sectionAppeared[3] ? 1 : 0)
+                    .offset(y: sectionAppeared[3] ? 0 : 20)
 
                 // Preferences
                 preferencesSection
@@ -453,9 +475,15 @@ struct ProfileView: View {
                         .font(.system(size: 17, weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
 
-                    Text("Full access to all features")
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundColor(themeManager.theme.secondaryText)
+                    if subscriptionService.isOnTrial {
+                        Text(trialDaysRemainingText)
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(warmGray)
+                    } else {
+                        Text("Full access to all features")
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(themeManager.theme.secondaryText)
+                    }
 
                     HStack(spacing: 4) {
                         Text("Learn more")

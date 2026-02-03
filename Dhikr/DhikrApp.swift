@@ -14,6 +14,9 @@ struct DhikrApp: App {
     init() {
         // Configure Firebase
         FirebaseApp.configure()
+
+        // Configure TelemetryDeck analytics
+        AnalyticsService.shared.configure()
     }
     
     // Connect AppDelegate for orientation lock
@@ -50,6 +53,9 @@ struct DhikrApp: App {
                 .environmentObject(speechService)
                 .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.currentTheme == .dark ? .dark : .light))
                 .onAppear {
+                    // Track first app open (install)
+                    AnalyticsService.shared.trackAppOpened()
+
                     setupPerformanceOptimizations()
                     setupNotificationDelegate()
                     setupWindowBackground()
@@ -103,8 +109,7 @@ struct DhikrApp: App {
     // MARK: - Notification Setup
     private func setupNotificationDelegate() {
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
-        // Note: Notification permissions are requested during onboarding (OnboardingPermissionsView)
-        // or when user enables them in settings - not automatically on app launch
+        // Note: Notification permissions can be enabled in settings
     }
 
     // MARK: - Window Background Setup
@@ -152,7 +157,7 @@ struct DhikrApp: App {
                 await BackgroundTaskManager.shared.cancelAllTasks()
                 ImageCacheManager.shared.clearExpiredDiskCache()
             }
-            
+
         case .inactive:
             // Save last played info when app becomes inactive (catch swipe-away gesture)
             audioPlayerService.saveLastPlayed()
@@ -162,7 +167,7 @@ struct DhikrApp: App {
 
             // Prepare for potential memory pressure
             ImageCacheManager.shared.clearMemoryCache()
-            
+
         case .active:
             // App became active - check blocking state immediately
             BlockingStateService.shared.forceCheck()
@@ -179,7 +184,7 @@ struct DhikrApp: App {
                 }
             }
             break
-            
+
         @unknown default:
             break
         }

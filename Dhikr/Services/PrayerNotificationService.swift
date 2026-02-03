@@ -63,6 +63,11 @@ class PrayerNotificationService: ObservableObject {
                 self.isRequestingPermission = false
             }
 
+            // Track notification enabled
+            if granted {
+                AnalyticsService.shared.trackNotificationEnabled()
+            }
+
             return granted
         } catch {
             await MainActor.run {

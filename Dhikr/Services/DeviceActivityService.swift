@@ -466,6 +466,11 @@ class DeviceActivityService: ObservableObject {
             }
         }
 
+        // Track focus blocking enabled event when apps are selected and blocking is scheduled
+        if scheduledCount > 0 {
+            AnalyticsService.shared.trackFocusBlockingEnabled()
+        }
+
         // Return true if at least one prayer was successfully scheduled
         return scheduledCount > 0
     }

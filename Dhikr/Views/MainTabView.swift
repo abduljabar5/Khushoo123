@@ -11,10 +11,14 @@ import UIKit
 struct MainTabView: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var quranAPIService: QuranAPIService
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var expandMiniPlayer = false
     @State private var showSurahList = false
     @State private var selectedTab: Int = 0
+    @State private var showPaywall = false
+    @State private var showShareReferralPopup = false
     @Namespace private var animation
 
     // Computed property to determine if mini player should be shown
@@ -90,6 +94,10 @@ struct MainTabView: View {
         }
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
+                TrialCountdownBanner(onUpgrade: { showPaywall = true })
+                    .padding(.horizontal, 16)
+                    .zIndex(103)
+
                 SchedulingProgressBanner(selectedTab: $selectedTab)
                     .padding(.horizontal, 16)
                     .zIndex(102)
@@ -104,11 +112,20 @@ struct MainTabView: View {
             }
             .padding(.top, 8)
         }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
+        .sheet(isPresented: $showShareReferralPopup) {
+            ShareReferralPopup(isPresented: $showShareReferralPopup, onUpgrade: {
+                showPaywall = true
+            })
+        }
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
         .onAppear {
             configureTabBarAppearance()
+            checkAndShowReferralPopup()
         }
         .onChange(of: themeManager.currentTheme) { _ in
             configureTabBarAppearance()
@@ -214,6 +231,33 @@ struct MainTabView: View {
         // Apply the appearance
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+
+    // MARK: - Referral Popup Logic
+    private func checkAndShowReferralPopup() {
+        // Don't show if user is already premium
+        guard !subscriptionService.isPremium else { return }
+
+        // Don't show if user already has referral access
+        guard subscriptionService.canEarnReferralAccess else { return }
+
+        let defaults = UserDefaults.standard
+        let launchCountKey = "appLaunchCountForReferral"
+        let lastShownKey = "lastReferralPopupShownDate"
+
+        // Increment launch count
+        var launchCount = defaults.integer(forKey: launchCountKey)
+        launchCount += 1
+        defaults.set(launchCount, forKey: launchCountKey)
+
+        // Show every 4 launches
+        if launchCount % 4 == 0 {
+            // Add a small delay so the UI is ready
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                showShareReferralPopup = true
+            }
+            defaults.set(Date(), forKey: lastShownKey)
+        }
     }
 }
 

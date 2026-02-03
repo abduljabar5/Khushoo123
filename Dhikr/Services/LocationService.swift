@@ -22,10 +22,20 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let previousStatus = self.authorizationStatus
         self.authorizationStatus = manager.authorizationStatus
+
+        // Track permission changes (only when transitioning from notDetermined)
+        if previousStatus == .notDetermined {
+            if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+                AnalyticsService.shared.trackLocationGranted()
+            } else if authorizationStatus == .denied {
+                AnalyticsService.shared.trackLocationDenied()
+            }
+        }
+
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             manager.requestLocation()
-        } else {
         }
     }
     

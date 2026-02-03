@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		810153932F2F14360049B842 /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = 810153922F2F14360049B842 /* TelemetryClient */; };
+		810153952F2F14360049B842 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 810153942F2F14360049B842 /* TelemetryDeck */; };
 		8125501C2E079D0C0035AD52 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501B2E079D0B0035AD52 /* WidgetKit.framework */; };
 		8125501E2E079D0C0035AD52 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8125501D2E079D0C0035AD52 /* SwiftUI.framework */; };
 		8125502F2E079D0D0035AD52 /* DhikrtrackerExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 812550192E079D0B0035AD52 /* DhikrtrackerExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -197,11 +199,13 @@
 				818191EA2EA698B000CFB28C /* FirebaseMessaging in Frameworks */,
 				8181920E2EA749C800CFB28C /* FirebaseFunctions in Frameworks */,
 				818191E62EA698B000CFB28C /* FirebaseCrashlytics in Frameworks */,
+				810153932F2F14360049B842 /* TelemetryClient in Frameworks */,
 				818191E22EA698B000CFB28C /* FirebaseAnalytics in Frameworks */,
 				818191EC2EA698B000CFB28C /* FirebaseStorage in Frameworks */,
 				81A231CD2EB17166001AF36D /* StoreKit.framework in Frameworks */,
 				818191E42EA698B000CFB28C /* FirebaseAuth in Frameworks */,
 				818191E82EA698B000CFB28C /* FirebaseFirestore in Frameworks */,
+				810153952F2F14360049B842 /* TelemetryDeck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -326,6 +330,8 @@
 				818191E92EA698B000CFB28C /* FirebaseMessaging */,
 				818191EB2EA698B000CFB28C /* FirebaseStorage */,
 				8181920D2EA749C800CFB28C /* FirebaseFunctions */,
+				810153922F2F14360049B842 /* TelemetryClient */,
+				810153942F2F14360049B842 /* TelemetryDeck */,
 			);
 			productName = Dhikr;
 			productReference = 81254FD02E07941E0035AD52 /* Khushoo.app */;
@@ -492,6 +498,7 @@
 				815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */,
 				815736272E1744DD00DD29EF /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 				818191E02EA698B000CFB28C /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				810153912F2F14360049B842 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 81254FD12E07941E0035AD52 /* Products */;
@@ -758,7 +765,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -797,7 +804,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dhikr/Dhikr.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -833,7 +840,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
@@ -852,7 +859,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
@@ -870,7 +877,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.1.3;
@@ -887,7 +894,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.1.3;
@@ -908,7 +915,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrtrackerExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Dhikrtracker/Info.plist;
@@ -939,7 +946,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrtrackerExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Dhikrtracker/Info.plist;
@@ -968,7 +975,7 @@
 				CODE_SIGN_ENTITLEMENTS = PrayerBlockerMonitor/PrayerBlockerMonitor.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PrayerBlockerMonitor/Info.plist;
@@ -996,7 +1003,7 @@
 				CODE_SIGN_ENTITLEMENTS = PrayerBlockerMonitor/PrayerBlockerMonitor.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PrayerBlockerMonitor/Info.plist;
@@ -1024,7 +1031,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrShieldAction/DhikrShieldAction.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DhikrShieldAction/Info.plist;
@@ -1052,7 +1059,7 @@
 				CODE_SIGN_ENTITLEMENTS = DhikrShieldAction/DhikrShieldAction.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3LJM4T74C5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DhikrShieldAction/Info.plist;
@@ -1143,6 +1150,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		810153912F2F14360049B842 /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TelemetryDeck/SwiftSDK";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.11.0;
+			};
+		};
 		815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/onevcat/Kingfisher.git";
@@ -1170,6 +1185,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		810153922F2F14360049B842 /* TelemetryClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 810153912F2F14360049B842 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
+			productName = TelemetryClient;
+		};
+		810153942F2F14360049B842 /* TelemetryDeck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 810153912F2F14360049B842 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
+			productName = TelemetryDeck;
+		};
 		815731EF2E14EACE00DD29EF /* Kingfisher */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 815731EE2E14EACE00DD29EF /* XCRemoteSwiftPackageReference "Kingfisher" */;

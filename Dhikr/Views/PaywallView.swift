@@ -43,20 +43,25 @@ struct PaywallView: View {
             : Color(white: 0.45)
     }
 
+    /// Show referral products if user has valid code OR earned access by sharing
+    private var shouldShowReferralProducts: Bool {
+        referralService.hasValidReferralCode || subscriptionService.hasEarnedReferralAccess
+    }
+
     private var displayMonthlyProduct: Product? {
-        referralService.hasValidReferralCode
+        shouldShowReferralProducts
             ? subscriptionService.monthlyReferralProduct
             : subscriptionService.monthlyProduct
     }
 
     private var displayYearlyProduct: Product? {
-        referralService.hasValidReferralCode
+        shouldShowReferralProducts
             ? subscriptionService.yearlyReferralProduct
             : subscriptionService.yearlyProduct
     }
 
     private var trialDurationText: String {
-        referralService.hasValidReferralCode ? "7-Day" : "3-Day"
+        shouldShowReferralProducts ? "7-Day" : "3-Day"
     }
 
     var body: some View {
@@ -330,6 +335,9 @@ struct PaywallView: View {
             }
         }
         .onAppear {
+            // Track paywall viewed
+            AnalyticsService.shared.trackPaywallViewed()
+
             Task {
                 if subscriptionService.availableProducts.isEmpty {
                     await subscriptionService.loadProducts()

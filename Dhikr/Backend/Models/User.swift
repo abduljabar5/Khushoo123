@@ -17,8 +17,10 @@ struct User: Codable, Identifiable {
     var isPremium: Bool
     var subscription: SubscriptionData?
 
-    // Granted access (for influencers, gifts, etc.) - manually managed
-    var hasGrantedAccess: Bool
+    // Manual grant (for influencers, gifts, etc.) - manually managed in Firestore
+    // Note: This is separate from trial which is stored locally
+    var hasGrantedAccess: Bool  // Legacy field name - maps to hasManualGrant in SubscriptionService
+    var hasManualGrant: Bool { hasGrantedAccess }  // Alias for clarity
     var grantReason: String?  // "influencer", "gift", "promotional", etc.
 
     // User preferences

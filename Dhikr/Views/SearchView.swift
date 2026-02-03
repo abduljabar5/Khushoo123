@@ -107,6 +107,9 @@ struct SearchView: View {
             }
         }
         .onAppear {
+            // Track focus feature viewed
+            AnalyticsService.shared.trackFocusBlockingViewed()
+
             guard subscriptionService.hasPremiumAccess else { return }
             screenTimeAuth.updateAuthorizationStatus()
             fetchPrayerTimesIfNeeded()
@@ -703,6 +706,7 @@ private struct SacredTodayScheduleSection: View {
         let name: String
         let blockingStartTime: Date
         let durationSeconds: Double
+        let isPast: Bool
     }
 
     /// Result of loading scheduled prayers - includes which day they're for
@@ -711,7 +715,7 @@ private struct SacredTodayScheduleSection: View {
         let isForTomorrow: Bool
     }
 
-    /// Read scheduled prayers - today's first, then tomorrow's if today is empty
+    /// Read scheduled prayers - today's first (including past ones grayed out), then tomorrow's after all today's are done
     private func loadScheduledPrayers() -> ScheduleLoadResult {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] else {
@@ -726,34 +730,48 @@ private struct SacredTodayScheduleSection: View {
         }
 
         // Convert all schedules to ScheduledPrayer with their dates
-        let allPrayers = schedules.compactMap { schedule -> ScheduledPrayer? in
+        func makePrayer(from schedule: [String: Any]) -> ScheduledPrayer? {
             guard let name = schedule["name"] as? String,
                   let timestamp = schedule["date"] as? TimeInterval,
                   let duration = schedule["duration"] as? Double else {
                 return nil
             }
+            let blockingStart = Date(timeIntervalSince1970: timestamp)
+            let blockingEnd = blockingStart.addingTimeInterval(duration)
+            // Prayer is past if blocking period has ended
+            let isPast = now > blockingEnd
             return ScheduledPrayer(
                 name: name,
-                blockingStartTime: Date(timeIntervalSince1970: timestamp),
-                durationSeconds: duration
+                blockingStartTime: blockingStart,
+                durationSeconds: duration,
+                isPast: isPast
             )
         }
 
-        // First try today's prayers (only future ones)
-        let todayPrayers = allPrayers.filter { prayer in
-            calendar.isDate(prayer.blockingStartTime, inSameDayAs: today) && prayer.blockingStartTime > now
-        }.sorted { $0.blockingStartTime < $1.blockingStartTime }
+        // Get all today's prayers (including past ones)
+        let todayPrayers = schedules.compactMap { makePrayer(from: $0) }
+            .filter { calendar.isDate($0.blockingStartTime, inSameDayAs: today) }
+            .sorted { $0.blockingStartTime < $1.blockingStartTime }
 
-        if !todayPrayers.isEmpty {
+        // Check if ALL today's prayers are past (switch to tomorrow after Isha is done)
+        let allTodayPast = !todayPrayers.isEmpty && todayPrayers.allSatisfy { $0.isPast }
+
+        if !todayPrayers.isEmpty && !allTodayPast {
             return ScheduleLoadResult(prayers: todayPrayers, isForTomorrow: false)
         }
 
-        // If no today prayers left, show tomorrow's
-        let tomorrowPrayers = allPrayers.filter { prayer in
-            calendar.isDate(prayer.blockingStartTime, inSameDayAs: tomorrow)
-        }.sorted { $0.blockingStartTime < $1.blockingStartTime }
+        // If no today prayers or all are past, show tomorrow's
+        let tomorrowPrayers = schedules.compactMap { makePrayer(from: $0) }
+            .filter { calendar.isDate($0.blockingStartTime, inSameDayAs: tomorrow) }
+            .sorted { $0.blockingStartTime < $1.blockingStartTime }
 
-        return ScheduleLoadResult(prayers: tomorrowPrayers, isForTomorrow: true)
+        // If we have tomorrow prayers, show them; otherwise show today's (all past)
+        if !tomorrowPrayers.isEmpty {
+            return ScheduleLoadResult(prayers: tomorrowPrayers, isForTomorrow: true)
+        }
+
+        // Fallback: show today's prayers even if all past
+        return ScheduleLoadResult(prayers: todayPrayers, isForTomorrow: false)
     }
 
     /// Get the set of prayer names that are scheduled for today
@@ -823,7 +841,8 @@ private struct SacredTodayScheduleSection: View {
                             time: "Not scheduled",
                             duration: 0,
                             isEnabled: false,
-                            isLocked: isLocked
+                            isLocked: isLocked,
+                            isPast: false
                         )
                         if prayerName != "Isha" {
                             Divider()
@@ -839,7 +858,8 @@ private struct SacredTodayScheduleSection: View {
                             time: timeFormatter.string(from: prayer.blockingStartTime),
                             duration: prayer.durationSeconds / 60, // Convert to minutes for display
                             isEnabled: true,
-                            isLocked: isLocked
+                            isLocked: isLocked,
+                            isPast: prayer.isPast
                         )
                         if index < cachedPrayers.count - 1 {
                             Divider()
@@ -880,6 +900,7 @@ private struct SacredPrayerScheduleRow: View {
     let duration: Double
     let isEnabled: Bool
     let isLocked: Bool
+    let isPast: Bool
 
     @StateObject private var themeManager = ThemeManager.shared
 
@@ -904,8 +925,11 @@ private struct SacredPrayerScheduleRow: View {
         }
     }
 
-    /// Effective opacity based on enabled state and locked state
+    /// Effective opacity based on enabled state, locked state, and past state
     private var effectiveOpacity: Double {
+        if isPast {
+            return 0.4
+        }
         if isLocked {
             return 0.5
         }
@@ -914,28 +938,36 @@ private struct SacredPrayerScheduleRow: View {
 
     var body: some View {
         HStack {
-            Image(systemName: prayerIcon(for: prayerName))
+            Image(systemName: isPast ? "checkmark.circle.fill" : prayerIcon(for: prayerName))
                 .font(.system(size: 14, weight: .light))
-                .foregroundColor(isEnabled && !isLocked ? softGreen : warmGray.opacity(0.5))
+                .foregroundColor(isPast ? warmGray.opacity(0.5) : (isEnabled && !isLocked ? softGreen : warmGray.opacity(0.5)))
                 .frame(width: 24)
 
             Text(prayerName)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(themeManager.theme.primaryText)
                 .opacity(effectiveOpacity)
+                .strikethrough(isPast, color: warmGray.opacity(0.5))
                 .frame(width: 70, alignment: .leading)
 
             Text(time)
                 .font(.system(size: 13, weight: .light))
                 .foregroundColor(warmGray)
                 .opacity(effectiveOpacity)
+                .strikethrough(isPast, color: warmGray.opacity(0.5))
 
             Spacer()
 
-            Text("\(Int(duration)) min")
-                .font(.system(size: 11, weight: .light))
-                .foregroundColor(warmGray)
-                .opacity(effectiveOpacity)
+            if isPast {
+                Text("Done")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(softGreen.opacity(0.6))
+            } else {
+                Text("\(Int(duration)) min")
+                    .font(.system(size: 11, weight: .light))
+                    .foregroundColor(warmGray)
+                    .opacity(effectiveOpacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

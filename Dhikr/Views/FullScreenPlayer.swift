@@ -109,16 +109,28 @@ struct FullScreenPlayer: View {
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                         .gesture(
-                            DragGesture(minimumDistance: 10)
+                            DragGesture(minimumDistance: 5)
                                 .onChanged { value in
-                                    if value.translation.height > 0 {
+                                    // Allow diagonal drags - as long as there's some downward movement
+                                    let verticalMovement = value.translation.height
+                                    let horizontalMovement = abs(value.translation.width)
+
+                                    // Accept drag if moving more down than sideways, or any downward movement
+                                    if verticalMovement > 0 && verticalMovement > horizontalMovement * 0.3 {
                                         isDraggingToDismiss = true
-                                        dragOffset = value.translation.height
+                                        dragOffset = verticalMovement
+                                    } else if verticalMovement > 20 {
+                                        // Accept any drag that's moved down at least 20 points
+                                        isDraggingToDismiss = true
+                                        dragOffset = verticalMovement
                                     }
                                 }
                                 .onEnded { value in
                                     let velocity = value.predictedEndLocation.y - value.location.y
-                                    if value.translation.height > 80 || velocity > 200 {
+                                    let verticalDrag = value.translation.height
+
+                                    // More forgiving dismiss: lower threshold or velocity
+                                    if verticalDrag > 60 || velocity > 150 {
                                         withAnimation(.easeOut(duration: 0.2)) {
                                             isPresented = false
                                         }

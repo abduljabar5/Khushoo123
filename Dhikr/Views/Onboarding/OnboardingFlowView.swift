@@ -2,7 +2,7 @@
 //  OnboardingFlowView.swift
 //  Dhikr
 //
-//  4-screen onboarding flow container - Sacred Minimalism redesign
+//  Single-screen onboarding: Location permission only - Sacred Minimalism
 //
 
 import SwiftUI
@@ -10,27 +10,59 @@ import CoreLocation
 
 struct OnboardingFlowView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var locationService: LocationService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("userDisplayName") private var userDisplayName: String = ""
-    @StateObject private var subscriptionService = SubscriptionService.shared
-    @StateObject private var authService = AuthenticationService.shared
-    @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
+    @StateObject private var locationService = LocationService()
     @StateObject private var themeManager = ThemeManager.shared
 
-    @State private var currentPage = 0
-    @State private var isCompact: Bool = false // For Settings re-entry
-    @State private var userName: String = ""
+    @State private var isRequestingLocation = false
+    @State private var showLocationDeniedAlert = false
 
     // Sacred colors
+    private var sacredGold: Color {
+        Color(red: 0.77, green: 0.65, blue: 0.46)
+    }
+
+    private var softGreen: Color {
+        Color(red: 0.55, green: 0.68, blue: 0.55)
+    }
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    private var mutedPurple: Color {
+        Color(red: 0.55, green: 0.45, blue: 0.65)
+    }
+
     private var pageBackground: Color {
         themeManager.effectiveTheme == .dark
             ? Color(red: 0.08, green: 0.09, blue: 0.11)
             : Color(red: 0.96, green: 0.95, blue: 0.93)
     }
 
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    private var hasLocationPermission: Bool {
+        switch locationService.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var isLocationDenied: Bool {
+        locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted
+    }
+
     init(compact: Bool = false) {
-        _isCompact = State(initialValue: compact)
+        // compact parameter kept for compatibility but unused
     }
 
     var body: some View {
@@ -38,163 +70,165 @@ struct OnboardingFlowView: View {
             pageBackground
                 .ignoresSafeArea()
 
-            // Use conditional views instead of TabView to prevent swipe navigation
-            Group {
-                switch currentPage {
-                case 0:
-                    // Screen 1: Welcome
-                    OnboardingWelcomeView(onContinue: {
-                        print("📱 [Onboarding] Page 0 → 1 (Welcome → Name)")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentPage = 1
-                        }
-                    })
-                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+            VStack(spacing: 0) {
+                Spacer()
 
-                case 1:
-                    // Screen 2: Name Input
-                    OnboardingNameView(onContinue: { name in
-                        userName = name
-                        userDisplayName = name // Save to AppStorage
+                // App Icon - Sacred style
+                ZStack {
+                    Circle()
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(width: 120, height: 120)
+                        .overlay(
+                            Circle()
+                                .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                        )
 
-                        // If user is already authenticated with "Apple User", update their name now
-                        if authService.isAuthenticated,
-                           let currentUser = authService.currentUser,
-                           (currentUser.displayName == "Apple User" || currentUser.displayName.isEmpty) {
-                            Task {
-                                await updateAuthenticatedUserName(name: name)
-                            }
-                        }
-
-                        print("📱 [Onboarding] Page 1 → 2 (Name → Focus Setup)")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentPage = 2
-                        }
-                    })
-                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-
-                case 2:
-                    // Screen 3: Focus Setup
-                    OnboardingFocusSetupView(onContinue: {
-                        print("📱 [Onboarding] Page 2 → 3 (Focus Setup → Permissions)")
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentPage = 3
-                        }
-                    })
-                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-
-                case 3:
-                    // Screen 4: Permissions
-                    OnboardingPermissionsView(onContinue: {
-                        if subscriptionService.hasPremiumAccess {
-                            // Skip premium screen if already subscribed
-                            print("📱 [Onboarding] Page 3 → Complete (Permissions → Skip Premium, already subscribed)")
-                            completeOnboarding()
-                        } else {
-                            print("📱 [Onboarding] Page 3 → 4 (Permissions → Premium)")
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                currentPage = 4
-                            }
-                        }
-                    })
-                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-
-                case 4:
-                    // Screen 5: Premium (only shown if not already premium)
-                    OnboardingPremiumView(
-                        onStartTrial: completeOnboarding,
-                        onContinueWithoutPremium: completeOnboarding
-                    )
-                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-
-                default:
-                    OnboardingWelcomeView(onContinue: { currentPage = 1 })
+                    Image(systemName: "moon.stars")
+                        .font(.system(size: 48, weight: .ultraLight))
+                        .foregroundColor(sacredGold)
                 }
+                .padding(.bottom, 40)
+
+                // Title - Sacred typography
+                Text("Khushoo")
+                    .font(.system(size: 40, weight: .ultraLight, design: .serif))
+                    .foregroundColor(themeManager.theme.primaryText)
+                    .padding(.bottom, 8)
+
+                Text("SPIRITUAL COMPANION")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(3)
+                    .foregroundColor(warmGray)
+                    .padding(.bottom, 48)
+
+                // Location Permission Card
+                VStack(spacing: 16) {
+                    HStack(spacing: 16) {
+                        // Icon
+                        ZStack {
+                            Circle()
+                                .fill(sacredGold.opacity(0.12))
+                                .frame(width: 48, height: 48)
+
+                            Image(systemName: "location.circle")
+                                .font(.system(size: 22, weight: .light))
+                                .foregroundColor(sacredGold)
+                        }
+
+                        // Text
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Location Access")
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundColor(themeManager.theme.primaryText)
+
+                            Text("Required for accurate prayer times")
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(warmGray)
+                        }
+
+                        Spacer()
+
+                        // Status
+                        if hasLocationPermission {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(softGreen)
+                                Text("Enabled")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(softGreen)
+                            }
+                        } else if isRequestingLocation {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: sacredGold))
+                                .frame(width: 70, height: 32)
+                        } else {
+                            Button(action: requestLocation) {
+                                Text("Enable")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(sacredGold)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule()
+                                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                                    )
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(cardBackground)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(sacredGold.opacity(0.1), lineWidth: 1)
+                            )
+                    )
+                }
+                .padding(.horizontal, 32)
+
+                Spacer()
+
+                // Continue Button - Sacred style
+                Button(action: {
+                    if hasLocationPermission {
+                        completeOnboarding()
+                    } else {
+                        requestLocation()
+                    }
+                }) {
+                    Text(hasLocationPermission ? "Continue" : "Enable Location")
+                        .font(.system(size: 16, weight: .medium))
+                        .tracking(0.5)
+                        .foregroundColor(hasLocationPermission ? (themeManager.effectiveTheme == .dark ? .black : .white) : warmGray)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(hasLocationPermission ? sacredGold : sacredGold.opacity(0.3))
+                        )
+                }
+                .opacity(hasLocationPermission ? 1.0 : 0.7)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 48)
             }
         }
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
+        .onChange(of: locationService.authorizationStatus) { newStatus in
+            isRequestingLocation = false
+            if newStatus == .denied || newStatus == .restricted {
+                showLocationDeniedAlert = true
+            }
+        }
+        .alert("Location Access Denied", isPresented: $showLocationDeniedAlert) {
+            Button("Open Settings", role: .none) {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Location permission is required for accurate prayer times. Please enable it in Settings.")
+        }
         .onAppear {
-            print("📱 [Onboarding] OnboardingFlowView appeared - starting on page \(currentPage)")
+            print("📱 [Onboarding] OnboardingFlowView appeared - location permission flow")
+        }
+    }
+
+    private func requestLocation() {
+        if isLocationDenied {
+            showLocationDeniedAlert = true
+        } else {
+            isRequestingLocation = true
+            locationService.requestLocationPermission()
         }
     }
 
     private func completeOnboarding() {
         print("🎉 [Onboarding] completeOnboarding() called")
-
-        Task {
-            // Check if scheduling will be needed (quick pre-check)
-            let needsScheduling = await shouldScheduleBlocking()
-            print("📋 [Onboarding] Should schedule blocking: \(needsScheduling)")
-
-            // Set global scheduling state so UI can show progress indicator
-            if needsScheduling {
-                await MainActor.run {
-                    BlockingStateService.shared.isSchedulingBlocking = true
-                }
-                print("🔄 [Onboarding] Set isSchedulingBlocking = true (will show progress in app)")
-            }
-
-            // Mark onboarding complete - triggers DhikrApp's prayer time fetch
-            print("✅ [Onboarding] Marking onboarding as complete")
-            hasCompletedOnboarding = true
-
-            // Dismiss immediately - don't make user wait!
-            // DhikrApp will handle scheduling in background and update BlockingStateService when done
-            print("👋 [Onboarding] Dismissing immediately - scheduling continues in background")
-            dismiss()
-        }
-    }
-
-    /// Check if we should schedule blocking (quick pre-check)
-    private func shouldScheduleBlocking() async -> Bool {
-        print("🔍 [Onboarding] Checking if should schedule blocking...")
-
-        // Quick check: premium + prayers selected + apps selected + screen time permission
-        guard subscriptionService.hasPremiumAccess else {
-            print("   ❌ Not premium")
-            return false
-        }
-        print("   ✅ Is premium")
-
-        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
-        let selectedFajr = groupDefaults?.bool(forKey: "focusSelectedFajr") ?? false
-        let selectedDhuhr = groupDefaults?.bool(forKey: "focusSelectedDhuhr") ?? false
-        let selectedAsr = groupDefaults?.bool(forKey: "focusSelectedAsr") ?? false
-        let selectedMaghrib = groupDefaults?.bool(forKey: "focusSelectedMaghrib") ?? false
-        let selectedIsha = groupDefaults?.bool(forKey: "focusSelectedIsha") ?? false
-
-        let anyPrayerSelected = selectedFajr || selectedDhuhr || selectedAsr || selectedMaghrib || selectedIsha
-        guard anyPrayerSelected else {
-            print("   ❌ No prayers selected")
-            return false
-        }
-        print("   ✅ Prayers selected - Fajr:\(selectedFajr) Dhuhr:\(selectedDhuhr) Asr:\(selectedAsr) Maghrib:\(selectedMaghrib) Isha:\(selectedIsha)")
-
-        let selection = AppSelectionModel.getCurrentSelection()
-        let hasAppsSelected = !selection.applicationTokens.isEmpty ||
-                             !selection.categoryTokens.isEmpty ||
-                             !selection.webDomainTokens.isEmpty
-        guard hasAppsSelected else {
-            print("   ❌ No apps selected")
-            return false
-        }
-        print("   ✅ Apps selected - apps:\(selection.applicationTokens.count) categories:\(selection.categoryTokens.count) domains:\(selection.webDomainTokens.count)")
-
-        let isAuthorized = await screenTimeAuth.isAuthorized
-        guard isAuthorized else {
-            print("   ❌ Screen Time not authorized")
-            return false
-        }
-        print("   ✅ Screen Time authorized")
-
-        return true
-    }
-
-    private func updateAuthenticatedUserName(name: String) async {
-        do {
-            try await authService.updateDisplayName(newName: name)
-        } catch {
-        }
+        hasCompletedOnboarding = true
+        dismiss()
     }
 }
 

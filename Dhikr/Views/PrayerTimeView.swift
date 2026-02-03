@@ -644,13 +644,17 @@ struct SacredPrayerRow: View {
                 .font(.system(size: RS.fontSize(18), weight: isActive ? .light : .ultraLight))
                 .foregroundColor(isActive ? sacredGold : themeManager.theme.primaryText)
 
-            // Reminder
-            Button(action: onToggleReminder) {
-                Image(systemName: prayer.hasReminder ? "bell.fill" : "bell")
-                    .font(.system(size: RS.fontSize(14), weight: .light))
-                    .foregroundColor(prayer.hasReminder ? sacredGold : warmGray.opacity(0.5))
+            // Reminder (not shown for Sunrise - it's informational only)
+            if prayer.name != "Sunrise" {
+                Button(action: onToggleReminder) {
+                    Image(systemName: prayer.hasReminder ? "bell.fill" : "bell")
+                        .font(.system(size: RS.fontSize(14), weight: .light))
+                        .foregroundColor(prayer.hasReminder ? sacredGold : warmGray.opacity(0.5))
+                }
+                .frame(width: RS.dimension(32))
+            } else {
+                Color.clear.frame(width: RS.dimension(32))
             }
-            .frame(width: RS.dimension(32))
 
             // Completion
             if prayer.name != "Sunrise" {

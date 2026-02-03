@@ -436,6 +436,9 @@ class AudioPlayerService: NSObject, ObservableObject {
             isPlaying = true
             hasPlayedOnce = true
 
+            // Track Quran audio played
+            AnalyticsService.shared.trackQuranAudioPlayed()
+
             // Only initialize lastRecordedTime on first play, not on resume
             // This ensures accurate time tracking when resuming from pause
             if lastRecordedTime == 0 {

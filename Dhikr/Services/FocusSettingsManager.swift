@@ -78,6 +78,8 @@ class FocusSettingsManager: ObservableObject {
                 // Enabling - apply immediately and clear any pending disable
                 hayaModeDisableRequestedAt = nil
                 applyHayaModeFilter(true)
+                // Track Haya mode enabled
+                AnalyticsService.shared.trackHayaModeEnabled()
             }
             // Note: Disabling is handled by completeHayaModeDisable() after 48-hour delay
             subject.send()
@@ -230,6 +232,68 @@ class FocusSettingsManager: ObservableObject {
 
         setupDebouncePipeline()
         setupAppSelectionObserver()
+        setupPremiumLostObserver()
+        setupPremiumCheckObserver()
+    }
+
+    private func setupPremiumLostObserver() {
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("UserLostPremium"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.disableHayaModeForLostPremium()
+            }
+        }
+    }
+
+    /// Wait for SubscriptionService to confirm premium status before checking
+    private func setupPremiumCheckObserver() {
+        guard hayaMode else { return }
+
+        // Observe when SubscriptionService completes its check
+        SubscriptionService.shared.$hasCompletedSuccessfulCheck
+            .filter { $0 } // Only proceed when check is complete
+            .first() // Only need to check once
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.checkAndDisableHayaModeIfNotPremium()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Check if user lost premium while app was closed (trial expired, subscription lapsed)
+    private func checkAndDisableHayaModeIfNotPremium() {
+        guard hayaMode else { return }
+
+        // Wait for SubscriptionService to confirm - use its hasPremiumAccess which checks all conditions
+        let subscriptionService = SubscriptionService.shared
+
+        // Only check if the service has completed a successful verification
+        guard subscriptionService.hasCompletedSuccessfulCheck else {
+            print("🛡️ Haya Mode: Waiting for premium status confirmation...")
+            return
+        }
+
+        if subscriptionService.hasPremiumAccess {
+            print("🛡️ Haya Mode: User has premium access, keeping enabled")
+            return
+        }
+
+        // User is not premium - disable Haya mode
+        disableHayaModeForLostPremium()
+    }
+
+    /// Disable Haya mode when user loses premium access
+    private func disableHayaModeForLostPremium() {
+        guard hayaMode else { return }
+
+        print("🛡️ Haya Mode: Disabling due to lost premium access")
+        hayaModeDisableRequestedAt = nil
+        hayaMode = false
+        applyHayaModeFilter(false)
+        syncToUserDefaults()
     }
     
     private func setupDebouncePipeline() {
