@@ -2,7 +2,7 @@
 //  OnboardingFlowView.swift
 //  Dhikr
 //
-//  Single-screen onboarding: Location permission only - Sacred Minimalism
+//  Single-screen onboarding: Location permission (optional) - Sacred Minimalism
 //
 
 import SwiftUI
@@ -121,7 +121,7 @@ struct OnboardingFlowView: View {
                                 .font(.system(size: 15, weight: .regular))
                                 .foregroundColor(themeManager.theme.primaryText)
 
-                            Text("Required for accurate prayer times")
+                            Text("Recommended for accurate prayer times")
                                 .font(.system(size: 13, weight: .light))
                                 .foregroundColor(warmGray)
                         }
@@ -170,26 +170,21 @@ struct OnboardingFlowView: View {
 
                 Spacer()
 
-                // Continue Button - Sacred style
+                // Continue Button - Sacred style (always enabled, location is optional)
                 Button(action: {
-                    if hasLocationPermission {
-                        completeOnboarding()
-                    } else {
-                        requestLocation()
-                    }
+                    completeOnboarding()
                 }) {
-                    Text(hasLocationPermission ? "Continue" : "Enable Location")
+                    Text("Continue")
                         .font(.system(size: 16, weight: .medium))
                         .tracking(0.5)
-                        .foregroundColor(hasLocationPermission ? (themeManager.effectiveTheme == .dark ? .black : .white) : warmGray)
+                        .foregroundColor(themeManager.effectiveTheme == .dark ? .black : .white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(hasLocationPermission ? sacredGold : sacredGold.opacity(0.3))
+                                .fill(sacredGold)
                         )
                 }
-                .opacity(hasLocationPermission ? 1.0 : 0.7)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 48)
             }
@@ -201,15 +196,15 @@ struct OnboardingFlowView: View {
                 showLocationDeniedAlert = true
             }
         }
-        .alert("Location Access Denied", isPresented: $showLocationDeniedAlert) {
+        .alert("Location Access", isPresented: $showLocationDeniedAlert) {
             Button("Open Settings", role: .none) {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Set Manually Later", role: .cancel) { }
         } message: {
-            Text("Location permission is required for accurate prayer times. Please enable it in Settings.")
+            Text("You can enable location for automatic prayer times, or set your city manually in the app.")
         }
         .onAppear {
             print("📱 [Onboarding] OnboardingFlowView appeared - location permission flow")

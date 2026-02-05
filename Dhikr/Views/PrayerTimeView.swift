@@ -23,6 +23,7 @@ struct PrayerTimeView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
     @StateObject private var blockingState = BlockingStateService.shared
+    @StateObject private var locationService = LocationService()
     @State private var animateProgress = false
     @State private var showingDatePicker = false
     @State private var showingPaywall = false
@@ -30,6 +31,7 @@ struct PrayerTimeView: View {
     @State private var previousCompletedCount = 0
     @State private var showingSettings = false
     @State private var showingBlockedAlert = false
+    @State private var showingManualLocation = false
 
     // Sacred colors
     private var sacredGold: Color {
@@ -60,35 +62,42 @@ struct PrayerTimeView: View {
 
     var body: some View {
         ZStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Top prayer section with mosque background
-                    topPrayerSection
+            // Check if we have any location (GPS or manual)
+            if !locationService.hasAnyLocation {
+                // No location - show prompt
+                locationRequiredView
+            } else {
+                // Has location - show normal content
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // Top prayer section with mosque background
+                        topPrayerSection
 
-                    // Date navigation
-                    dateNavigationSection
-                        .padding(.top, 8)
+                        // Date navigation
+                        dateNavigationSection
+                            .padding(.top, 8)
 
-                    // Content sections
-                    VStack(spacing: RS.spacing(16)) {
-                        if Calendar.current.isDateInToday(viewModel.selectedDate) {
-                            progressSection
+                        // Content sections
+                        VStack(spacing: RS.spacing(16)) {
+                            if Calendar.current.isDateInToday(viewModel.selectedDate) {
+                                progressSection
+                            }
+
+                            // Qibla Compass
+                            SacredQiblaCard()
+
+                            prayerScheduleList
+
+                            footerInfo
                         }
-
-                        // Qibla Compass
-                        SacredQiblaCard()
-
-                        prayerScheduleList
-
-                        footerInfo
+                        .padding(.horizontal, RS.horizontalPadding)
+                        .padding(.top, RS.spacing(20))
+                        .padding(.bottom, RS.spacing(20))
                     }
-                    .padding(.horizontal, RS.horizontalPadding)
-                    .padding(.top, RS.spacing(20))
-                    .padding(.bottom, RS.spacing(20))
                 }
+                .ignoresSafeArea(edges: .top)
+                .background(pageBackground)
             }
-            .ignoresSafeArea(edges: .top)
-            .background(pageBackground)
 
             // Celebration overlay
             if showCelebration {
@@ -146,6 +155,12 @@ struct PrayerTimeView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingManualLocation) {
+            ManualLocationView { lat, lon, name in
+                // Refresh prayer times after manual location is set
+                viewModel.refreshForSettingsChange()
+            }
+        }
         .alert("Notifications Disabled", isPresented: $viewModel.showNotificationSettingsAlert) {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -155,6 +170,105 @@ struct PrayerTimeView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("To receive prayer reminders, please enable notifications in Settings.")
+        }
+    }
+
+    // MARK: - Location Required View
+    private var locationRequiredView: some View {
+        ZStack {
+            pageBackground.ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Spacer()
+
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(sacredGold.opacity(0.12))
+                        .frame(width: 100, height: 100)
+                        .overlay(
+                            Circle()
+                                .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                        )
+
+                    Image(systemName: "location.circle")
+                        .font(.system(size: 44, weight: .ultraLight))
+                        .foregroundColor(sacredGold)
+                }
+
+                // Text
+                VStack(spacing: 12) {
+                    Text("Location Needed")
+                        .font(.system(size: 24, weight: .light, design: .serif))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    Text("To show accurate prayer times, we need to know your location.")
+                        .font(.system(size: 15, weight: .light))
+                        .foregroundColor(warmGray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+
+                Spacer()
+
+                // Buttons
+                VStack(spacing: 12) {
+                    // Enable Location Button
+                    Button(action: {
+                        locationService.requestLocationPermission()
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 16))
+                            Text("Enable Location")
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                        .foregroundColor(themeManager.effectiveTheme == .dark ? .black : .white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(sacredGold)
+                        )
+                    }
+
+                    // Divider
+                    HStack {
+                        Rectangle()
+                            .fill(warmGray.opacity(0.3))
+                            .frame(height: 1)
+                        Text("or")
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(warmGray)
+                            .padding(.horizontal, 12)
+                        Rectangle()
+                            .fill(warmGray.opacity(0.3))
+                            .frame(height: 1)
+                    }
+                    .padding(.vertical, 4)
+
+                    // Enter City Manually Button
+                    Button(action: {
+                        showingManualLocation = true
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 16))
+                            Text("Enter City Manually")
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                        .foregroundColor(sacredGold)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(sacredGold.opacity(0.5), lineWidth: 1)
+                        )
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 48)
+            }
         }
     }
 
