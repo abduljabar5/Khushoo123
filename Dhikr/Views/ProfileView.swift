@@ -53,6 +53,7 @@ struct ProfileView: View {
     @State private var showingPrayerSettings = false
     @State private var showingPrayerSettingsBlockedAlert = false
     @State private var showingManualLocation = false
+    @State private var showingLocationOptions = false
     @State private var refreshID = UUID()
     @State private var showingDeleteConfirmation = false
     @State private var showingDeleteError = false
@@ -591,7 +592,7 @@ struct ProfileView: View {
 
                         // Location Setting
                         Button(action: {
-                            showingManualLocation = true
+                            showingLocationOptions = true
                         }) {
                             HStack(spacing: 14) {
                                 RoundedRectangle(cornerRadius: 8)
@@ -623,6 +624,19 @@ struct ProfileView: View {
                             .padding(.vertical, 12)
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .confirmationDialog("Location", isPresented: $showingLocationOptions, titleVisibility: .visible) {
+                            if !locationService.hasLocationPermission {
+                                Button("Use GPS Location") {
+                                    handleEnableGPS()
+                                }
+                            }
+                            Button("Enter City Manually") {
+                                showingManualLocation = true
+                            }
+                            Button("Cancel", role: .cancel) { }
+                        } message: {
+                            Text("Choose how to set your location for prayer times")
+                        }
                     }
                 }
 
@@ -918,6 +932,26 @@ struct ProfileView: View {
             } else {
                 clearDhikrReminders()
             }
+        }
+    }
+
+    private func handleEnableGPS() {
+        switch locationService.authorizationStatus {
+        case .notDetermined:
+            // First time - request permission
+            locationService.requestLocationPermission()
+        case .denied, .restricted:
+            // Previously denied - open Settings
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        case .authorizedWhenInUse, .authorizedAlways:
+            // Already have permission - clear manual location to use GPS
+            locationService.clearManualLocation()
+            locationService.requestLocation()
+            NotificationCenter.default.post(name: NSNotification.Name("PrayerSettingsChanged"), object: nil)
+        @unknown default:
+            break
         }
     }
 
