@@ -177,6 +177,10 @@ struct DhikrApp: App {
             // Use retry mechanism to wait for subscription verification to complete
             checkPremiumStatusWithRetry(attempt: 1, maxAttempts: 3)
 
+            // Reschedule prayer notifications for the next 7 days
+            // This ensures notifications continue working even if user doesn't open app daily
+            PrayerNotificationService.shared.scheduleWeeklyPrayerReminders()
+
             // If audio is playing, show full-screen player (for lock screen/control center taps)
             if audioPlayerService.isPlaying && audioPlayerService.currentSurah != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

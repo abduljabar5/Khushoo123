@@ -200,13 +200,16 @@ class BackgroundRefreshService: NSObject, ObservableObject {
             }
         }
 
-        // Schedule notifications only for selected prayers
+        // Schedule notifications only for selected prayers (focus mode warnings)
         PrayerNotificationService.shared.schedulePrePrayerNotifications(
             prayerTimes: prayerTimes,
             selectedPrayers: selectedPrayers,
             isEnabled: true,
             minutesBefore: 5
         )
+
+        // Also schedule prayer time reminders for the next 7 days
+        PrayerNotificationService.shared.scheduleWeeklyPrayerReminders()
 
     }
 

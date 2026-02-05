@@ -377,6 +377,97 @@ class PrayerNotificationService: ObservableObject {
         }
     }
 
+    // MARK: - Multi-Day Prayer Reminder Scheduling
+
+    /// Schedule prayer reminders for the next 7 days using stored prayer times
+    /// This should be called on app launch, app becoming active, and from background refresh
+    func scheduleWeeklyPrayerReminders() {
+        guard hasNotificationPermission else {
+            print("⚠️ [PrayerReminder] No notification permission for weekly scheduling")
+            return
+        }
+
+        // Check if reminders are enabled
+        let prayerRemindersEnabled = UserDefaults.standard.bool(forKey: "prayerRemindersEnabled")
+        guard prayerRemindersEnabled else {
+            print("📅 [PrayerReminder] Prayer reminders disabled - skipping weekly schedule")
+            return
+        }
+
+        // Load stored prayer times
+        let prayerTimeService = PrayerTimeService()
+        guard let storage = prayerTimeService.loadStorage(), !storage.prayerTimes.isEmpty else {
+            print("⚠️ [PrayerReminder] No stored prayer times for weekly scheduling")
+            return
+        }
+
+        // Clear existing reminders first
+        clearPrayerTimeReminders()
+
+        let calendar = Calendar.current
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+
+        var scheduledCount = 0
+        let prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
+
+        // Schedule for next 7 days
+        for dayOffset in 0..<7 {
+            guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+            let startOfDay = calendar.startOfDay(for: targetDate)
+
+            // Find stored prayer time for this date
+            guard let storedPrayer = storage.prayerTimes.first(where: {
+                calendar.isDate($0.date, inSameDayAs: startOfDay)
+            }) else { continue }
+
+            // Get reminder settings for each prayer
+            for prayerName in prayerNames {
+                // Check if this prayer has reminder enabled
+                let hasReminder = UserDefaults.standard.bool(forKey: "reminder_\(prayerName)")
+                guard hasReminder else { continue }
+
+                // Get prayer time string
+                let timeString: String
+                switch prayerName {
+                case "Fajr": timeString = storedPrayer.fajr
+                case "Dhuhr": timeString = storedPrayer.dhuhr
+                case "Asr": timeString = storedPrayer.asr
+                case "Maghrib": timeString = storedPrayer.maghrib
+                case "Isha": timeString = storedPrayer.isha
+                default: continue
+                }
+
+                // Parse time and create full date
+                let cleanTimeString = timeString.components(separatedBy: " ")[0]
+                guard let time = formatter.date(from: cleanTimeString) else { continue }
+
+                var components = calendar.dateComponents([.hour, .minute], from: time)
+                components.year = calendar.component(.year, from: targetDate)
+                components.month = calendar.component(.month, from: targetDate)
+                components.day = calendar.component(.day, from: targetDate)
+
+                guard let prayerDate = calendar.date(from: components) else { continue }
+
+                // Skip if in the past
+                guard prayerDate > now else { continue }
+
+                // Schedule the notification
+                schedulePrayerReminder(prayerName: prayerName, prayerTime: prayerDate, minutesBefore: 0)
+                scheduledCount += 1
+
+                // iOS limit is 64 pending notifications - stay well under
+                if scheduledCount >= 50 {
+                    print("📅 [PrayerReminder] Reached scheduling limit of 50")
+                    return
+                }
+            }
+        }
+
+        print("📅 [PrayerReminder] Scheduled \(scheduledCount) prayer reminders for next 7 days")
+    }
+
     // MARK: - Icon for Prayer Names
 
     private func iconForPrayer(_ prayerName: String) -> String {
