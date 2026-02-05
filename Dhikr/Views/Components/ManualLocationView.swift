@@ -105,13 +105,58 @@ struct ManualLocationView: View {
                         }
                         Spacer()
                     } else if searchResults.isEmpty {
+                        // GPS Option Button (when not already using GPS)
+                        if !locationService.hasLocationPermission {
+                            Button(action: {
+                                requestGPSLocation()
+                            }) {
+                                HStack(spacing: 14) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(softGreen.opacity(0.12))
+                                            .frame(width: 44, height: 44)
+
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 18, weight: .medium))
+                                            .foregroundColor(softGreen)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Use GPS Location")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(themeManager.theme.primaryText)
+
+                                        Text("Automatic and most accurate")
+                                            .font(.system(size: 13, weight: .light))
+                                            .foregroundColor(warmGray)
+                                    }
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(warmGray)
+                                }
+                                .padding(14)
+                                .background(cardBackground)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(softGreen.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 20)
+                        }
+
                         Spacer()
                         VStack(spacing: 16) {
                             Image(systemName: "globe")
                                 .font(.system(size: 48, weight: .ultraLight))
                                 .foregroundColor(sacredGold.opacity(0.5))
 
-                            Text("Enter your city name")
+                            Text("Or enter your city name")
                                 .font(.system(size: 17, weight: .light))
                                 .foregroundColor(themeManager.theme.primaryText)
 
@@ -157,6 +202,14 @@ struct ManualLocationView: View {
             }
         }
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
+        .onChange(of: locationService.authorizationStatus) { newStatus in
+            // Dismiss when GPS permission is granted
+            if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
+                locationService.requestLocation()
+                onLocationSelected?(0, 0, "") // Signal refresh
+                dismiss()
+            }
+        }
     }
 
     private func searchCities(query: String) {
@@ -228,6 +281,26 @@ struct ManualLocationView: View {
         // Dismiss after a brief delay to show selection
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             dismiss()
+        }
+    }
+
+    private func requestGPSLocation() {
+        switch locationService.authorizationStatus {
+        case .notDetermined:
+            // Request permission - will dismiss when granted
+            locationService.requestLocationPermission()
+        case .denied, .restricted:
+            // Open Settings
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        case .authorizedWhenInUse, .authorizedAlways:
+            // Already have permission - clear manual and use GPS
+            locationService.clearManualLocation()
+            locationService.requestLocation()
+            dismiss()
+        @unknown default:
+            break
         }
     }
 }
