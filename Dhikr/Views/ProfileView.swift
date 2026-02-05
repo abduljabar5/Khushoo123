@@ -52,6 +52,7 @@ struct ProfileView: View {
     @State private var showingPaywall = false
     @State private var showingPrayerSettings = false
     @State private var showingPrayerSettingsBlockedAlert = false
+    @State private var showingManualLocation = false
     @State private var refreshID = UUID()
     @State private var showingDeleteConfirmation = false
     @State private var showingDeleteError = false
@@ -61,6 +62,7 @@ struct ProfileView: View {
     // Settings manager for prayer calculation
     @StateObject private var prayerSettingsManager = PrayerCalculationSettingsManager.shared
     @StateObject private var blockingState = BlockingStateService.shared
+    @StateObject private var locationService = LocationService()
 
     // App Storage
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
@@ -92,6 +94,16 @@ struct ProfileView: View {
             return "\(hours) hours left on trial"
         } else {
             return "Trial ending soon"
+        }
+    }
+
+    private var locationDisplayText: String {
+        if locationService.hasLocationPermission {
+            return "Using GPS location"
+        } else if let name = locationService.manualLocationName {
+            return name
+        } else {
+            return "Not set"
         }
     }
 
@@ -178,6 +190,12 @@ struct ProfileView: View {
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingManualLocation) {
+            ManualLocationView { _, _, _ in
+                // Refresh prayer times after location change
+                NotificationCenter.default.post(name: NSNotification.Name("PrayerSettingsChanged"), object: nil)
+            }
         }
         .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -524,48 +542,87 @@ struct ProfileView: View {
 
                 // Prayer Times
                 SacredPreferenceGroup(title: "PRAYER TIMES") {
-                    Button(action: {
-                        // Prevent settings changes while apps are blocked
-                        if blockingState.isCurrentlyBlocking {
-                            showingPrayerSettingsBlockedAlert = true
-                        } else {
-                            showingPrayerSettings = true
-                        }
-                    }) {
-                        HStack(spacing: 14) {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(sacredGold.opacity(0.1))
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Image(systemName: "clock.badge.checkmark")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(sacredGold)
-                                )
+                    VStack(spacing: 0) {
+                        Button(action: {
+                            // Prevent settings changes while apps are blocked
+                            if blockingState.isCurrentlyBlocking {
+                                showingPrayerSettingsBlockedAlert = true
+                            } else {
+                                showingPrayerSettings = true
+                            }
+                        }) {
+                            HStack(spacing: 14) {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(sacredGold.opacity(0.1))
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Image(systemName: "clock.badge.checkmark")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(sacredGold)
+                                    )
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Calculation Method")
-                                    .font(.system(size: 14, weight: .regular))
-                                    .foregroundColor(themeManager.theme.primaryText)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Calculation Method")
+                                        .font(.system(size: 14, weight: .regular))
+                                        .foregroundColor(themeManager.theme.primaryText)
 
-                                Text("\(prayerSettingsManager.calculationMethod.name) • \(prayerSettingsManager.asrMethod.name)")
-                                    .font(.system(size: 11, weight: .light))
+                                    Text("\(prayerSettingsManager.calculationMethod.name) • \(prayerSettingsManager.asrMethod.name)")
+                                        .font(.system(size: 11, weight: .light))
+                                        .foregroundColor(themeManager.theme.secondaryText)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11))
                                     .foregroundColor(themeManager.theme.secondaryText)
                             }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11))
-                                .foregroundColor(themeManager.theme.secondaryText)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .alert("Focus Mode Active", isPresented: $showingPrayerSettingsBlockedAlert) {
-                        Button("OK", role: .cancel) { }
-                    } message: {
-                        Text("Settings cannot be changed during prayer time. Please wait until your focus session ends.")
+                        .buttonStyle(PlainButtonStyle())
+                        .alert("Focus Mode Active", isPresented: $showingPrayerSettingsBlockedAlert) {
+                            Button("OK", role: .cancel) { }
+                        } message: {
+                            Text("Settings cannot be changed during prayer time. Please wait until your focus session ends.")
+                        }
+
+                        SacredDivider()
+
+                        // Location Setting
+                        Button(action: {
+                            showingManualLocation = true
+                        }) {
+                            HStack(spacing: 14) {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(sacredGold.opacity(0.1))
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Image(systemName: "location.circle")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(sacredGold)
+                                    )
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Location")
+                                        .font(.system(size: 14, weight: .regular))
+                                        .foregroundColor(themeManager.theme.primaryText)
+
+                                    Text(locationDisplayText)
+                                        .font(.system(size: 11, weight: .light))
+                                        .foregroundColor(themeManager.theme.secondaryText)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(themeManager.theme.secondaryText)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
 
