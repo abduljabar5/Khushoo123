@@ -301,10 +301,6 @@ struct PrayerRectangularView: View {
         entry.prayerStatus.filter { $0.isCompleted }.count
     }
 
-    private func isCurrentPrayer(_ prayerName: String) -> Bool {
-        entry.isCurrentPrayerActive && entry.nextPrayer == prayerName
-    }
-
     var body: some View {
         if !entry.isPremium {
             HStack(spacing: 8) {
@@ -334,11 +330,11 @@ struct PrayerRectangularView: View {
                     VStack(spacing: 1) {
                         Image(systemName: prayerStatusIcon(for: prayer))
                             .font(.system(size: 11))
-                            .foregroundStyle(prayer.isCompleted ? .primary : (isCurrentPrayer(prayer.name) ? .primary : .tertiary))
-                            .widgetAccentable(prayer.isCompleted || isCurrentPrayer(prayer.name))
+                            .foregroundStyle(prayer.isCompleted ? .primary : .tertiary)
+                            .widgetAccentable(prayer.isCompleted)
                         Text(prayerShortName(prayer.name))
                             .font(.system(size: 7, weight: .medium))
-                            .foregroundStyle(isCurrentPrayer(prayer.name) ? .primary : .secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity)
@@ -397,13 +393,8 @@ struct PrayerRectangularView: View {
     }
 
     private func prayerStatusIcon(for prayer: PrayerStatus) -> String {
-        if prayer.isCompleted {
-            return "checkmark.circle.fill"
-        } else if isCurrentPrayer(prayer.name) {
-            return "circle.inset.filled" // Current prayer - distinct indicator
-        } else {
-            return "circle"
-        }
+        // Only show checkmark for user-completed prayers, empty circle otherwise
+        return prayer.isCompleted ? "checkmark.circle.fill" : "circle"
     }
 
     private func prayerShortName(_ name: String) -> String {

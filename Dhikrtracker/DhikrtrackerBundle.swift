@@ -15,14 +15,14 @@ struct DhikrtrackerBundle: WidgetBundle {
         Dhikrtracker()
         PrayerWidget()
 
+        // Lock Screen Widgets - Prayer (first for visibility)
+        PrayerRectangularWidget()  // Prayer Status - most useful
+        PrayerCircularWidget()
+        PrayerInlineWidget()
+
         // Lock Screen Widgets - Dhikr
         DhikrCircularWidget()
         DhikrRectangularWidget()
         DhikrInlineWidget()
-
-        // Lock Screen Widgets - Prayer
-        PrayerCircularWidget()
-        PrayerRectangularWidget()
-        PrayerInlineWidget()
     }
 }
