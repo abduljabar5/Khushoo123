@@ -45,19 +45,72 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         groupDefaults.synchronize()
     }
 
+    // MARK: - Premium Check
+
+    /// Check if user has premium access using only local data (no StoreKit/Firebase).
+    /// Safe to call from extension — reads group UserDefaults only.
+    private func hasPremiumAccess() -> Bool {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return false }
+
+        // 1. Check paid subscription (cached by main app after StoreKit verification)
+        if groupDefaults.bool(forKey: "isPremiumUser") { return true }
+
+        // 2. Check manual grant (cached by main app after Firebase check)
+        if groupDefaults.bool(forKey: "hasManualGrant") { return true }
+
+        return false
+    }
+
+    /// Disable all premium features: clear shields, web filter, Haya mode, blocking state.
+    private func disableAllPremiumFeatures(activity: String) {
+        log("🚨 Premium expired — disabling all premium features", activity: activity)
+
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
+
+        // Clear all app shields
+        store.shield.applications = nil
+        store.shield.applicationCategories = nil
+        store.shield.webDomains = nil
+
+        // Clear web content filter (Haya mode)
+        store.webContent.blockedByFilter = nil
+
+        // Also call clearAllSettings as a belt-and-suspenders approach
+        store.clearAllSettings()
+
+        // Disable Haya mode flag
+        groupDefaults.set(false, forKey: "focusHayaMode")
+
+        // Clear all blocking state
+        groupDefaults.set(false, forKey: "appsActuallyBlocked")
+        groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
+        groupDefaults.removeObject(forKey: "blockingStartTime")
+        groupDefaults.removeObject(forKey: "blockingEndTime")
+        groupDefaults.removeObject(forKey: "currentPrayerName")
+        groupDefaults.removeObject(forKey: "currentPrayerTime")
+        groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+        groupDefaults.synchronize()
+
+        log("✅ All premium features disabled", activity: activity)
+    }
+
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
 
         let now = Date()
         log("🟢 intervalDidStart called", activity: activity.rawValue)
 
+        // PREMIUM FAILSAFE: If user lost premium, don't apply any shields
+        if !hasPremiumAccess() {
+            disableAllPremiumFeatures(activity: activity.rawValue)
+            return
+        }
+
         // Parse prayer name and timestamp from activity name (format: "Prayer_<Name>_<Timestamp>")
         let prayerName = extractPrayerName(from: activity.rawValue)
         let prayerTimestamp = extractPrayerTimestamp(from: activity.rawValue)
 
         // 1. Get the selection to apply
-        // The Scheduler has already verified Premium status and Prayer Selection.
-        // We just execute the order.
         let selection = AppSelectionModel.getCurrentSelection()
 
         let appCount = selection.applicationTokens.count
@@ -134,6 +187,12 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         super.intervalDidEnd(for: activity)
 
         log("🔴 intervalDidEnd called", activity: activity.rawValue)
+
+        // PREMIUM FAILSAFE: If user lost premium, clear everything regardless of strict mode
+        if !hasPremiumAccess() {
+            disableAllPremiumFeatures(activity: activity.rawValue)
+            return
+        }
 
         // Check if strict mode is enabled via App Group UserDefaults
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")

@@ -1103,9 +1103,9 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.errorMessage = nil
             self.isReadyToPlay = false
         }
-        
-        // If the reciter has changed, we need to build a new playlist.
-        if reciter.id != self.currentReciter?.id {
+
+        // Rebuild playlist if reciter changed or moshaf version switched (same id, different server)
+        if reciter.id != self.currentReciter?.id || reciter.server != self.currentReciter?.server {
             await buildPlaylist(for: reciter)
         }
         
@@ -1212,15 +1212,15 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Preload Audio (without playing)
     private func preloadAudio(surah: Surah, reciter: Reciter, startTime: TimeInterval? = nil) async {
-        
+
         await MainActor.run {
             self.isLoading = true
             self.errorMessage = nil
             self.isReadyToPlay = false
         }
-        
-        // If the reciter has changed, we need to build a new playlist.
-        if reciter.id != self.currentReciter?.id {
+
+        // Rebuild playlist if reciter changed or moshaf version switched (same id, different server)
+        if reciter.id != self.currentReciter?.id || reciter.server != self.currentReciter?.server {
             await buildPlaylist(for: reciter)
         }
         
@@ -1311,7 +1311,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     // MARK: - Playlist Management
     private func buildPlaylist(for reciter: Reciter) async {
 
-        // Fetch all 114 surahs to serve as the playlist
+        // Fetch all surahs then filter to only those this reciter has audio for
         guard let allSurahs = try? await QuranAPIService.shared.fetchSurahs() else {
             await MainActor.run {
                 self.currentPlaylist = []
@@ -1319,9 +1319,10 @@ class AudioPlayerService: NSObject, ObservableObject {
             return
         }
 
+        let filtered = allSurahs.filter { reciter.hasSurah($0.number) }
 
         await MainActor.run {
-            self.currentPlaylist = allSurahs
+            self.currentPlaylist = filtered
 
             // If shuffle is on, we need to regenerate the shuffled indices for the new playlist.
             if self.isShuffleEnabled {

@@ -71,6 +71,7 @@ struct ShareReferralPopup: View {
                 activityItems: [shareMessage, shareURL].compactMap { $0 },
                 onComplete: { _, isValidShare in
                     if isValidShare {
+                        AnalyticsService.shared.trackAppShared()
                         subscriptionService.claimReferralAccess()
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                             showSuccess = true

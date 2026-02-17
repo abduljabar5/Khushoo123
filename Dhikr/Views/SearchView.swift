@@ -555,6 +555,10 @@ private struct SacredEarlyUnlockSection: View {
     @StateObject private var blocking = BlockingStateService.shared
     @StateObject private var themeManager = ThemeManager.shared
     @State private var refreshTimer: Timer?
+    @State private var lockWiggle = false
+    @State private var pulseRing = false
+    @State private var wasWaiting = true
+    @State private var showUnlockedSuccess = false
 
     private var sacredGold: Color {
         Color(red: 0.77, green: 0.65, blue: 0.46)
@@ -574,23 +578,37 @@ private struct SacredEarlyUnlockSection: View {
 
     var body: some View {
         Group {
-            if !blocking.isStrictModeEnabled && blocking.appsActuallyBlocked {
+            if showUnlockedSuccess {
+                // Success state after unlocking
+                unlockedSuccessView
+                    .transition(.scale.combined(with: .opacity))
+            } else if !blocking.isStrictModeEnabled && blocking.appsActuallyBlocked {
                 let remaining = blocking.timeUntilEarlyUnlock()
 
                 VStack(spacing: 24) {
-                    // Icon
+                    // Animated icon
                     ZStack {
-                        Circle()
-                            .stroke(sacredGold.opacity(0.3), lineWidth: 1)
-                            .frame(width: 72, height: 72)
+                        // Pulsing outer ring when ready
+                        if remaining <= 0 {
+                            Circle()
+                                .stroke(sacredGold.opacity(pulseRing ? 0.5 : 0.1), lineWidth: pulseRing ? 2 : 1)
+                                .frame(width: 72, height: 72)
+                                .scaleEffect(pulseRing ? 1.15 : 1.0)
+                        } else {
+                            Circle()
+                                .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                                .frame(width: 72, height: 72)
+                        }
 
                         Circle()
-                            .fill(sacredGold.opacity(0.1))
+                            .fill(sacredGold.opacity(remaining <= 0 ? 0.15 : 0.1))
                             .frame(width: 64, height: 64)
 
                         Image(systemName: remaining > 0 ? "hourglass" : "lock.open")
                             .font(.system(size: 28, weight: .light))
                             .foregroundColor(sacredGold)
+                            .contentTransition(.symbolEffect(.replace))
+                            .rotationEffect(.degrees(lockWiggle ? 12 : 0))
                     }
 
                     // Content
@@ -615,8 +633,13 @@ private struct SacredEarlyUnlockSection: View {
                                 .foregroundColor(themeManager.theme.primaryText)
 
                             Button(action: {
-                                HapticManager.shared.impact(.medium)
-                                blocking.earlyUnlockCurrentInterval()
+                                HapticManager.shared.notification(.success)
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                                    showUnlockedSuccess = true
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    blocking.earlyUnlockCurrentInterval()
+                                }
                             }) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "lock.open")
@@ -659,8 +682,75 @@ private struct SacredEarlyUnlockSection: View {
                     refreshTimer?.invalidate()
                     refreshTimer = nil
                 }
+                .onChange(of: remaining <= 0) { isReady in
+                    if isReady && wasWaiting {
+                        // Lock just became ready — play wiggle + pulse
+                        wasWaiting = false
+                        HapticManager.shared.notification(.success)
+                        withAnimation(.easeInOut(duration: 0.15).repeatCount(5, autoreverses: true)) {
+                            lockWiggle = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            lockWiggle = false
+                        }
+                        withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                            pulseRing = true
+                        }
+                    } else if !isReady {
+                        wasWaiting = true
+                        pulseRing = false
+                    }
+                }
+                .onChange(of: blocking.isEarlyUnlockedActive) { unlocked in
+                    if unlocked {
+                        // Unlocked via notification/widget — show success
+                        HapticManager.shared.notification(.success)
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                            showUnlockedSuccess = true
+                        }
+                    }
+                }
             }
         }
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showUnlockedSuccess)
+    }
+
+    private var unlockedSuccessView: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.55, green: 0.68, blue: 0.55).opacity(0.15))
+                    .frame(width: 80, height: 80)
+
+                Image(systemName: "lock.open.fill")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundColor(Color(red: 0.55, green: 0.68, blue: 0.55))
+                    .symbolEffect(.bounce, value: showUnlockedSuccess)
+            }
+
+            VStack(spacing: 8) {
+                Text("APPS UNLOCKED")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(2)
+                    .foregroundColor(Color(red: 0.55, green: 0.68, blue: 0.55))
+
+                Text("Enjoy your free time")
+                    .font(.system(size: 16, weight: .light, design: .serif))
+                    .foregroundColor(themeManager.theme.primaryText)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color(red: 0.55, green: 0.68, blue: 0.55).opacity(0.3), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 20)
     }
 }
 

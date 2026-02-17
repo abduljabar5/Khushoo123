@@ -91,6 +91,7 @@ class ReferralCodeService: ObservableObject {
             appAccountToken = token
             isValidating = false
             validationError = nil
+            AnalyticsService.shared.trackReferralCodeUsed()
 
             print("✅ [ReferralCode] Validated code: \(trimmedCode), token: \(token.uuidString)")
             return true

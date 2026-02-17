@@ -30,51 +30,61 @@ final class AnalyticsService {
 
     // MARK: - Funnel Events (Onboarding)
 
-    /// 1. First launch after install
+    /// First launch after install
     func trackAppOpened() {
         trackOnce("Funnel.appOpened")
     }
 
-    /// 2. Location permission granted - completed onboarding
+    /// Location permission granted - completed onboarding
     func trackLocationGranted() {
         trackOnce("Funnel.locationGranted")
     }
 
-    /// 3. Location permission denied - losing people here
+    /// Location permission denied
     func trackLocationDenied() {
         trackOnce("Funnel.locationDenied")
     }
 
     // MARK: - Feature Events
 
-    /// 4. Tapped into Focus feature (first time only)
+    /// Tapped into Focus feature
     func trackFocusBlockingViewed() {
         trackOnce("Feature.focusViewed")
     }
 
-    /// 5. Set up blocking with apps selected
+    /// Set up blocking with apps selected
     func trackFocusBlockingEnabled() {
         trackOnce("Feature.focusEnabled")
     }
 
-    /// 6. Haya mode enabled - sticky feature
+    /// Haya mode enabled
     func trackHayaModeEnabled() {
         trackOnce("Feature.hayaModeEnabled")
     }
 
-    /// 8. Notification permission granted - will they come back
+    /// Notification permission granted
     func trackNotificationEnabled() {
         trackOnce("Feature.notificationsEnabled")
     }
 
-    // MARK: - Engagement Events
-
-    /// 7. Quran audio played - engagement signal (tracks each play)
+    /// Quran audio played
     func trackQuranAudioPlayed() {
-        TelemetryDeck.signal("Engagement.quranPlayed")
+        trackOnce("Engagement.quranPlayed")
     }
 
-    /// 9 & 10. Day 1 and Day 3 returns - habit forming
+    /// Shared the app via referral
+    func trackAppShared() {
+        trackOnce("Engagement.appShared")
+    }
+
+    /// Used a referral code
+    func trackReferralCodeUsed() {
+        trackOnce("Engagement.referralCodeUsed")
+    }
+
+    // MARK: - Retention Events
+
+    /// Day 1, 3, 7 returns - habit forming
     private func trackDayReturns() {
         guard let installDate = defaults.object(forKey: "analytics_install_date") as? Date else {
             // First time - set install date
@@ -86,17 +96,14 @@ final class AnalyticsService {
         let now = Date()
         let daysSinceInstall = calendar.dateComponents([.day], from: installDate, to: now).day ?? 0
 
-        // Day 1 return (opened app on day after install)
         if daysSinceInstall >= 1 {
             trackOnce("Retention.day1Return")
         }
 
-        // Day 3 return (opened app 3+ days after install)
         if daysSinceInstall >= 3 {
             trackOnce("Retention.day3Return")
         }
 
-        // Day 7 return
         if daysSinceInstall >= 7 {
             trackOnce("Retention.day7Return")
         }
@@ -104,22 +111,17 @@ final class AnalyticsService {
 
     // MARK: - Conversion Events
 
-    /// 11. Paywall viewed - reached end of trial
+    /// Paywall viewed
     func trackPaywallViewed() {
         TelemetryDeck.signal("Conversion.paywallViewed")
     }
 
-    /// 12. Trial started
-    func trackTrialStarted() {
-        trackOnce("Conversion.trialStarted")
-    }
-
-    /// 13. Subscription started - converted
+    /// Subscription started
     func trackSubscriptionStarted(productId: String) {
         trackOnce("Conversion.subscriptionStarted")
     }
 
-    /// 14. Subscription cancelled
+    /// Subscription cancelled
     func trackSubscriptionCancelled() {
         TelemetryDeck.signal("Conversion.subscriptionCancelled")
     }

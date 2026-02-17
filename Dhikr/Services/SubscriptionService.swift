@@ -13,19 +13,28 @@ import WidgetKit
 
 // MARK: - Subscription Product IDs
 enum SubscriptionProductID: String, CaseIterable {
+    case weekly = "Weekly.Plan"
     case monthly = "khushoo.monthly"
     case yearly = "khushoo.yearly"
+    case weeklyReferral = "Weekly.Referral"
     case monthlyReferral = "khushoo.monthly.referral"
     case yearlyReferral = "khushoo.yearly.referral"
 
     /// Standard products (3-day trial)
     static var standardProducts: [SubscriptionProductID] {
-        [.monthly, .yearly]
+        [.weekly, .monthly, .yearly]
     }
 
     /// Referral products (7-day trial)
     static var referralProducts: [SubscriptionProductID] {
-        [.monthlyReferral, .yearlyReferral]
+        [.weeklyReferral, .monthlyReferral, .yearlyReferral]
+    }
+
+    var isReferral: Bool {
+        switch self {
+        case .weeklyReferral, .monthlyReferral, .yearlyReferral: return true
+        default: return false
+        }
     }
 }
 
@@ -40,15 +49,15 @@ class SubscriptionService: ObservableObject {
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var purchaseState: PurchaseState = .idle
 
-    /// Combined check: user has premium access if they have a subscription, active trial, OR manual grant
+    /// Combined check: user has premium access if they have a paid subscription OR manual grant
     var hasPremiumAccess: Bool {
-        return isPremium || isOnTrial || hasManualGrant
+        return isPremium || hasManualGrant
     }
 
     /// Legacy property - use hasPremiumAccess instead
-    @available(*, deprecated, message: "Use hasPremiumAccess, isOnTrial, or hasManualGrant instead")
+    @available(*, deprecated, message: "Use hasPremiumAccess or hasManualGrant instead")
     var hasGrantedAccess: Bool {
-        return isOnTrial || hasManualGrant
+        return hasManualGrant
     }
 
     /// Whether the subscription service has completed a verified check with StoreKit
@@ -100,27 +109,8 @@ class SubscriptionService: ObservableObject {
                 print("✅ [SubscriptionService] Loaded cached manual grant: true")
             }
 
-            // Check for 7-day trial for new users
-            if let trialExpirationDate = groupDefaults.object(forKey: "trialExpirationDate") as? Date {
-                // Existing user - trial status will be computed via isOnTrial
-                if Date() < trialExpirationDate {
-                    print("✅ [SubscriptionService] Trial still active until: \(trialExpirationDate)")
-                } else {
-                    print("⏰ [SubscriptionService] Trial expired on: \(trialExpirationDate)")
-                }
-            } else {
-                // New user - grant 7-day trial
-                let trialExpiration = Date().addingTimeInterval(7 * 24 * 60 * 60)
-                groupDefaults.set(trialExpiration, forKey: "trialExpirationDate")
-                groupDefaults.synchronize()
-                print("🎁 [SubscriptionService] New user - granted trial until: \(trialExpiration)")
-
-                // Track trial started
-                AnalyticsService.shared.trackTrialStarted()
-            }
-
             // Refresh widgets immediately if user has cached premium access
-            if cachedPremium || self.hasManualGrant || self.isOnTrial {
+            if cachedPremium || self.hasManualGrant {
                 WidgetCenter.shared.reloadAllTimelines()
             }
         }
@@ -290,13 +280,8 @@ class SubscriptionService: ObservableObject {
                 }
             }
         } else {
-            // User is signed out - trial is computed via isOnTrial
-            // hasManualGrant requires Firebase, so it stays as cached
-            if isOnTrial {
-                print("✅ [SubscriptionService] Signed out but trial active")
-            } else {
-                print("ℹ️ [SubscriptionService] Signed out, no active trial")
-            }
+            // User is signed out - hasManualGrant requires Firebase, so it stays as cached
+            print("ℹ️ [SubscriptionService] Signed out, using cached premium status")
         }
 
         let wasPremium = self.isPremium
@@ -347,7 +332,7 @@ class SubscriptionService: ObservableObject {
             isInitialSync = false
         }
 
-        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium), isOnTrial: \(self.isOnTrial), hasManualGrant: \(self.hasManualGrant), hasPremiumAccess: \(self.hasPremiumAccess)")
+        print("✅ [SubscriptionService] Sync complete - isPremium: \(self.isPremium), hasManualGrant: \(self.hasManualGrant), hasPremiumAccess: \(self.hasPremiumAccess)")
 
         // Refresh all widgets so they pick up the new premium status
         WidgetCenter.shared.reloadAllTimelines()
@@ -372,11 +357,12 @@ class SubscriptionService: ObservableObject {
         )
 
         do {
-            try await db.collection("users").document(userId).updateData([
+            try await db.collection("users").document(userId).setData([
                 "isPremium": isActive,
                 "subscription": try Firestore.Encoder().encode(subscriptionData)
-            ])
+            ], merge: true)
         } catch {
+            print("❌ [SubscriptionService] Firebase sync error: \(error)")
         }
     }
 
@@ -422,17 +408,18 @@ class SubscriptionService: ObservableObject {
                 subscriptionDict["isActive"] = false
                 subscriptionDict["lastVerified"] = Timestamp(date: Date())
 
-                try await db.collection("users").document(userId).updateData([
+                try await db.collection("users").document(userId).setData([
                     "isPremium": false,
                     "subscription": subscriptionDict
-                ])
+                ], merge: true)
             } else {
                 // Just update isPremium if no subscription exists
-                try await db.collection("users").document(userId).updateData([
+                try await db.collection("users").document(userId).setData([
                     "isPremium": false
-                ])
+                ], merge: true)
             }
         } catch {
+            print("❌ [SubscriptionService] Error marking subscription inactive: \(error)")
         }
     }
 
@@ -470,7 +457,6 @@ class SubscriptionService: ObservableObject {
                 }
             } else {
                 // No Firebase grant - hasManualGrant remains false
-                // Trial is handled separately via isOnTrial computed property
                 self.hasManualGrant = false
                 if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
                     groupDefaults.set(false, forKey: "hasManualGrant")
@@ -497,8 +483,7 @@ class SubscriptionService: ObservableObject {
 
         do {
             // Check if this is a referral product and we have an appAccountToken
-            let isReferralProduct = product.id == SubscriptionProductID.monthlyReferral.rawValue ||
-                                    product.id == SubscriptionProductID.yearlyReferral.rawValue
+            let isReferralProduct = SubscriptionProductID(rawValue: product.id)?.isReferral == true
             let referralToken = ReferralCodeService.shared.appAccountToken
 
             print("🔍 [SubscriptionService] Product ID: \(product.id)")
@@ -519,6 +504,15 @@ class SubscriptionService: ObservableObject {
             switch result {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
+                print("✅ [SubscriptionService] Purchase verified for: \(transaction.productID)")
+
+                // Set premium immediately - StoreKit verified the purchase
+                self.isPremium = true
+                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                    groupDefaults.set(true, forKey: "isPremiumUser")
+                    groupDefaults.synchronize()
+                }
+                print("✅ [SubscriptionService] Premium set to true from verified purchase")
 
                 // Sync to Firebase if user is logged in
                 if currentUserId != nil {
@@ -530,14 +524,30 @@ class SubscriptionService: ObservableObject {
                     await ReferralCodeService.shared.recordCodeUsage(transactionId: String(transaction.id))
                 }
 
-                // Update subscription status (works locally via StoreKit)
+                // Also run full sync for status tracking
                 await syncSubscriptionStatus()
+
+                // Ensure premium stays true - the purchase was verified
+                if !self.isPremium {
+                    print("⚠️ [SubscriptionService] syncSubscriptionStatus reset premium - restoring from verified purchase")
+                    self.isPremium = true
+                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                        groupDefaults.set(true, forKey: "isPremiumUser")
+                        groupDefaults.synchronize()
+                    }
+                }
 
                 // Finish the transaction
                 await transaction.finish()
 
                 // Track subscription started
                 AnalyticsService.shared.trackSubscriptionStarted(productId: product.id)
+
+                // Notify the app that user became premium
+                NotificationCenter.default.post(name: NSNotification.Name("UserBecamePremium"), object: nil)
+
+                // Refresh widgets
+                WidgetCenter.shared.reloadAllTimelines()
 
                 purchaseState = .success
 
@@ -624,6 +634,10 @@ extension SubscriptionService {
     }
 
     // MARK: - Standard Products (3-day trial)
+    var weeklyProduct: Product? {
+        return availableProducts.first { $0.id == SubscriptionProductID.weekly.rawValue }
+    }
+
     var monthlyProduct: Product? {
         return availableProducts.first { $0.id == SubscriptionProductID.monthly.rawValue }
     }
@@ -634,13 +648,16 @@ extension SubscriptionService {
 
     /// Standard products to show (without referral code)
     var standardProducts: [Product] {
-        return availableProducts.filter {
-            $0.id == SubscriptionProductID.monthly.rawValue ||
-            $0.id == SubscriptionProductID.yearly.rawValue
+        return availableProducts.filter { product in
+            SubscriptionProductID.standardProducts.map(\.rawValue).contains(product.id)
         }.sorted { $0.price < $1.price }
     }
 
     // MARK: - Referral Products (7-day trial)
+    var weeklyReferralProduct: Product? {
+        return availableProducts.first { $0.id == SubscriptionProductID.weeklyReferral.rawValue }
+    }
+
     var monthlyReferralProduct: Product? {
         return availableProducts.first { $0.id == SubscriptionProductID.monthlyReferral.rawValue }
     }
@@ -651,46 +668,9 @@ extension SubscriptionService {
 
     /// Referral products to show (with valid referral code)
     var referralProducts: [Product] {
-        return availableProducts.filter {
-            $0.id == SubscriptionProductID.monthlyReferral.rawValue ||
-            $0.id == SubscriptionProductID.yearlyReferral.rawValue
+        return availableProducts.filter { product in
+            SubscriptionProductID.referralProducts.map(\.rawValue).contains(product.id)
         }.sorted { $0.price < $1.price }
-    }
-
-    // MARK: - Trial Status
-
-    /// Returns the trial expiration date, if any
-    var trialExpirationDate: Date? {
-        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return nil }
-        return groupDefaults.object(forKey: "trialExpirationDate") as? Date
-    }
-
-    /// Returns remaining trial time in seconds (0 if expired or no trial)
-    var trialTimeRemaining: TimeInterval {
-        guard let expiration = trialExpirationDate else { return 0 }
-        return max(0, expiration.timeIntervalSinceNow)
-    }
-
-    /// Whether to show the trial countdown banner
-    /// Shows when: trial is active, not a paid subscriber, and within countdown threshold
-    var shouldShowTrialBanner: Bool {
-        // Don't show if user has paid subscription
-        guard !isPremium else { return false }
-
-        // Don't show if no trial or trial expired
-        guard let expiration = trialExpirationDate, Date() < expiration else { return false }
-
-        // Show banner when 2 days or less remaining
-        let bannerThreshold: TimeInterval = 2 * 24 * 60 * 60
-
-        return trialTimeRemaining <= bannerThreshold
-    }
-
-    /// Whether user is on an active trial (not paid subscription)
-    var isOnTrial: Bool {
-        guard !isPremium else { return false }
-        guard let expiration = trialExpirationDate else { return false }
-        return Date() < expiration
     }
 
     // MARK: - Share Referral Reward

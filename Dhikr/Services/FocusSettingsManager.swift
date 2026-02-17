@@ -227,6 +227,11 @@ class FocusSettingsManager: ObservableObject {
             completeHayaModeDisableIfReady()
         }
 
+        // Failsafe: if toggle says ON but the actual filter isn't active, sync toggle to OFF.
+        // This catches cases where the filter was cleared in the background (e.g. premium expired)
+        // but the UI flag wasn't updated.
+        verifyHayaModeConsistency()
+
         // Check initial app selection state
         refreshAppSelection()
 
@@ -295,7 +300,24 @@ class FocusSettingsManager: ObservableObject {
         applyHayaModeFilter(false)
         syncToUserDefaults()
     }
-    
+
+    /// Failsafe: ensure toggle matches actual ManagedSettings filter state.
+    /// If the filter was cleared in the background (premium expired, clearAllSettings)
+    /// but the toggle flag wasn't updated, sync the toggle to OFF.
+    private func verifyHayaModeConsistency() {
+        guard hayaMode else { return }
+
+        let store = ManagedSettingsStore()
+        let filterActive = store.webContent.blockedByFilter != nil
+
+        if !filterActive {
+            print("🛡️ Haya Mode: Toggle ON but filter not active — syncing to OFF")
+            hayaModeDisableRequestedAt = nil
+            hayaMode = false
+            syncToUserDefaults()
+        }
+    }
+
     private func setupDebouncePipeline() {
         subject
             .debounce(for: .seconds(1.0), scheduler: RunLoop.main) // Wait 1s after last change

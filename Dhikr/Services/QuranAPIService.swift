@@ -236,8 +236,20 @@ class QuranAPIService: ObservableObject {
                     .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
             )
 
-            // Log if reciter doesn't have complete Quran
-            if availableSurahs.count < 114 {
+            // Build all moshaf versions for this reciter
+            let versions = mp3Reciter.moshaf.compactMap { moshaf -> MoshafVersion? in
+                let surahs = Set(
+                    moshaf.surahList
+                        .split(separator: ",")
+                        .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                )
+                guard !surahs.isEmpty else { return nil }
+                return MoshafVersion(
+                    id: moshaf.id,
+                    name: moshaf.name,
+                    server: moshaf.server,
+                    availableSurahs: surahs
+                )
             }
 
             return Reciter(
@@ -250,7 +262,8 @@ class QuranAPIService: ObservableObject {
                 country: nil,
                 dialect: nil,
                 artworkURL: ReciterImageMapping.imageURL(for: mp3Reciter.id),
-                availableSurahs: availableSurahs
+                availableSurahs: availableSurahs,
+                moshafVersions: versions
             )
         }
 
@@ -267,6 +280,13 @@ class QuranAPIService: ObservableObject {
     
     // MARK: - Construct Audio URL
     func constructAudioURL(surahNumber: Int, reciter: Reciter) async throws -> String {
+        // Route Quran Central reciters to their service
+        if reciter.identifier.hasPrefix("qurancentral_") {
+            return try await QuranCentralService.shared.constructAudioURL(
+                surahNumber: surahNumber,
+                reciterIdentifier: reciter.identifier
+            )
+        }
 
         guard let server = reciter.server else {
             throw QuranAPIError.audioNotFound

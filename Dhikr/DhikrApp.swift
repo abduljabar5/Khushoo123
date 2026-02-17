@@ -172,10 +172,18 @@ struct DhikrApp: App {
             // App became active - check blocking state immediately
             BlockingStateService.shared.forceCheck()
 
+            // Request review after enough app opens
+            ReviewService.recordPositiveAction()
+
             // CRITICAL: Check if user is blocked but no longer has premium
             // This handles the case where premium expired while app was in background/closed
             // Use retry mechanism to wait for subscription verification to complete
             checkPremiumStatusWithRetry(attempt: 1, maxAttempts: 3)
+
+            // Check Haya mode independently — uses cached flags only.
+            // This catches the case where Haya mode is on but the user
+            // lost premium while not actively blocked.
+            checkHayaModeIfPremiumExpired()
 
             // Reschedule prayer notifications for the next 7 days
             // This ensures notifications continue working even if user doesn't open app daily
@@ -317,6 +325,12 @@ struct DhikrApp: App {
 
             print("🔴 [DhikrApp] Confirmed user lost premium - stopping blocking and clearing settings")
 
+            // Check if apps are actually blocked before deciding to clear settings
+            let blockingState = BlockingStateService.shared
+            let appsWereBlocked = blockingState.appsActuallyBlocked ||
+                                  blockingState.isCurrentlyBlocking ||
+                                  blockingState.isWaitingForVoiceConfirmation
+
             // CRITICAL: Clear the actual app shields immediately
             // This ensures users aren't locked out if their premium expires while apps are blocked
             let store = ManagedSettingsStore()
@@ -327,29 +341,33 @@ struct DhikrApp: App {
             DeviceActivityService.shared.stopAllMonitoring()
 
             // Clear BlockingStateService state (voice confirmation, blocking flags, etc.)
-            BlockingStateService.shared.clearBlocking()
+            blockingState.clearBlocking()
             print("✅ [DhikrApp] Cleared BlockingStateService state")
 
-            // Turn off all prayer selections
             guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
-            groupDefaults.set(false, forKey: "focusSelectedFajr")
-            groupDefaults.set(false, forKey: "focusSelectedDhuhr")
-            groupDefaults.set(false, forKey: "focusSelectedAsr")
-            groupDefaults.set(false, forKey: "focusSelectedMaghrib")
-            groupDefaults.set(false, forKey: "focusSelectedIsha")
-            groupDefaults.set(false, forKey: "isPremiumUser") // Ensure premium flag is false
-            groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation") // Clear voice confirmation
-            groupDefaults.set(false, forKey: "appsActuallyBlocked") // Clear blocking flag
+
+            // Only clear prayer selections if apps were actually blocked.
+            // Preserve user's settings for when they re-subscribe.
+            if appsWereBlocked {
+                groupDefaults.set(false, forKey: "focusSelectedFajr")
+                groupDefaults.set(false, forKey: "focusSelectedDhuhr")
+                groupDefaults.set(false, forKey: "focusSelectedAsr")
+                groupDefaults.set(false, forKey: "focusSelectedMaghrib")
+                groupDefaults.set(false, forKey: "focusSelectedIsha")
+
+                UserDefaults.standard.set(false, forKey: "focusSelectedFajr")
+                UserDefaults.standard.set(false, forKey: "focusSelectedDhuhr")
+                UserDefaults.standard.set(false, forKey: "focusSelectedAsr")
+                UserDefaults.standard.set(false, forKey: "focusSelectedMaghrib")
+                UserDefaults.standard.set(false, forKey: "focusSelectedIsha")
+            }
+
+            groupDefaults.set(false, forKey: "isPremiumUser")
+            groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
+            groupDefaults.set(false, forKey: "appsActuallyBlocked")
             groupDefaults.removeObject(forKey: "blockingStartTime")
             groupDefaults.removeObject(forKey: "blockingEndTime")
             groupDefaults.synchronize()
-
-            // Also update main UserDefaults
-            UserDefaults.standard.set(false, forKey: "focusSelectedFajr")
-            UserDefaults.standard.set(false, forKey: "focusSelectedDhuhr")
-            UserDefaults.standard.set(false, forKey: "focusSelectedAsr")
-            UserDefaults.standard.set(false, forKey: "focusSelectedMaghrib")
-            UserDefaults.standard.set(false, forKey: "focusSelectedIsha")
 
         }
     }
@@ -423,6 +441,24 @@ struct DhikrApp: App {
 
             print("✅ [DhikrApp] Emergency unblock complete - user can now access apps")
         }
+    }
+
+    /// Check and disable Haya mode if user no longer has premium.
+    /// Uses cached flags only — no StoreKit needed.
+    private func checkHayaModeIfPremiumExpired() {
+        let focusManager = FocusSettingsManager.shared
+        guard focusManager.hayaMode else { return }
+
+        // Check cached flags for paid/granted users
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+        let cachedPremium = groupDefaults?.bool(forKey: "isPremiumUser") ?? false
+        let cachedGrant = groupDefaults?.bool(forKey: "hasManualGrant") ?? false
+        if cachedPremium || cachedGrant { return }
+
+        // No cached paid/grant — disable Haya mode
+        let store = ManagedSettingsStore()
+        store.webContent.blockedByFilter = nil
+        focusManager.hayaMode = false
     }
 
     private func fetch6MonthsForPremiumUser() async {

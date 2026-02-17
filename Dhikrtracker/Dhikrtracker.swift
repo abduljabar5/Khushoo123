@@ -58,11 +58,6 @@ struct DhikrProvider: TimelineProvider {
         if groupDefaults.bool(forKey: "hasManualGrant") {
             return true
         }
-        // Check active trial
-        if let trialExpiration = groupDefaults.object(forKey: "trialExpirationDate") as? Date,
-           Date() < trialExpiration {
-            return true
-        }
         return false
     }
 

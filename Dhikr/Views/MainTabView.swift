@@ -14,90 +14,54 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
-    @State private var expandMiniPlayer = false
-    @State private var showSurahList = false
+    @State private var playerExpandProgress: CGFloat = 0
+    @State private var playerIsExpanded = false
     @State private var selectedTab: Int = 0
     @State private var showPaywall = false
     @State private var showShareReferralPopup = false
-    @Namespace private var animation
 
-    // Computed property to determine if mini player should be shown
     private var shouldShowMiniPlayer: Bool {
         audioPlayerService.currentSurah != nil && (audioPlayerService.isPlaying || audioPlayerService.hasPlayedOnce || audioPlayerService.isLoading)
     }
 
     var body: some View {
-        ZStack {
-            // Root background that shows during zoom transition - black to match system edges
-            Color.black
-                .ignoresSafeArea()
+        GeometryReader { rootGeo in
+            ZStack {
+                // Root background visible behind scaled tab view
+                Color.black
+                    .ignoresSafeArea()
 
-            if #available(iOS 26.1, *) {
-                // iOS 26: Always apply modifier to prevent TabView recreation and scroll jumping
-                NativeTabView()
-                    .tabViewBottomAccessory(isEnabled: shouldShowMiniPlayer) {
-
-                        // Gesture wrapper prevents re-render interruptions
-                        MiniPlayerGestureWrapper(expanded: $expandMiniPlayer) {
-                            MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
-                                .environmentObject(audioPlayerService)
-                        }
-                    }
-            } else {
-                NativeTabView(60)
-                    .overlay(alignment: .bottom) {
-                        if shouldShowMiniPlayer {
-                            // Gesture wrapper prevents re-render interruptions
-                            MiniPlayerGestureWrapper(expanded: $expandMiniPlayer) {
-                                MiniPlayerView(expanded: $expandMiniPlayer, animationNamespace: animation)
-                                    .environmentObject(audioPlayerService)
-                            }
-                            .padding(.vertical, 8)
-                            .background(content: {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                        .fill(.gray.opacity(0.3))
-
-                                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                        .fill(.background)
-                                        .padding(1.2)
-                                }
-                                .compositingGroup()
-                            })
-                            .offset(y: -52)
-                            .padding(.horizontal, 15)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
+                // Tab content — always full-screen, scale + corner radius is purely visual
+                NativeTabView(shouldShowMiniPlayer ? 64 : 0)
                     .ignoresSafeArea(.keyboard, edges: .all)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.88), value: shouldShowMiniPlayer)
-            }
-        }
-        .fullScreenCover(isPresented: $expandMiniPlayer) {
-            if audioPlayerService.currentSurah != nil, audioPlayerService.currentReciter != nil {
-                FullScreenPlayer(
-                    isPresented: $expandMiniPlayer,
-                    showSurahList: $showSurahList,
-                    animation: animation
-                )
-                .environmentObject(audioPlayerService)
-                .environmentObject(quranAPIService)
-                .navigationTransition(.zoom(sourceID: "MINIPLAYER", in: animation))
-                .onAppear {
-                    // Set window background to match theme during presentation
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let window = windowScene.windows.first {
-                        window.backgroundColor = UIColor(themeManager.theme.primaryBackground)
+                    .scaleEffect(1 - 0.08 * playerExpandProgress, anchor: .center)
+                    .mask {
+                        RoundedRectangle(cornerRadius: playerExpandProgress * 50, style: .continuous)
+                            .ignoresSafeArea()
                     }
+                    .allowsHitTesting(playerExpandProgress < 0.5)
+
+                // Dimming overlay on top of tabs
+                Color.black.opacity(0.3 * playerExpandProgress)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+                // Expandable player overlay
+                if shouldShowMiniPlayer {
+                    ExpandablePlayerView(
+                        expandProgress: $playerExpandProgress,
+                        isExpanded: $playerIsExpanded
+                    )
+                    .environmentObject(audioPlayerService)
+                    .environmentObject(quranAPIService)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
+        .ignoresSafeArea()
+        .animation(.spring(response: 0.35, dampingFraction: 0.88), value: shouldShowMiniPlayer)
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
-                TrialCountdownBanner(onUpgrade: { showPaywall = true })
-                    .padding(.horizontal, 16)
-                    .zIndex(103)
-
                 SchedulingProgressBanner(selectedTab: $selectedTab)
                     .padding(.horizontal, 16)
                     .zIndex(102)
@@ -111,6 +75,7 @@ struct MainTabView: View {
                     .zIndex(100)
             }
             .padding(.top, 8)
+            .opacity(1 - playerExpandProgress)
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
@@ -132,10 +97,20 @@ struct MainTabView: View {
         }
         .onChange(of: audioPlayerService.shouldShowFullScreenPlayer) { shouldShow in
             if shouldShow && audioPlayerService.currentSurah != nil {
-                expandMiniPlayer = true
-                // Reset the flag after showing the player
+                withAnimation(.spring(duration: 0.5, bounce: 0)) {
+                    playerExpandProgress = 1.0
+                    playerIsExpanded = true
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     audioPlayerService.shouldShowFullScreenPlayer = false
+                }
+            }
+        }
+        .onChange(of: shouldShowMiniPlayer) { showMini in
+            if !showMini && playerIsExpanded {
+                withAnimation(.spring(duration: 0.5, bounce: 0)) {
+                    playerExpandProgress = 0.0
+                    playerIsExpanded = false
                 }
             }
         }
@@ -182,34 +157,6 @@ struct MainTabView: View {
         }
     }
 
-    // MARK: - Player Info View
-    @ViewBuilder
-    func PlayerInfoView(size: CGSize) -> some View {
-        HStack(spacing: 12) {
-            if let artwork = audioPlayerService.currentArtwork {
-                Image(uiImage: artwork)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size.width, height: size.height)
-                    .clipShape(RoundedRectangle(cornerRadius: size.height / 4))
-            } else {
-                RoundedRectangle(cornerRadius: size.height / 4)
-                    .fill(.gray.opacity(0.3))
-                    .frame(width: size.width, height: size.height)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(audioPlayerService.currentSurah?.englishName ?? "Not Playing")
-                    .font(.callout)
-
-                Text(audioPlayerService.currentReciter?.englishName ?? "")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-            }
-            .lineLimit(1)
-        }
-    }
-
     // MARK: - Tab Bar Appearance Configuration
     private func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
@@ -228,31 +175,24 @@ struct MainTabView: View {
             appearance.backgroundColor = UIColor(Color(hex: "0D1A2D"))
         }
 
-        // Apply the appearance
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
     // MARK: - Referral Popup Logic
     private func checkAndShowReferralPopup() {
-        // Don't show if user is already premium
-        guard !subscriptionService.isPremium else { return }
-
-        // Don't show if user already has referral access
+        guard !subscriptionService.hasPremiumAccess else { return }
         guard subscriptionService.canEarnReferralAccess else { return }
 
         let defaults = UserDefaults.standard
         let launchCountKey = "appLaunchCountForReferral"
         let lastShownKey = "lastReferralPopupShownDate"
 
-        // Increment launch count
         var launchCount = defaults.integer(forKey: launchCountKey)
         launchCount += 1
         defaults.set(launchCount, forKey: launchCountKey)
 
-        // Show every 4 launches
         if launchCount % 4 == 0 {
-            // Add a small delay so the UI is ready
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 showShareReferralPopup = true
             }
@@ -266,15 +206,14 @@ struct LazyTabContent<Content: View>: View {
     let selectedTab: Int
     let targetTab: Int
     let content: () -> Content
-    
+
     @State private var hasLoaded = false
-    
+
     var body: some View {
         Group {
             if hasLoaded {
                 content()
             } else {
-                // Show loading placeholder
                 VStack {
                     ProgressView()
                         .scaleEffect(1.2)
@@ -288,46 +227,15 @@ struct LazyTabContent<Content: View>: View {
             }
         }
         .onAppear {
-            // Load content when tab becomes visible
             if selectedTab == targetTab {
                 hasLoaded = true
             }
         }
         .onChange(of: selectedTab) { newTab in
-            // Load content when tab is selected
             if newTab == targetTab && !hasLoaded {
                 hasLoaded = true
             }
         }
-    }
-}
-
-// MARK: - Mini Player Gesture Wrapper
-// This wrapper is STABLE - it doesn't observe AudioPlayerService
-// so it won't re-render when currentTime updates every 0.5s.
-// This prevents gesture recognizers from being interrupted.
-// NOTE: Only handles DRAG gesture. Tap is handled inside MiniPlayerView.
-struct MiniPlayerGestureWrapper<Content: View>: View {
-    @Binding var expanded: Bool
-    let content: Content
-
-    init(expanded: Binding<Bool>, @ViewBuilder content: () -> Content) {
-        self._expanded = expanded
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 20)
-                    .onEnded { value in
-                        // Swipe up to expand
-                        if value.translation.height < -50 || (value.predictedEndLocation.y - value.location.y) < -200 {
-                            expanded = true
-                        }
-                    }
-            )
     }
 }
 
@@ -345,12 +253,11 @@ struct MainTabView_Previews: PreviewProvider {
                 .environmentObject(locationService)
                 .previewDisplayName("Main Tab View")
                 .onAppear {
-                    // Initialize audio player with safe values for preview
                     let audioPlayer = AudioPlayerService.shared
-                    audioPlayer.duration = 300 // 5 minutes
+                    audioPlayer.duration = 300
                     audioPlayer.currentTime = 0
                     audioPlayer.isPlaying = false
                 }
         }
     }
-} 
+}

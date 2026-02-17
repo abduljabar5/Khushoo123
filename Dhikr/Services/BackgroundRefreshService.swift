@@ -11,6 +11,7 @@ import CoreLocation
 import BackgroundTasks
 import FirebaseMessaging
 import FirebaseFunctions
+import ManagedSettings
 
 @MainActor
 class BackgroundRefreshService: NSObject, ObservableObject {
@@ -63,6 +64,9 @@ class BackgroundRefreshService: NSObject, ObservableObject {
 
         // Schedule next refresh
         scheduleBackgroundRefresh()
+
+        // Check premium status and disable features if expired
+        checkAndDisablePremiumFeaturesIfNeeded()
 
         // Set expiration handler
         task.expirationHandler = {
@@ -271,6 +275,9 @@ extension BackgroundRefreshService {
 
     func handleSilentNotification(userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
 
+        // Check premium status and disable features if expired
+        checkAndDisablePremiumFeaturesIfNeeded()
+
         // Check if it's a prayer time refresh notification
         if let refreshType = userInfo["refreshType"] as? String, refreshType == "prayerTimeUpdate" {
 
@@ -280,5 +287,70 @@ extension BackgroundRefreshService {
         }
 
         return .noData
+    }
+
+    /// Check if user has lost premium access (trial expired, subscription lapsed)
+    /// and disable all premium features: app blocking, Haya mode, monitoring.
+    /// Note: In background wake, StoreKit/Firebase haven't verified yet, so isPremium
+    /// and hasManualGrant default to false. We only act if the trial has definitively
+    /// expired (local date check) AND there's no indication of a paid subscription
+    /// or manual grant stored locally.
+    private func checkAndDisablePremiumFeaturesIfNeeded() {
+        let subscription = SubscriptionService.shared
+        let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+
+        // Check for local indicators that the user has (or had) a paid subscription or manual grant.
+        let hadPaidSubscription = groupDefaults?.bool(forKey: "isPremiumUser") ?? false
+        let hadManualGrant = groupDefaults?.bool(forKey: "hasManualGrant") ?? false
+
+        // If user has/had paid subscription or manual grant, skip — we can't verify
+        // in background without StoreKit/Firebase. Let the foreground check handle it.
+        if hadPaidSubscription || hadManualGrant { return }
+
+        // At this point: trial expired, no paid subscription, no manual grant.
+        // Safe to disable premium features.
+        guard !subscription.hasPremiumAccess else { return }
+
+        let appsBlocked = groupDefaults?.bool(forKey: "appsActuallyBlocked") ?? false
+        let isBlocking = BlockingStateService.shared.isCurrentlyBlocking
+
+        // 1. Explicitly clear web content filter (Haya mode) FIRST
+        let store = ManagedSettingsStore()
+        store.webContent.blockedByFilter = nil
+
+        // 2. Clear all remaining app shields
+        store.clearAllSettings()
+
+        // 3. Stop all DeviceActivity monitoring BEFORE anything can re-trigger
+        DeviceActivityService.shared.stopAllMonitoring()
+
+        // 4. Clear blocking state
+        BlockingStateService.shared.clearBlocking()
+
+        // 5. Disable Haya mode flag directly in UserDefaults so it stays off
+        //    when the app launches and FocusSettingsManager reads initial state.
+        //    Don't rely on FocusSettingsManager singleton in background.
+        let hayaWasOn = groupDefaults?.bool(forKey: "focusHayaMode") ?? false
+        if hayaWasOn {
+            groupDefaults?.set(false, forKey: "focusHayaMode")
+            UserDefaults.standard.set(false, forKey: "focusHayaMode")
+        }
+
+        // 6. Clear blocking-related UserDefaults flags
+        groupDefaults?.set(false, forKey: "isWaitingForVoiceConfirmation")
+        groupDefaults?.set(false, forKey: "appsActuallyBlocked")
+        groupDefaults?.removeObject(forKey: "blockingStartTime")
+        groupDefaults?.removeObject(forKey: "blockingEndTime")
+
+        // 7. Only clear prayer selections if apps were actually blocked.
+        //    If not blocked, preserve user's settings for when they re-subscribe.
+        if appsBlocked || isBlocking {
+            groupDefaults?.set(false, forKey: "focusSelectedFajr")
+            groupDefaults?.set(false, forKey: "focusSelectedDhuhr")
+            groupDefaults?.set(false, forKey: "focusSelectedAsr")
+            groupDefaults?.set(false, forKey: "focusSelectedMaghrib")
+            groupDefaults?.set(false, forKey: "focusSelectedIsha")
+        }
+        groupDefaults?.synchronize()
     }
 }

@@ -37,7 +37,7 @@ struct ShareReferralCard: View {
     }
 
     var body: some View {
-        if subscriptionService.canEarnReferralAccess && !subscriptionService.isPremium {
+        if subscriptionService.canEarnReferralAccess && !subscriptionService.hasPremiumAccess {
             Button(action: {
                 showingShareSheet = true
             }) {
@@ -87,6 +87,7 @@ struct ShareReferralCard: View {
                     activityItems: [shareMessage, shareURL].compactMap { $0 },
                     onComplete: { _, isValidShare in
                         if isValidShare {
+                            AnalyticsService.shared.trackAppShared()
                             subscriptionService.claimReferralAccess()
                             showingSuccessAlert = true
                         }

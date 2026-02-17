@@ -233,12 +233,25 @@ struct ReciterDirectoryView: View {
             filteredReciters = allReciters
         } else {
             let currentReciters = allReciters
+            // Fetch QC reciters for search (lazy-loaded, cached after first call)
+            let qcReciters = await QuranCentralService.shared.fetchReciters()
+
             let filtered = await Task.detached {
-                return currentReciters.filter { reciter in
-                    let lowercasedQuery = query.lowercased()
-                    let lowercasedName = reciter.englishName.lowercased()
-                    return lowercasedName.contains(lowercasedQuery)
+                let lowercasedQuery = query.lowercased()
+
+                // Search MP3Quran reciters
+                let mp3Results = currentReciters.filter { reciter in
+                    reciter.englishName.lowercased().contains(lowercasedQuery)
                 }
+
+                // Search Quran Central reciters (exclude duplicates already in MP3Quran)
+                let mp3Names = Set(currentReciters.map { $0.englishName.lowercased() })
+                let qcResults = qcReciters.filter { reciter in
+                    reciter.englishName.lowercased().contains(lowercasedQuery)
+                        && !mp3Names.contains(reciter.englishName.lowercased())
+                }
+
+                return mp3Results + qcResults
             }.value
             filteredReciters = filtered
         }

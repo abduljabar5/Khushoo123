@@ -914,7 +914,7 @@ class DeviceActivityService: ObservableObject {
     func resetSchedulingFlag() {
         UserDefaults.standard.removeObject(forKey: "hasScheduledInitialBlocking")
     }
-    
+
     // Early stop validation removed; durations are used as-is
-    
+
 } 

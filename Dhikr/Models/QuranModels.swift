@@ -43,6 +43,27 @@ struct AlQuranCloudResponse<T: Codable>: Codable {
     let data: T
 }
 
+// MARK: - Moshaf Version (Quran edition/style for a reciter)
+struct MoshafVersion: Codable, Identifiable, Equatable, Hashable {
+    let id: Int
+    let name: String
+    let server: String
+    let availableSurahs: Set<Int>
+
+    /// Display-friendly name: strips common prefixes like "Rewayat Hafs A'n Assem - "
+    var displayName: String {
+        let prefixes = ["Rewayat Hafs A'n Assem - ", "Rewayat Hafs A'n Assem -"]
+        var cleaned = name
+        for prefix in prefixes {
+            if cleaned.hasPrefix(prefix) {
+                cleaned = String(cleaned.dropFirst(prefix.count))
+                break
+            }
+        }
+        return cleaned.trimmingCharacters(in: .whitespaces)
+    }
+}
+
 // MARK: - Reciter (Audio Edition)
 struct Reciter: Codable, Identifiable, Equatable, Hashable {
     var id: String { identifier }
@@ -50,12 +71,13 @@ struct Reciter: Codable, Identifiable, Equatable, Hashable {
     let language: String
     let name: String
     let englishName: String
-    let server: String?
+    var server: String?
     let reciterId: Int?
     let country: String?
     let dialect: String?
     let artworkURL: URL?
-    let availableSurahs: Set<Int>  // Surah numbers this reciter has audio for
+    var availableSurahs: Set<Int>  // Surah numbers this reciter has audio for
+    var moshafVersions: [MoshafVersion]  // All available moshaf editions
 
     // For mock data and easier use
     static var mock: Reciter {
@@ -86,10 +108,11 @@ struct Reciter: Codable, Identifiable, Equatable, Hashable {
         artworkURL = try container.decodeIfPresent(URL.self, forKey: .artworkURL)
         // Default to all 114 surahs for backwards compatibility with stored data
         availableSurahs = try container.decodeIfPresent(Set<Int>.self, forKey: .availableSurahs) ?? Set(1...114)
+        moshafVersions = try container.decodeIfPresent([MoshafVersion].self, forKey: .moshafVersions) ?? []
     }
 
     // Memberwise initializer
-    init(identifier: String, language: String, name: String, englishName: String, server: String?, reciterId: Int?, country: String?, dialect: String?, artworkURL: URL?, availableSurahs: Set<Int> = Set(1...114)) {
+    init(identifier: String, language: String, name: String, englishName: String, server: String?, reciterId: Int?, country: String?, dialect: String?, artworkURL: URL?, availableSurahs: Set<Int> = Set(1...114), moshafVersions: [MoshafVersion] = []) {
         self.identifier = identifier
         self.language = language
         self.name = name
@@ -100,10 +123,11 @@ struct Reciter: Codable, Identifiable, Equatable, Hashable {
         self.dialect = dialect
         self.artworkURL = artworkURL
         self.availableSurahs = availableSurahs
+        self.moshafVersions = moshafVersions
     }
 
     private enum CodingKeys: String, CodingKey {
-        case identifier, language, name, englishName, server, reciterId, country, dialect, artworkURL, availableSurahs
+        case identifier, language, name, englishName, server, reciterId, country, dialect, artworkURL, availableSurahs, moshafVersions
     }
 }
 

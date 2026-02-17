@@ -17,6 +17,8 @@ struct ReciterDetailView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @State private var surahs: [Surah] = []
     @State private var isLoading = true
+    @State private var selectedMoshafIndex: Int = 0
+    @State private var activeReciter: Reciter?
 
     // Sacred colors
     private var sacredGold: Color {
@@ -49,10 +51,18 @@ struct ReciterDetailView: View {
         favoritesManager.isFavorite(reciter: reciter)
     }
 
+    /// The reciter with the selected moshaf version applied
+    private var effectiveReciter: Reciter {
+        activeReciter ?? reciter
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 headerSection
+                if reciter.moshafVersions.count > 1 {
+                    moshafPickerSection
+                }
                 reciterStatsSection
                 surahsSection
             }
@@ -61,7 +71,14 @@ struct ReciterDetailView: View {
         .background(pageBackground.ignoresSafeArea())
         .navigationTitle(reciter.englishName)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: loadSurahs)
+        .onAppear {
+            activeReciter = reciter
+            // Find the index of the default moshaf version
+            if let idx = reciter.moshafVersions.firstIndex(where: { $0.server == reciter.server }) {
+                selectedMoshafIndex = idx
+            }
+            loadSurahs()
+        }
     }
 
     // MARK: - Header Section
@@ -154,7 +171,44 @@ struct ReciterDetailView: View {
     private func playShuffledSurah() {
         guard !surahs.isEmpty else { return }
         let randomSurah = surahs.randomElement()!
-        audioPlayerService.load(surah: randomSurah, reciter: reciter)
+        audioPlayerService.load(surah: randomSurah, reciter: effectiveReciter)
+    }
+
+    // MARK: - Moshaf Version Picker
+    private var moshafPickerSection: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(reciter.moshafVersions.enumerated()), id: \.element.id) { index, version in
+                    Button {
+                        guard index != selectedMoshafIndex else { return }
+                        HapticManager.shared.impact(.light)
+                        selectedMoshafIndex = index
+                        // Update active reciter with selected version's server and surahs
+                        activeReciter?.server = version.server
+                        activeReciter?.availableSurahs = version.availableSurahs
+                        // Reload surah list for new version
+                        reloadSurahsForSelectedVersion()
+                    } label: {
+                        Text(version.displayName)
+                            .font(.system(size: 12, weight: index == selectedMoshafIndex ? .medium : .regular))
+                            .foregroundColor(index == selectedMoshafIndex
+                                ? (themeManager.effectiveTheme == .dark ? .black : .white)
+                                : sacredGold)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(index == selectedMoshafIndex ? sacredGold : Color.clear)
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(sacredGold.opacity(index == selectedMoshafIndex ? 0 : 0.3), lineWidth: 1)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
     }
 
     // MARK: - Reciter Statistics Section
@@ -232,14 +286,14 @@ struct ReciterDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Section header
             HStack {
-                Text(reciter.hasCompleteQuran ? "ALL SURAHS" : "AVAILABLE SURAHS")
+                Text(effectiveReciter.hasCompleteQuran ? "ALL SURAHS" : "AVAILABLE SURAHS")
                     .font(.system(size: 11, weight: .medium))
                     .tracking(2)
                     .foregroundColor(warmGray)
 
                 Spacer()
 
-                if !reciter.hasCompleteQuran {
+                if !effectiveReciter.hasCompleteQuran {
                     Text("\(surahs.count) of 114")
                         .font(.system(size: 12, weight: .light))
                         .foregroundColor(warmGray)
@@ -259,7 +313,7 @@ struct ReciterDetailView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(surahs) { surah in
                         Button(action: {
-                            audioPlayerService.load(surah: surah, reciter: reciter)
+                            audioPlayerService.load(surah: surah, reciter: effectiveReciter)
                         }) {
                             SacredSurahRow(
                                 surah: surah,
@@ -282,7 +336,7 @@ struct ReciterDetailView: View {
             do {
                 let allSurahs = try await quranAPIService.fetchSurahs()
                 await MainActor.run {
-                    self.surahs = allSurahs.filter { reciter.hasSurah($0.number) }
+                    self.surahs = allSurahs.filter { effectiveReciter.hasSurah($0.number) }
                     self.isLoading = false
                 }
             } catch {
@@ -290,6 +344,17 @@ struct ReciterDetailView: View {
                     self.isLoading = false
                 }
             }
+        }
+    }
+
+    private func reloadSurahsForSelectedVersion() {
+        Task {
+            do {
+                let allSurahs = try await quranAPIService.fetchSurahs()
+                await MainActor.run {
+                    self.surahs = allSurahs.filter { effectiveReciter.hasSurah($0.number) }
+                }
+            } catch {}
         }
     }
 }

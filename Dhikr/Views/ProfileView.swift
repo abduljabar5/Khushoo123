@@ -81,22 +81,6 @@ struct ProfileView: View {
         }
     }
 
-    private var trialDaysRemainingText: String {
-        let remaining = subscriptionService.trialTimeRemaining
-        let days = Int(remaining / 86400)
-        let hours = Int(remaining / 3600) % 24
-
-        if days > 1 {
-            return "\(days) days left on trial"
-        } else if days == 1 {
-            return "1 day left on trial"
-        } else if hours > 0 {
-            return "\(hours) hours left on trial"
-        } else {
-            return "Trial ending soon"
-        }
-    }
-
     private var locationDisplayText: String {
         if locationService.hasLocationPermission {
             return "Using GPS location"
@@ -493,15 +477,9 @@ struct ProfileView: View {
                         .font(.system(size: 17, weight: .medium))
                         .foregroundColor(themeManager.theme.primaryText)
 
-                    if subscriptionService.isOnTrial {
-                        Text(trialDaysRemainingText)
-                            .font(.system(size: 13, weight: .light))
-                            .foregroundColor(warmGray)
-                    } else {
-                        Text("Full access to all features")
-                            .font(.system(size: 13, weight: .light))
-                            .foregroundColor(themeManager.theme.secondaryText)
-                    }
+                    Text("Full access to all features")
+                        .font(.system(size: 13, weight: .light))
+                        .foregroundColor(themeManager.theme.secondaryText)
 
                     HStack(spacing: 4) {
                         Text("Learn more")
@@ -745,7 +723,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
-                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.3", accentColor: warmGray)
+                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.4", accentColor: warmGray)
 
                 SacredDivider()
 

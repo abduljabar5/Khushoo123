@@ -17,6 +17,8 @@ struct PaywallView: View {
 
     @State private var selectedProduct: Product?
     @State private var showingRestoreAlert = false
+    @State private var showingPurchaseError = false
+    @State private var purchaseErrorMessage = ""
     @State private var showReferralInput = false
     @State private var referralCodeText = ""
     @FocusState private var isReferralFieldFocused: Bool
@@ -46,6 +48,12 @@ struct PaywallView: View {
     /// Show referral products if user has valid code OR earned access by sharing
     private var shouldShowReferralProducts: Bool {
         referralService.hasValidReferralCode || subscriptionService.hasEarnedReferralAccess
+    }
+
+    private var displayWeeklyProduct: Product? {
+        shouldShowReferralProducts
+            ? subscriptionService.weeklyReferralProduct
+            : subscriptionService.weeklyProduct
     }
 
     private var displayMonthlyProduct: Product? {
@@ -157,6 +165,22 @@ struct PaywallView: View {
                                     selectedProduct = monthly
                                 }
                             }
+
+                            if let weekly = displayWeeklyProduct {
+                                SacredSubscriptionCard(
+                                    product: weekly,
+                                    isSelected: selectedProduct?.id == weekly.id,
+                                    badge: nil,
+                                    savings: nil,
+                                    sacredGold: sacredGold,
+                                    softGreen: softGreen,
+                                    cardBackground: cardBackground,
+                                    subtleText: subtleText,
+                                    primaryText: themeManager.theme.primaryText
+                                ) {
+                                    selectedProduct = weekly
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -186,7 +210,7 @@ struct PaywallView: View {
                                     Task {
                                         let isValid = await referralService.validateCode(referralCodeText)
                                         if isValid {
-                                            selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
+                                            selectedProduct = displayYearlyProduct ?? displayMonthlyProduct ?? displayWeeklyProduct
                                             isReferralFieldFocused = false
                                         }
                                     }
@@ -245,9 +269,15 @@ struct PaywallView: View {
                         Button(action: {
                             Task {
                                 await subscriptionService.purchase(product)
-                                if case .success = subscriptionService.purchaseState {
+                                switch subscriptionService.purchaseState {
+                                case .success:
                                     referralService.clearCode()
                                     dismiss()
+                                case .failed(let error):
+                                    purchaseErrorMessage = error.localizedDescription
+                                    showingPurchaseError = true
+                                default:
+                                    break
                                 }
                             }
                         }) {
@@ -325,6 +355,11 @@ struct PaywallView: View {
                 Spacer()
             }
         }
+        .alert("Purchase Failed", isPresented: $showingPurchaseError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(purchaseErrorMessage)
+        }
         .alert("Restore Complete", isPresented: $showingRestoreAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -342,17 +377,17 @@ struct PaywallView: View {
                 if subscriptionService.availableProducts.isEmpty {
                     await subscriptionService.loadProducts()
                 }
-                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
+                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct ?? displayWeeklyProduct
             }
         }
         .onChange(of: subscriptionService.availableProducts) { products in
             if selectedProduct == nil && !products.isEmpty {
-                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
+                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct ?? displayWeeklyProduct
             }
         }
         .onChange(of: referralService.hasValidReferralCode) { hasCode in
             if hasCode {
-                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct
+                selectedProduct = displayYearlyProduct ?? displayMonthlyProduct ?? displayWeeklyProduct
             }
         }
     }
@@ -496,7 +531,9 @@ struct SacredSubscriptionCard: View {
 
     private func formatPeriod(_ period: Product.SubscriptionPeriod) -> String {
         switch period.unit {
-        case .day: return period.value == 1 ? "Daily" : "\(period.value) days"
+        case .day:
+            if period.value == 7 { return "Weekly" }
+            return period.value == 1 ? "Daily" : "\(period.value) days"
         case .week: return period.value == 1 ? "Weekly" : "\(period.value) weeks"
         case .month: return period.value == 1 ? "Monthly" : "\(period.value) months"
         case .year: return period.value == 1 ? "Yearly" : "\(period.value) years"
@@ -506,7 +543,9 @@ struct SacredSubscriptionCard: View {
 
     private func periodUnit(_ period: Product.SubscriptionPeriod) -> String {
         switch period.unit {
-        case .day: return "day"
+        case .day:
+            if period.value == 7 { return "week" }
+            return "day"
         case .week: return "week"
         case .month: return "month"
         case .year: return "year"
