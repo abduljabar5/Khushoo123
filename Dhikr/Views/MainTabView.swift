@@ -19,6 +19,8 @@ struct MainTabView: View {
     @State private var selectedTab: Int = 0
     @State private var showPaywall = false
     @State private var showShareReferralPopup = false
+    @State private var showFeedbackPrompt = false
+    @AppStorage("hasShownFeedbackPrompt") private var hasShownFeedbackPrompt = false
 
     private var shouldShowMiniPlayer: Bool {
         audioPlayerService.currentSurah != nil && (audioPlayerService.isPlaying || audioPlayerService.hasPlayedOnce || audioPlayerService.isLoading)
@@ -77,6 +79,9 @@ struct MainTabView: View {
             .padding(.top, 8)
             .opacity(1 - playerExpandProgress)
         }
+        .sheet(isPresented: $showFeedbackPrompt) {
+            FeedbackSheet()
+        }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
         }
@@ -91,6 +96,10 @@ struct MainTabView: View {
         .onAppear {
             configureTabBarAppearance()
             checkAndShowReferralPopup()
+            checkFeedbackPrompt()
+        }
+        .onChange(of: audioPlayerService.completedSurahNumbers.count) { _ in
+            checkFeedbackPrompt()
         }
         .onChange(of: themeManager.currentTheme) { _ in
             configureTabBarAppearance()
@@ -177,6 +186,25 @@ struct MainTabView: View {
 
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+
+    // MARK: - Feedback Prompt Logic
+    private func checkFeedbackPrompt() {
+        guard !hasShownFeedbackPrompt else { return }
+
+        let completedCount = audioPlayerService.completedSurahNumbers.count
+        let daysSinceInstall: Int = {
+            guard let installDate = UserDefaults.standard.object(forKey: "analytics_install_date") as? Date else { return 0 }
+            return Calendar.current.dateComponents([.day], from: installDate, to: Date()).day ?? 0
+        }()
+
+        guard completedCount >= 3 || daysSinceInstall >= 3 else { return }
+
+        hasShownFeedbackPrompt = true
+        // Small delay so it doesn't compete with other popups on launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            showFeedbackPrompt = true
+        }
     }
 
     // MARK: - Referral Popup Logic

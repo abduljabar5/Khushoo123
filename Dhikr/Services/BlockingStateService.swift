@@ -168,7 +168,7 @@ class BlockingStateService: ObservableObject {
         
         // Detect state mismatch
         if appsBlocked != hasRestrictions {
-            
+
             // Trust the ManagedSettings state as ground truth
             if hasRestrictions {
                 groupDefaults.set(true, forKey: "appsActuallyBlocked")
@@ -181,6 +181,11 @@ class BlockingStateService: ObservableObject {
                 groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
                 blockingStartTime = nil
                 earlyUnlockAvailableAt = nil
+                // If shields are gone, voice confirmation is no longer needed
+                if isWaitingForVoiceConfirmation {
+                    isWaitingForVoiceConfirmation = false
+                    groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
+                }
             }
         }
     }
@@ -455,7 +460,8 @@ class BlockingStateService: ObservableObject {
 
         // If we already have a known active interval, keep it active until its end
         // BUT skip this if early unlock is active - user has already unlocked
-        if !isEarlyUnlockedActive, let end = blockingEndTime, Date() <= end {
+        // Only keep blocking state if shields are actually applied
+        if !isEarlyUnlockedActive, appsActuallyBlocked, let end = blockingEndTime, Date() <= end {
             // Ensure we keep reporting as blocking until end (unless strict mode requires confirmation)
             // If strict mode ON while actively blocked, do not allow early-unlock banner; state remains blocking
             updateBlockingState(isBlocking: true, prayerName: currentPrayerName, endTime: end)
@@ -488,6 +494,13 @@ class BlockingStateService: ObservableObject {
             if now >= blockingStartTime && now <= effectiveEndTime {
                 isInActiveScheduleWindow = true
 
+                // Only show blocking UI if shields are actually applied by the extension.
+                // If shields failed to apply (e.g., prayer deselected, no apps selected,
+                // extension skipped), don't show any blocking-related UI.
+                guard appsActuallyBlocked else {
+                    continue
+                }
+
                 // If early unlock is active for this period, don't reset blocking state
                 if isEarlyUnlockedActive && currentEarlyUnlockedUntil != nil && now < (currentEarlyUnlockedUntil ?? now) {
                     // Keep early unlock active, don't set blocking to true
@@ -517,7 +530,8 @@ class BlockingStateService: ObservableObject {
             // Early stopping logic removed
 
             // In strict mode, if prayer time just ended (using effective end time), wait for voice confirmation
-            if strictMode && now > effectiveEndTime && now <= effectiveEndTime.addingTimeInterval(300) { // 5 minute grace period
+            // Only enter grace period if shields were actually applied during this interval
+            if strictMode && appsActuallyBlocked && now > effectiveEndTime && now <= effectiveEndTime.addingTimeInterval(300) { // 5 minute grace period
                 // Always wait for voice confirmation in strict mode, regardless of monitor flag
                 isWaitingForVoiceConfirmation = true
                 updateBlockingState(isBlocking: true, prayerName: name, endTime: effectiveEndTime)
@@ -526,13 +540,14 @@ class BlockingStateService: ObservableObject {
         }
         
         // Not currently blocking
-        // Only clear voice confirmation if we're not in strict mode or grace period expired
-        if isWaitingForVoiceConfirmation && !strictMode {
+        // Clear voice confirmation if shields are no longer applied or not in strict mode
+        if isWaitingForVoiceConfirmation && (!strictMode || !appsActuallyBlocked) {
             isWaitingForVoiceConfirmation = false
         }
-        
-        // If we're waiting for voice confirmation in strict mode, keep the blocking state active
-        if strictMode && isWaitingForVoiceConfirmation {
+
+        // If we're waiting for voice confirmation in strict mode AND shields are still applied,
+        // keep the blocking state active
+        if strictMode && isWaitingForVoiceConfirmation && appsActuallyBlocked {
             // Keep the current prayer name and show as still blocking for UI purposes
             return
         }

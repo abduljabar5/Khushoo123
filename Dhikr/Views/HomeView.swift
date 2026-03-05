@@ -638,8 +638,16 @@ struct HomeView: View {
     private func playRandomSurah(for reciter: Reciter) async {
         do {
             let surahs = try await quranAPIService.fetchSurahs()
-            if let surah = surahs.randomElement() {
-                await MainActor.run { audioPlayerService.load(surah: surah, reciter: reciter) }
+            // For QC reciters, resolve actual available surahs (they default to 1...114)
+            var resolvedReciter = reciter
+            if reciter.identifier.hasPrefix("qurancentral_") {
+                let resolved = await QuranCentralService.shared.resolveAvailableSurahs(for: reciter.identifier)
+                resolvedReciter.availableSurahs = resolved
+                QuranCentralService.shared.updateCachedReciter(identifier: reciter.identifier, availableSurahs: resolved)
+            }
+            let available = surahs.filter { resolvedReciter.hasSurah($0.number) }
+            if let surah = available.randomElement() {
+                await MainActor.run { audioPlayerService.load(surah: surah, reciter: resolvedReciter) }
             }
         } catch {}
     }
@@ -648,7 +656,13 @@ struct HomeView: View {
         do {
             let allReciters = quranAPIService.reciters
             let allSurahs = try await quranAPIService.fetchSurahs()
-            guard let reciter = allReciters.randomElement() else { return }
+            guard var reciter = allReciters.randomElement() else { return }
+            // For QC reciters, resolve actual available surahs
+            if reciter.identifier.hasPrefix("qurancentral_") {
+                let resolved = await QuranCentralService.shared.resolveAvailableSurahs(for: reciter.identifier)
+                reciter.availableSurahs = resolved
+                QuranCentralService.shared.updateCachedReciter(identifier: reciter.identifier, availableSurahs: resolved)
+            }
             let available = allSurahs.filter { reciter.hasSurah($0.number) }
             guard let surah = available.randomElement() else { return }
             await MainActor.run { audioPlayerService.load(surah: surah, reciter: reciter) }

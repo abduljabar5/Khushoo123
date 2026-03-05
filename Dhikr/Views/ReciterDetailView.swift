@@ -77,7 +77,13 @@ struct ReciterDetailView: View {
             if let idx = reciter.moshafVersions.firstIndex(where: { $0.server == reciter.server }) {
                 selectedMoshafIndex = idx
             }
-            loadSurahs()
+
+            // For QC reciters, resolve actual available surahs before loading
+            if reciter.identifier.hasPrefix("qurancentral_") {
+                resolveQCSurahs()
+            } else {
+                loadSurahs()
+            }
         }
     }
 
@@ -330,6 +336,25 @@ struct ReciterDetailView: View {
     }
 
     // MARK: - Data Loading
+
+    private func resolveQCSurahs() {
+        isLoading = true
+        Task {
+            // Resolve surahs first — this populates the episode cache
+            let resolvedSurahs = await QuranCentralService.shared.resolveAvailableSurahs(
+                for: reciter.identifier
+            )
+            await MainActor.run {
+                activeReciter?.availableSurahs = resolvedSurahs
+            }
+            QuranCentralService.shared.updateCachedReciter(
+                identifier: reciter.identifier,
+                availableSurahs: resolvedSurahs
+            )
+            loadSurahs()
+        }
+    }
+
     private func loadSurahs() {
         isLoading = true
         Task {

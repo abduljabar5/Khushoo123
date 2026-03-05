@@ -39,8 +39,9 @@ class DeviceActivityService: ObservableObject {
     }
 
     /// Get activity names for prayers that are about to start (within protection window)
-    /// These should NOT be cancelled during rescheduling
-    private func getImminentPrayerActivityNames() -> Set<DeviceActivityName> {
+    /// These should NOT be cancelled during rescheduling — but only if the prayer is still selected
+    /// - Parameter selectedPrayers: The currently selected prayer names. Only imminent prayers in this set are protected.
+    private func getImminentPrayerActivityNames(selectedPrayers: Set<String>) -> Set<DeviceActivityName> {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let schedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] else {
             return []
@@ -52,6 +53,11 @@ class DeviceActivityService: ObservableObject {
         for schedule in schedules {
             guard let name = schedule["name"] as? String,
                   let timestamp = schedule["date"] as? TimeInterval else {
+                continue
+            }
+
+            // Only protect prayers that are still selected by the user
+            guard selectedPrayers.contains(name) else {
                 continue
             }
 
@@ -166,7 +172,8 @@ class DeviceActivityService: ObservableObject {
         print("📅 [PrayerBlocking] Scheduling \(prayersToSchedule.count) prayers (max \(maxSchedules))")
 
         // Get imminent prayers that should be protected from cancellation
-        let imminentPrayers = getImminentPrayerActivityNames()
+        // Only protect prayers that are still selected by the user
+        let imminentPrayers = getImminentPrayerActivityNames(selectedPrayers: selectedPrayers)
 
         // Stop all existing schedules first, but preserve imminent prayers
         stopAllMonitoring(preserveActivities: imminentPrayers)
@@ -779,7 +786,8 @@ class DeviceActivityService: ObservableObject {
         lastRescheduleTime = scheduleTime
 
         // Get imminent prayers that should be protected from cancellation
-        let imminentPrayers = getImminentPrayerActivityNames()
+        // Only protect prayers that are still selected by the user
+        let imminentPrayers = getImminentPrayerActivityNames(selectedPrayers: selectedPrayers)
 
         // Stop existing monitoring, but preserve imminent prayers
         stopAllMonitoring(preserveActivities: imminentPrayers)

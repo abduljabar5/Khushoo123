@@ -110,6 +110,17 @@ class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         let prayerName = extractPrayerName(from: activity.rawValue)
         let prayerTimestamp = extractPrayerTimestamp(from: activity.rawValue)
 
+        // SAFETY CHECK: Verify the prayer is still selected by the user
+        // This catches race conditions where the user toggled off a prayer just before it fired
+        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+            let prayerKey = "focusSelected\(prayerName)"
+            let isSelected = groupDefaults.bool(forKey: prayerKey)
+            if !isSelected {
+                log("⏭️ Prayer \(prayerName) is no longer selected — skipping shield", activity: activity.rawValue)
+                return
+            }
+        }
+
         // 1. Get the selection to apply
         let selection = AppSelectionModel.getCurrentSelection()
 

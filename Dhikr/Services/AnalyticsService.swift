@@ -109,11 +109,23 @@ final class AnalyticsService {
         }
     }
 
+    // MARK: - Feedback Events
+
+    /// User submitted feedback via in-app form
+    func trackFeedbackSubmitted() {
+        TelemetryDeck.signal("Engagement.feedbackSubmitted")
+    }
+
     // MARK: - Conversion Events
 
     /// Paywall viewed
     func trackPaywallViewed() {
         TelemetryDeck.signal("Conversion.paywallViewed")
+    }
+
+    /// Free user saw a locked feature overlay
+    func trackFeatureLocked(feature: String) {
+        TelemetryDeck.signal("Conversion.featureLocked", parameters: ["feature": feature])
     }
 
     /// Subscription started

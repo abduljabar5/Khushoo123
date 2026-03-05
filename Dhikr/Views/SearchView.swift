@@ -2091,12 +2091,12 @@ private struct SacredSpeechConfirmationView: View {
                     .font(.system(size: 24, weight: .light))
                     .foregroundColor(themeManager.theme.primaryText)
 
-                Text("To unblock your apps, please say 'wallahi i prayed'.")
+                Text("To unblock your apps, please say 'Wallahi' (والله).")
                     .font(.system(size: 14, weight: .light))
                     .foregroundColor(warmGray)
                     .multilineTextAlignment(.center)
 
-                Text("Mock transcript: wallahi i prayed")
+                Text("Mock transcript: wallahi")
                     .font(.system(size: 16, weight: .regular, design: .serif))
                     .italic()
                     .foregroundColor(sacredGold)

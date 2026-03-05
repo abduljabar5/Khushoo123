@@ -111,7 +111,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
                 backgroundColor: backgroundColor,
                 icon: UIImage(systemName: prayerIconName)?.withTintColor(sacredGold, renderingMode: .alwaysOriginal),
                 title: ShieldConfiguration.Label(text: prayerTitle, color: titleColor),
-                subtitle: ShieldConfiguration.Label(text: "Open the app and say 'Wallahi I prayed' to unlock", color: subtitleColor),
+                subtitle: ShieldConfiguration.Label(text: "Open the app and say 'Wallahi' (والله) to unlock", color: subtitleColor),
                 primaryButtonLabel: ShieldConfiguration.Label(text: "Open Khushoo", color: .white),
                 primaryButtonBackgroundColor: sacredGold,
                 secondaryButtonLabel: nil

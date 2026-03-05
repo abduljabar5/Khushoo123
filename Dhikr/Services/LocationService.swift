@@ -33,9 +33,9 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
         return manualLocation
     }
 
-    /// Whether we have any usable location (GPS or manual)
+    /// Whether we have any usable location (GPS or manual), or GPS permission is granted and location is loading
     var hasAnyLocation: Bool {
-        return effectiveLocation != nil
+        return effectiveLocation != nil || hasLocationPermission
     }
 
     /// Whether GPS location permission is granted

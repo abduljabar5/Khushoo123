@@ -100,7 +100,7 @@ class ShieldActionExtension: ShieldActionDelegate {
 
         let content = UNMutableNotificationContent()
         content.title = "Voice Unlock Required"
-        content.body = "Open Khushoo and say \"Wallahi I prayed\" to unlock."
+        content.body = "Open Khushoo and say \"Wallahi\" (والله) to unlock."
         content.sound = .default
         content.userInfo = ["action": "voice_unlock_required"]
 

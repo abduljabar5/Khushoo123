@@ -11,12 +11,31 @@ import MediaPlayer
 import UIKit
 import FirebaseAuth
 
-// MARK: - Audio Player Service
-class AudioPlayerService: NSObject, ObservableObject {
-    // MARK: - Published Properties
-    @Published var isPlaying = false
+// MARK: - Playback Progress (high-frequency updates, isolated from main service)
+/// Only views that need live time updates (player UI) should observe this.
+/// Keeps the 0.5s time ticks from re-rendering every view in the app.
+class PlaybackProgress: ObservableObject {
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
+}
+
+// MARK: - Audio Player Service
+class AudioPlayerService: NSObject, ObservableObject {
+    // MARK: - Playback Progress (separate observable for time updates)
+    let progress = PlaybackProgress()
+
+    // Convenience accessors so existing internal code still works
+    var currentTime: TimeInterval {
+        get { progress.currentTime }
+        set { progress.currentTime = newValue }
+    }
+    var duration: TimeInterval {
+        get { progress.duration }
+        set { progress.duration = newValue }
+    }
+
+    // MARK: - Published Properties
+    @Published var isPlaying = false
     @Published var currentSurah: Surah?
     @Published var currentReciter: Reciter?
     @Published var playbackSpeed: Float = 1.0
@@ -25,12 +44,13 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var errorMessage: String?
     @Published var isReadyToPlay: Bool = false
     @Published var isShuffleEnabled: Bool = false
-    @Published var totalListeningTime: TimeInterval = 0
+    var totalListeningTime: TimeInterval = 0
     @Published var completedSurahNumbers: Set<Int> = []
-    
+
     // Track listening time during playback
     private var lastRecordedTime: TimeInterval = 0
     private var sessionStartTime: TimeInterval = 0
+    private var unsavedListeningTime: TimeInterval = 0
     @Published var isAutoplayEnabled: Bool = true
     @Published var currentArtwork: UIImage?
     @Published var sleepTimeRemaining: TimeInterval?
@@ -77,6 +97,61 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Singleton
     static let shared = AudioPlayerService()
+
+    /// Sets an error message and auto-clears it after a delay
+    private func setError(_ message: String) {
+        self.errorMessage = message
+        self.isLoading = false
+        // Auto-clear after 4 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            if self?.errorMessage == message {
+                self?.errorMessage = nil
+            }
+        }
+    }
+
+    /// Converts a technical error to a user-friendly message
+    private func userFriendlyError(_ error: Error?) -> String {
+        guard let error = error else { return "Couldn't play audio" }
+
+        if let apiError = error as? QuranAPIError {
+            switch apiError {
+            case .audioNotFound:
+                return "This surah isn't available for this reciter"
+            case .invalidURL:
+                return "Audio unavailable"
+            case .networkError:
+                return "Couldn't connect — check your internet"
+            default:
+                return "Couldn't play audio"
+            }
+        }
+
+        let nsError = error as NSError
+        // Network-related errors
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
+                return "No internet connection"
+            case NSURLErrorTimedOut:
+                return "Connection timed out — try again"
+            default:
+                return "Couldn't connect — check your internet"
+            }
+        }
+
+        return "Couldn't play audio"
+    }
+
+    /// Creates an AVPlayerItem with Apple's media user agent for podcast URLs.
+    /// Cloudflare allows AppleCoreMedia user agent, which AVPlayer normally sets,
+    /// but using AVURLAsset with explicit headers ensures it's always present.
+    private func makePlayerItem(url: URL) -> AVPlayerItem {
+        let headers = ["User-Agent": "AppleCoreMedia/1.0.0.22A3354 (iPhone; U; CPU OS 18_0 like Mac OS X; en_us)"]
+        let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+        return AVPlayerItem(asset: asset)
+    }
+
     private override init() {
         super.init()
 
@@ -174,8 +249,13 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     func deactivate() {
-        
+
         saveLastPlayed()
+        // Flush listening time before deactivating
+        if unsavedListeningTime > 0 {
+            UserDefaults.standard.set(totalListeningTime, forKey: "totalListeningTime")
+            unsavedListeningTime = 0
+        }
         // Stop playback
         pause()
         
@@ -451,12 +531,16 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     func pause() {
-        
+
         player?.pause()
         isPlaying = false
         updateNowPlayingInfo()
         saveLastPlayed()
-        
+        // Flush any unsaved listening time
+        if unsavedListeningTime > 0 {
+            UserDefaults.standard.set(totalListeningTime, forKey: "totalListeningTime")
+            unsavedListeningTime = 0
+        }
     }
     
     func togglePlayPause() {
@@ -521,15 +605,14 @@ class AudioPlayerService: NSObject, ObservableObject {
                 
                 guard let url = URL(string: audioURLString) else {
                     await MainActor.run {
-                        self.errorMessage = "Invalid audio URL"
-                        self.isLoading = false
+                        self.setError("Audio unavailable")
                     }
                     return
                 }
                 
                 
                 // Create and configure player
-                let playerItem = AVPlayerItem(url: url)
+                let playerItem = makePlayerItem(url: url)
                 let newPlayer = AVPlayer(playerItem: playerItem)
                 
                 // Add observer for player item status
@@ -556,13 +639,12 @@ class AudioPlayerService: NSObject, ObservableObject {
                 
             } catch {
                 await MainActor.run {
-                    self.errorMessage = "Failed to load audio: \(error.localizedDescription)"
-                    self.isLoading = false
+                    self.setError(self.userFriendlyError(error))
                 }
             }
         }
     }
-    
+
     private var lastSaveTime: TimeInterval = 0
 
     private func setupTimeObserver() {
@@ -685,20 +767,25 @@ class AudioPlayerService: NSObject, ObservableObject {
         guard !currentPlaylist.isEmpty, let currentReciter = currentReciter else {
             return
         }
-        
+
+        // Standard music app behavior:
+        // If more than 3 seconds into the track, restart it first.
+        // If within the first 3 seconds (or tapped again quickly), go to previous track.
+        if currentTime > 3 {
+            seek(to: 0)
+            return
+        }
+
         var prevIndex = -1
 
         if isShuffleEnabled {
-            // Find the current index in the shuffled list and get the previous one
             if let currentIndexInShuffledList = shuffledPlaylistIndices.firstIndex(of: currentSurahIndex) {
                 let prevShuffledIndex = currentIndexInShuffledList - 1
                 if prevShuffledIndex >= 0 {
                     prevIndex = shuffledPlaylistIndices[prevShuffledIndex]
                 }
-                // Don't loop back on previous in shuffle mode
             }
         } else {
-            // Sequential playback
             let potentialPrevIndex = currentSurahIndex - 1
             if potentialPrevIndex >= 0 {
                 prevIndex = potentialPrevIndex
@@ -710,7 +797,6 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.currentSurahIndex = prevIndex
             load(surah: prevSurah, reciter: currentReciter)
         } else {
-            // Seek to the beginning of the current track instead of changing tracks
             seek(to: 0)
         }
     }
@@ -746,11 +832,10 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
             
         case .failed:
-            isLoading = false
             if let error = playerItem.error {
-                errorMessage = error.localizedDescription
+                setError(userFriendlyError(error))
             } else {
-                errorMessage = "Failed to load audio"
+                setError("Couldn't play audio")
             }
             
         case .unknown:
@@ -1025,19 +1110,12 @@ class AudioPlayerService: NSObject, ObservableObject {
 
     func addListeningTime(_ seconds: TimeInterval) {
         totalListeningTime += seconds
-        // Persist the total listening time
-        UserDefaults.standard.set(totalListeningTime, forKey: "totalListeningTime")
+        unsavedListeningTime += seconds
 
-        // Log the update (throttled - only log every 10 seconds to avoid spam)
-        if Int(totalListeningTime) % 10 == 0 {
-            let data: [String: Any] = [
-                "totalSeconds": totalListeningTime,
-                "formatted": getTotalListeningTimeString(),
-                "incrementSeconds": seconds
-            ]
-            if let json = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
-               let jsonString = String(data: json, encoding: .utf8) {
-            }
+        // Batch persist every 30 seconds to avoid main-thread disk I/O on every tick
+        if unsavedListeningTime >= 30 {
+            UserDefaults.standard.set(totalListeningTime, forKey: "totalListeningTime")
+            unsavedListeningTime = 0
         }
     }
     
@@ -1148,7 +1226,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
             
             
-            let playerItem = AVPlayerItem(url: audioURL)
+            let playerItem = makePlayerItem(url: audioURL)
             
             // Add observer for playback end
             NotificationCenter.default.addObserver(self,
@@ -1176,7 +1254,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                     }
                     
                 } else if item.status == .failed {
-                    self.errorMessage = "Failed to load audio."
+                    self.setError(self.userFriendlyError(item.error))
                 }
             }
 
@@ -1187,24 +1265,19 @@ class AudioPlayerService: NSObject, ObservableObject {
                 }
                 self.player?.replaceCurrentItem(with: playerItem)
                 self.player?.rate = self.playbackSpeed
-                
+
                 // Keep the observer reference
-                // Note: In a real app, you would need a more robust way to manage this observer's lifecycle.
-                // For this service, we can associate it with the player.
-                // A better approach would be a dictionary mapping items to observers.
-                // A better approach would be a dictionary mapping items to observers.
                 objc_setAssociatedObject(self.player as Any, "playerItemObserver", anObserver, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
 
                 self.updateNowPlayingInfo()
             }
-            
+
         } catch {
-            let errorDescription = "Error loading audio: \(error.localizedDescription)"
             await MainActor.run {
-                self.errorMessage = errorDescription
+                self.setError(self.userFriendlyError(error))
             }
         }
-        
+
         await MainActor.run {
             self.isLoading = false
         }
@@ -1254,7 +1327,7 @@ class AudioPlayerService: NSObject, ObservableObject {
             }
             
             
-            let playerItem = AVPlayerItem(url: audioURL)
+            let playerItem = makePlayerItem(url: audioURL)
             
             // Add observer for playback end
             NotificationCenter.default.addObserver(self,
@@ -1278,7 +1351,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                     }
                     
                 } else if item.status == .failed {
-                    self.errorMessage = "Failed to preload audio."
+                    self.setError(self.userFriendlyError(item.error))
                 }
             }
 
@@ -1288,21 +1361,17 @@ class AudioPlayerService: NSObject, ObservableObject {
                     self.setupTimeObserver()
                 }
                 self.player?.replaceCurrentItem(with: playerItem)
-                // Don't set the rate or play - just preload
-                
+
                 // Keep the observer reference
                 objc_setAssociatedObject(self.player as Any, "playerItemObserver", anObserver, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-
-                // Don't update now playing info for preloaded audio - no current track to show
             }
-            
+
         } catch {
-            let errorDescription = "Error preloading audio: \(error.localizedDescription)"
             await MainActor.run {
-                self.errorMessage = errorDescription
+                self.setError(self.userFriendlyError(error))
             }
         }
-        
+
         await MainActor.run {
             self.isLoading = false
         }
@@ -1319,7 +1388,15 @@ class AudioPlayerService: NSObject, ObservableObject {
             return
         }
 
-        let filtered = allSurahs.filter { reciter.hasSurah($0.number) }
+        // For QC reciters, resolve actual available surahs (they default to 1...114)
+        var resolvedReciter = reciter
+        if reciter.identifier.hasPrefix("qurancentral_") {
+            let resolved = await QuranCentralService.shared.resolveAvailableSurahs(for: reciter.identifier)
+            resolvedReciter.availableSurahs = resolved
+            QuranCentralService.shared.updateCachedReciter(identifier: reciter.identifier, availableSurahs: resolved)
+        }
+
+        let filtered = allSurahs.filter { resolvedReciter.hasSurah($0.number) }
 
         await MainActor.run {
             self.currentPlaylist = filtered

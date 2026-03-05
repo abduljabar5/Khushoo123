@@ -57,6 +57,8 @@ struct ProfileView: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingDeleteError = false
     @State private var deleteErrorMessage = ""
+    @State private var showingFeedback = false
+    @AppStorage("dismissedFeedbackPrompt") private var dismissedFeedbackPrompt = false
     @State private var sectionAppeared: [Bool] = Array(repeating: false, count: 10)
 
     // Settings manager for prayer calculation
@@ -139,6 +141,14 @@ struct ProfileView: View {
                         .offset(y: sectionAppeared[5] ? 0 : 20)
                 }
 
+                // Feedback prompt (one-time, after 3+ days)
+                if shouldShowFeedbackPrompt {
+                    feedbackPromptCard
+                        .padding(.horizontal, 24)
+                        .opacity(sectionAppeared[6] ? 1 : 0)
+                        .offset(y: sectionAppeared[6] ? 0 : 20)
+                }
+
                 // Support
                 supportSection
                     .opacity(sectionAppeared[6] ? 1 : 0)
@@ -163,6 +173,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
+        }
+        .sheet(isPresented: $showingFeedback) {
+            FeedbackSheet()
         }
         .sheet(isPresented: $showingPrayerSettings) {
             PrayerSettingsView(
@@ -723,7 +736,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
-                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.4", accentColor: warmGray)
+                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.5", accentColor: warmGray)
 
                 SacredDivider()
 
@@ -733,6 +746,12 @@ struct ProfileView: View {
                     }
                 }) {
                     SacredActionRow(icon: "envelope", title: "Contact Support", accentColor: sacredGold)
+                }
+
+                SacredDivider()
+
+                Button(action: { showingFeedback = true }) {
+                    SacredActionRow(icon: "lightbulb", title: "Share Your Ideas", accentColor: sacredGold)
                 }
 
                 SacredDivider()
@@ -751,6 +770,77 @@ struct ProfileView: View {
             )
             .padding(.horizontal, 24)
         }
+    }
+
+    // MARK: - Feedback Prompt
+
+    private var shouldShowFeedbackPrompt: Bool {
+        guard !dismissedFeedbackPrompt else { return false }
+        guard let installDate = UserDefaults.standard.object(forKey: "analytics_install_date") as? Date else { return false }
+        let daysSinceInstall = Calendar.current.dateComponents([.day], from: installDate, to: Date()).day ?? 0
+        return daysSinceInstall >= 3
+    }
+
+    private var feedbackPromptCard: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Spacer()
+                Button(action: { dismissedFeedbackPrompt = true }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(warmGray)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(warmGray.opacity(0.1)))
+                }
+            }
+            .padding(.top, 4)
+            .padding(.trailing, 4)
+
+            ZStack {
+                Circle()
+                    .fill(sacredGold.opacity(0.12))
+                    .frame(width: 56, height: 56)
+
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundColor(sacredGold)
+            }
+
+            VStack(spacing: 8) {
+                Text("We'd love your input")
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                Text("Help shape Khushoo — tell us what features matter most to you")
+                    .font(.system(size: 13))
+                    .foregroundColor(warmGray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+            }
+
+            Button(action: { showingFeedback = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 12))
+                    Text("Share Ideas")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 12)
+                .background(sacredGold)
+                .cornerRadius(10)
+            }
+            .padding(.bottom, 16)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(sacredGold.opacity(0.15), lineWidth: 1)
+                )
+        )
     }
 
     // MARK: - Account Section

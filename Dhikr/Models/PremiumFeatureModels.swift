@@ -39,7 +39,7 @@ enum PremiumFeature: String, CaseIterable {
         case .widgets:
             return "Prayer times, dhikr counter, and Qibla on your home screen"
         case .reciterSearch:
-            return "Access to 200+ reciters to discover and explore"
+            return "Access to 500+ reciters to discover and explore"
         case .prayerSelection:
             return "Track your daily prayer completion"
         }

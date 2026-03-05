@@ -26,6 +26,7 @@ class QuranAPIService: ObservableObject {
     @Published var isLoadingReciters = false
     private var allReciters: [Reciter] = []
     private var hasLoadedReciters = false
+    private var hasLoadedQCReciters = false
     
     private init() {
         // Don't preload reciters - only load when user navigates to reciters page
@@ -35,9 +36,9 @@ class QuranAPIService: ObservableObject {
     @MainActor
     func preloadReciters() async {
         guard !hasLoadedReciters && !isLoadingReciters else { return }
-        
+
         isLoadingReciters = true
-        
+
         do {
             let loadedReciters = try await fetchRecitersInternal()
             self.allReciters = loadedReciters
@@ -45,14 +46,23 @@ class QuranAPIService: ObservableObject {
             self.hasLoadedReciters = true
         } catch {
         }
-        
+
         isLoadingReciters = false
+
+        // After MP3Quran reciters load, merge QC reciters in background
+        if hasLoadedReciters {
+            Task { await mergeQuranCentralReciters() }
+        }
     }
     
     // MARK: - Public API (Returns cached data instantly)
     func fetchReciters() async throws -> [Reciter] {
         // If already loaded, return immediately
         if hasLoadedReciters && !allReciters.isEmpty {
+            // Trigger QC merge if not done yet (non-blocking)
+            if !hasLoadedQCReciters {
+                Task { await mergeQuranCentralReciters() }
+            }
             return allReciters
         }
         
@@ -81,6 +91,37 @@ class QuranAPIService: ObservableObject {
         return reciters
     }
     
+    // MARK: - Quran Central Merge
+
+    @MainActor
+    private func mergeQuranCentralReciters() async {
+        guard !hasLoadedQCReciters else { return }
+
+        // QC reciters are a premium feature — skip fetch for free users
+        guard SubscriptionService.shared.hasPremiumAccess else { return }
+
+        let qcReciters = await QuranCentralService.shared.fetchReciters()
+        guard !qcReciters.isEmpty else { return }
+
+        let existingNames = Set(allReciters.map { $0.englishName.lowercased() })
+        let uniqueQCReciters = qcReciters.filter {
+            !existingNames.contains($0.englishName.lowercased())
+        }
+
+        guard !uniqueQCReciters.isEmpty else {
+            hasLoadedQCReciters = true
+            return
+        }
+
+        let merged = (allReciters + uniqueQCReciters).sorted {
+            $0.englishName.localizedCaseInsensitiveCompare($1.englishName) == .orderedAscending
+        }
+
+        self.allReciters = merged
+        self.reciters = merged
+        self.hasLoadedQCReciters = true
+    }
+
     // MARK: - API Base URLs
     private let mp3QuranBaseURL = "https://www.mp3quran.net/api/v3"
     

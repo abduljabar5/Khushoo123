@@ -274,7 +274,7 @@ struct VoiceConfirmationView: View {
         } else if speechService.isRecording {
             return "Recording..."
         } else {
-            return "Say Wallahi"
+            return "Say Wallahi (والله)"
         }
     }
 
@@ -282,7 +282,7 @@ struct VoiceConfirmationView: View {
         if timeRemaining > 0 {
             return "Available when timer ends"
         } else if speechService.isRecording {
-            return "Say: \"Wallahi I prayed\""
+            return "Say: \"Wallahi\" (والله)"
         } else {
             return "Tap to start recording"
         }

@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User profiles - users can only read/write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Prayer times cache - read for authenticated users
+    match /prayerTimes/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // User preferences
+    match /userPreferences/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Referral codes - anyone can read to validate, authenticated can write usage
+    match /referralCodes/{code} {
+      allow read: if true;
+      allow write: if true;
+
+      match /usages/{usage} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Pending commissions - app writes when code validated, webhook reads
+    match /pendingCommissions/{tokenId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Commissions - webhook writes commission records
+    match /commissions/{commissionId} {
+      allow read, write: if true;
+    }
+
+    // Feedback - anyone can submit, only console can read
+    match /feedback/{feedbackId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+
+    // Default: deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

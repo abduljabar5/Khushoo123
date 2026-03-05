@@ -11,6 +11,7 @@ import SwiftUI
 struct FullScreenPlayerContent: View {
     @EnvironmentObject var audioPlayerService: AudioPlayerService
     @EnvironmentObject var quranAPIService: QuranAPIService
+    @ObservedObject var progress: PlaybackProgress
     @StateObject private var themeManager = ThemeManager.shared
 
     @Binding var showSurahList: Bool
@@ -35,6 +36,21 @@ struct FullScreenPlayerContent: View {
         VStack(spacing: isIPad ? 20 : RS.spacing(24)) {
             // Title / Artist / Chevron + Like
             titleSection
+
+            // Error banner
+            if let error = audioPlayerService.errorMessage {
+                Text(error)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color(red: 0.85, green: 0.45, blue: 0.35).opacity(0.9))
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.easeInOut(duration: 0.3), value: audioPlayerService.errorMessage)
+            }
 
             // Slider + time labels
             sliderSection(horizontalPadding: horizontalPadding)
@@ -114,18 +130,18 @@ struct FullScreenPlayerContent: View {
         VStack(spacing: isIPad ? 10 : 8) {
             SacredSlider(
                 value: Binding(
-                    get: { audioPlayerService.currentTime },
+                    get: { audioPlayerService.progress.currentTime },
                     set: { audioPlayerService.seek(to: $0) }
                 ),
-                range: 0...max(audioPlayerService.duration, 1),
+                range: 0...max(audioPlayerService.progress.duration, 1),
                 accentColor: sacredGold
             )
             .frame(height: 20)
 
             HStack {
-                Text(audioPlayerService.currentTime.formattedTime)
+                Text(audioPlayerService.progress.currentTime.formattedTime)
                 Spacer()
-                Text(audioPlayerService.duration.formattedTime)
+                Text(audioPlayerService.progress.duration.formattedTime)
             }
             .font(.system(size: isIPad ? 13 : 11, weight: .light, design: .monospaced))
             .foregroundColor(warmGray)

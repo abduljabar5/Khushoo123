@@ -126,6 +126,7 @@ struct ExpandablePlayerView: View {
 
                         // Full-screen controls
                         FullScreenPlayerContent(
+                            progress: audioPlayerService.progress,
                             showSurahList: $showSurahList,
                             isExpanded: $isExpanded,
                             artworkSize: artworkSize,
@@ -295,6 +296,13 @@ struct ExpandablePlayerView: View {
                 Text("Please wait")
                     .font(.caption2)
                     .foregroundStyle(.gray.opacity(0.5))
+            } else if let error = audioPlayerService.errorMessage {
+                Text(error)
+                    .font(.callout)
+                    .foregroundStyle(Color(red: 0.85, green: 0.45, blue: 0.35))
+                Text(audioPlayerService.currentReciter?.englishName ?? "")
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
             } else {
                 Text(audioPlayerService.currentSurah?.englishName ?? "Not Playing")
                     .font(.callout)
@@ -308,7 +316,7 @@ struct ExpandablePlayerView: View {
 
     @ViewBuilder
     private var miniButtons: some View {
-        if audioPlayerService.isLoading {
+        if audioPlayerService.isLoading && audioPlayerService.errorMessage == nil {
             ProgressView()
                 .scaleEffect(0.9)
                 .padding(.trailing, 10)
@@ -453,11 +461,19 @@ struct ExpandablePlayerView: View {
                     )
             )
             .onAppear { loadSurahsIfNeeded() }
+            .onChange(of: audioPlayerService.currentReciter?.identifier) { _ in
+                // Refresh surah list when reciter changes
+                allSurahs = []
+                loadSurahsIfNeeded()
+            }
             .onChange(of: showSurahList) { isShowing in
-                if isShowing, let currentSurah = audioPlayerService.currentSurah {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            scrollProxy.scrollTo(currentSurah.number, anchor: .center)
+                if isShowing {
+                    loadSurahsIfNeeded()
+                    if let currentSurah = audioPlayerService.currentSurah {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                scrollProxy.scrollTo(currentSurah.number, anchor: .center)
+                            }
                         }
                     }
                 }
@@ -470,7 +486,21 @@ struct ExpandablePlayerView: View {
         Task {
             do {
                 let surahs = try await quranAPIService.fetchSurahs()
-                await MainActor.run { self.allSurahs = surahs }
+                if var reciter = audioPlayerService.currentReciter {
+                    // For QC reciters, resolve actual available surahs (they default to 1...114)
+                    if reciter.identifier.hasPrefix("qurancentral_") {
+                        let resolved = await QuranCentralService.shared.resolveAvailableSurahs(for: reciter.identifier)
+                        reciter.availableSurahs = resolved
+                        QuranCentralService.shared.updateCachedReciter(identifier: reciter.identifier, availableSurahs: resolved)
+                    }
+                    await MainActor.run {
+                        self.allSurahs = surahs.filter { reciter.hasSurah($0.number) }
+                    }
+                } else {
+                    await MainActor.run {
+                        self.allSurahs = surahs
+                    }
+                }
             } catch {}
         }
     }

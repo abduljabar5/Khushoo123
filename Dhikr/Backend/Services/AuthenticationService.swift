@@ -356,9 +356,13 @@ class AuthenticationService: ObservableObject {
             await MainActor.run { isLoading = false }
 
         } catch let error as NSError {
-            // Check if user doesn't exist
-            if let authError = AuthErrorCode(_bridgedNSError: error),
-               authError.code == .userNotFound || authError.code == .invalidCredential {
+            // Check if user doesn't exist — use raw NSError code because
+            // AuthErrorCode(_bridgedNSError:) is unreliable in Firebase SDK 11+
+            let isUserNotFound = error.domain == "FIRAuthErrorDomain" && (
+                error.code == AuthErrorCode.userNotFound.rawValue ||
+                error.code == AuthErrorCode.invalidCredential.rawValue
+            )
+            if isUserNotFound {
 
                 // User doesn't exist, try to create account
                 // Require displayName for new accounts
@@ -466,24 +470,26 @@ class AuthenticationService: ObservableObject {
     }
 
     private func mapFirebaseError(_ error: NSError) -> AuthError {
-        guard let errorCode = AuthErrorCode(_bridgedNSError: error) else {
+        // Use raw NSError code instead of AuthErrorCode(_bridgedNSError:)
+        // which is unreliable in Firebase SDK 11+
+        guard error.domain == "FIRAuthErrorDomain" else {
             return .unknown(error.localizedDescription)
         }
 
-        switch errorCode.code {
-        case .invalidEmail:
+        switch error.code {
+        case AuthErrorCode.invalidEmail.rawValue:
             return .invalidEmail
-        case .weakPassword:
+        case AuthErrorCode.weakPassword.rawValue:
             return .weakPassword
-        case .userNotFound:
+        case AuthErrorCode.userNotFound.rawValue:
             return .userNotFound
-        case .wrongPassword:
+        case AuthErrorCode.wrongPassword.rawValue:
             return .wrongPassword
-        case .emailAlreadyInUse:
+        case AuthErrorCode.emailAlreadyInUse.rawValue:
             return .emailAlreadyInUse
-        case .networkError:
+        case AuthErrorCode.networkError.rawValue:
             return .networkError
-        case .invalidCredential:
+        case AuthErrorCode.invalidCredential.rawValue:
             return .unknown("Invalid credentials. Please check your email and password.")
         default:
             return .unknown(error.localizedDescription)

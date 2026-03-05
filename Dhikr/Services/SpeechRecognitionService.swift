@@ -111,9 +111,7 @@ class SpeechRecognitionService: ObservableObject {
         
         // Add vocabulary hints for Arabic words to improve recognition accuracy
         recognitionRequest.contextualStrings = [
-            "wallahi", "wallah", "walhi", "walha",
-            "wallahi i prayed", "wallah i prayed", "walhi i prayed", "walha i prayed",
-            "prayed", "prayer", "salah"
+            "wallahi", "wallah", "walhi", "walha"
         ]
         
         // Create recognition task
@@ -187,31 +185,8 @@ class SpeechRecognitionService: ObservableObject {
             .lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "[^a-z ]", with: "", options: .regularExpression)
-        
-        
-        // We only check for complete phrases, not individual word variations
-        
-        // Only check for complete phrase variations (correct Arabic spellings)
-        // Vocabulary hints should help speech recognition understand these correctly
-        let completePhrasesVariations = [
-            "wallahi i prayed", "wallah i prayed", "walhi i prayed", "walha i prayed",
-            "wallahi prayed", "wallah prayed", "walhi prayed", "walha prayed"
-        ]
-        
-        var isCorrect = false
-        var matchedPhrase = ""
-        
-        for phrase in completePhrasesVariations {
-            if normalizedTranscript.contains(phrase) {
-                isCorrect = true
-                matchedPhrase = phrase
-                break
-            }
-        }
-        
-        // Additional strict validation: ensure the phrase contains both wallahi AND prayed elements
-        // but only accept if found as complete phrases, not individual words
-        
-        return isCorrect
+
+        let wallahiVariations = ["wallahi", "wallah", "walhi", "walha"]
+        return wallahiVariations.contains(where: { normalizedTranscript.contains($0) })
     }
 } 

@@ -15,6 +15,7 @@ struct PremiumLockedView: View {
     let feature: PremiumFeature
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showingPaywall = false
+    @State private var showingFeedback = false
 
     private var cardBackground: Color {
         themeManager.effectiveTheme == .dark
@@ -84,10 +85,26 @@ struct PremiumLockedView: View {
                     .background(sacredGold)
                     .cornerRadius(12)
                 }
+
+                Button(action: {
+                    showingFeedback = true
+                }) {
+                    Text("Not ready? Tell us what you'd like")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(subtleText)
+                        .underline(color: subtleText.opacity(0.5))
+                }
+                .padding(.top, 4)
             }
+        }
+        .onAppear {
+            AnalyticsService.shared.trackFeatureLocked(feature: feature.rawValue)
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView()
+        }
+        .sheet(isPresented: $showingFeedback) {
+            FeedbackSheet()
         }
     }
 }

@@ -135,24 +135,37 @@ struct ReciterDirectoryView: View {
             }
         }
         .onAppear {
-            loadData()
+            if allReciters.isEmpty {
+                loadData()
+            } else {
+                // Just refresh recents and favorites, don't reset scroll position
+                recentReciters = RecentRecitersManager.shared.loadRecentReciters()
+                updateFavoritesCache()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             updateFavoritesCache()
         }
         .onReceive(quranAPIService.$reciters) { reciters in
-            if !reciters.isEmpty && self.allReciters.isEmpty {
+            guard !reciters.isEmpty else { return }
+            // Update if list has grown (QC reciters merged in) or if we had nothing before
+            if reciters.count > self.allReciters.count || self.allReciters.isEmpty {
+                let wasEmpty = self.allReciters.isEmpty
                 self.allReciters = reciters
-                self.filteredReciters = reciters
-                self.loadInitialBatch()
-                self.isLoading = false
+                if searchText.isEmpty {
+                    self.filteredReciters = reciters
+                } else {
+                    applyFilters(query: searchText)
+                }
+                // Only reset to initial batch on first load, not when list grows
+                if wasEmpty {
+                    self.loadInitialBatch()
+                }
+                if self.isLoading { self.isLoading = false }
             }
         }
         .onChange(of: searchText) { newValue in
             performDebouncedSearch(query: newValue)
-        }
-        .onChange(of: filteredReciters) { _ in
-            loadInitialBatch()
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: Text("Search reciters..."))
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
@@ -222,39 +235,39 @@ struct ReciterDirectoryView: View {
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
             if !Task.isCancelled {
-                await applyFilters(query: query)
+                await MainActor.run { applyFilters(query: query) }
             }
         }
     }
 
     @MainActor
-    private func applyFilters(query: String) async {
+    private func applyFilters(query: String) {
         if query.isEmpty {
             filteredReciters = allReciters
         } else {
-            let currentReciters = allReciters
-            // Fetch QC reciters for search (lazy-loaded, cached after first call)
-            let qcReciters = await QuranCentralService.shared.fetchReciters()
+            let normalizedQuery = ReciterSearch.normalize(query)
+            let queryTokens = normalizedQuery.split(separator: " ").map(String.init)
 
-            let filtered = await Task.detached {
-                let lowercasedQuery = query.lowercased()
-
-                // Search MP3Quran reciters
-                let mp3Results = currentReciters.filter { reciter in
-                    reciter.englishName.lowercased().contains(lowercasedQuery)
+            // Score each reciter and include matches
+            var scored: [(Reciter, Int)] = []
+            for reciter in allReciters {
+                let score = ReciterSearch.score(
+                    reciterName: reciter.englishName,
+                    query: query,
+                    normalizedQuery: normalizedQuery,
+                    queryTokens: queryTokens
+                )
+                if score > 0 {
+                    scored.append((reciter, score))
                 }
+            }
 
-                // Search Quran Central reciters (exclude duplicates already in MP3Quran)
-                let mp3Names = Set(currentReciters.map { $0.englishName.lowercased() })
-                let qcResults = qcReciters.filter { reciter in
-                    reciter.englishName.lowercased().contains(lowercasedQuery)
-                        && !mp3Names.contains(reciter.englishName.lowercased())
-                }
-
-                return mp3Results + qcResults
-            }.value
-            filteredReciters = filtered
+            // Sort by score descending (best matches first)
+            filteredReciters = scored
+                .sorted { $0.1 > $1.1 }
+                .map { $0.0 }
         }
+        loadInitialBatch()
     }
 
     private func loadFavoritesCache() {

@@ -2,8 +2,9 @@
 //  QuranCentralService.swift
 //  Dhikr
 //
-//  Fetches reciters from Quran Central for search integration.
-//  QC reciters appear in search results only, not the main reciter list.
+//  Provides Quran Central reciters from hardcoded data and fetches
+//  episodes via Apple's iTunes Lookup API. Audio streams from the
+//  QC CDN via AVPlayer which uses Apple's media user agent.
 //
 
 import Foundation
@@ -11,86 +12,96 @@ import Foundation
 class QuranCentralService {
     static let shared = QuranCentralService()
 
-    private let recitersURL = "https://data.qurancentral.com/reciters.json"
-    private let categoriesBaseURL = "https://data.qurancentral.com/categories"
-    private let podcastsBaseURL = "https://podcasts.qurancentral.com"
-    private let artworkBaseURL = "https://artwork.qurancentral.com"
-
     private var cachedReciters: [Reciter] = []
     private var hasLoaded = false
-    private var isLoading = false
 
-    // Cache playlists per slug so we don't re-fetch
-    private var playlistCache: [String: [QCPlaylistItem]] = [:]
+    // Cache episodes per collectionId
+    private var episodeCache: [Int: [QCEpisode]] = [:]
 
     private init() {}
 
-    // MARK: - Fetch Reciters
+    // MARK: - Fetch Reciters (from hardcoded data)
 
     func fetchReciters() async -> [Reciter] {
         if hasLoaded { return cachedReciters }
-        guard !isLoading else {
-            // Wait for the in-progress load
-            while isLoading { try? await Task.sleep(nanoseconds: 100_000_000) }
-            return cachedReciters
+
+        var reciters: [Reciter] = []
+        for entry in QuranCentralData.allReciters {
+            let artworkURL = URL(string: "https://artwork.qurancentral.com/\(entry.slug).jpg")
+
+            reciters.append(Reciter(
+                identifier: "qurancentral_\(entry.slug)",
+                language: "ar",
+                name: entry.name,
+                englishName: entry.name,
+                server: nil,
+                reciterId: entry.collectionId,
+                country: nil,
+                dialect: nil,
+                artworkURL: artworkURL,
+                availableSurahs: Set(1...114)
+            ))
         }
 
-        isLoading = true
-        defer { isLoading = false }
-
-        guard let url = URL(string: recitersURL) else { return [] }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
-
-            let qcReciters = try JSONDecoder().decode([QCReciter].self, from: data)
-
-            cachedReciters = qcReciters.map { qc in
-                Reciter(
-                    identifier: "qurancentral_\(qc.slug)",
-                    language: "ar",
-                    name: qc.name,
-                    englishName: qc.name,
-                    server: nil,
-                    reciterId: nil,
-                    country: qc.country,
-                    dialect: qc.dialect,
-                    artworkURL: URL(string: "\(artworkBaseURL)/\(qc.slug).jpg"),
-                    availableSurahs: Set(1...114) // Assume full until playlist is fetched
-                )
-            }
-
-            hasLoaded = true
-        } catch {
-            // Silently fail — search will just not show QC results
-        }
-
-        return cachedReciters
+        cachedReciters = reciters
+        hasLoaded = true
+        return reciters
     }
 
-    // MARK: - Construct Audio URL
+    // MARK: - Construct Audio URL (via iTunes Lookup API)
 
     func constructAudioURL(surahNumber: Int, reciterIdentifier: String) async throws -> String {
-        let slug = reciterIdentifier.replacingOccurrences(of: "qurancentral_", with: "")
+        let episodes = try await fetchEpisodes(for: reciterIdentifier)
 
-        let items = try await fetchPlaylist(slug: slug)
-
-        // Match by surah number prefix in the title (e.g., "001 Al-Fatiha")
         let formatted = String(format: "%03d", surahNumber)
-        if let item = items.first(where: { $0.title.hasPrefix(formatted) }) {
-            return "\(podcastsBaseURL)/\(item.url)"
+        if let episode = episodes.first(where: { $0.title.hasPrefix(formatted) }) {
+            return episode.audioURL
         }
 
         throw QuranAPIError.audioNotFound
     }
 
-    // MARK: - Fetch Playlist
+    // MARK: - Resolve Available Surahs
 
-    private func fetchPlaylist(slug: String) async throws -> [QCPlaylistItem] {
-        if let cached = playlistCache[slug] { return cached }
+    func resolveAvailableSurahs(for reciterIdentifier: String) async -> Set<Int> {
+        do {
+            let episodes = try await fetchEpisodes(for: reciterIdentifier)
+            var surahs = Set<Int>()
 
-        guard let url = URL(string: "\(categoriesBaseURL)/\(slug).json") else {
+            for episode in episodes {
+                if episode.title.count >= 3,
+                   let surahNumber = Int(episode.title.prefix(3)),
+                   surahNumber >= 1 && surahNumber <= 114 {
+                    surahs.insert(surahNumber)
+                }
+            }
+
+            return surahs.isEmpty ? Set(1...114) : surahs
+        } catch {
+            return Set(1...114)
+        }
+    }
+
+    func updateCachedReciter(identifier: String, availableSurahs: Set<Int>) {
+        if let index = cachedReciters.firstIndex(where: { $0.identifier == identifier }) {
+            cachedReciters[index].availableSurahs = availableSurahs
+        }
+    }
+
+    // MARK: - Fetch Episodes (via iTunes Lookup API)
+
+    private func fetchEpisodes(for reciterIdentifier: String) async throws -> [QCEpisode] {
+        // Find the reciter's collectionId
+        guard let reciter = cachedReciters.first(where: { $0.identifier == reciterIdentifier }),
+              let collectionId = reciter.reciterId else {
+            throw QuranAPIError.invalidURL
+        }
+
+        // Return cached episodes if available
+        if let cached = episodeCache[collectionId] { return cached }
+
+        // Fetch episodes from iTunes Lookup API — entirely Apple's servers
+        guard let url = URL(string: "https://itunes.apple.com/lookup?id=\(collectionId)&media=podcast&entity=podcastEpisode&limit=300") else {
             throw QuranAPIError.invalidURL
         }
 
@@ -99,41 +110,50 @@ class QuranCentralService {
             throw QuranAPIError.networkError
         }
 
-        let detail = try JSONDecoder().decode(QCReciterDetail.self, from: data)
-        let items = detail.items ?? []
-        playlistCache[slug] = items
-        return items
+        let result = try JSONDecoder().decode(ITunesLookupResult.self, from: data)
+
+        // Filter to episode results only (first result is the podcast itself)
+        let episodes = result.results.compactMap { item -> QCEpisode? in
+            guard item.wrapperType == "podcastEpisode",
+                  let title = item.trackName,
+                  let audioURL = item.episodeUrl,
+                  !title.isEmpty && !audioURL.isEmpty else { return nil }
+
+            // Only include episodes that look like surahs (3-digit number prefix)
+            guard title.count >= 3,
+                  let num = Int(title.prefix(3)),
+                  num >= 1 && num <= 114 else { return nil }
+
+            return QCEpisode(title: title, audioURL: audioURL)
+        }
+
+        guard !episodes.isEmpty else {
+            throw QuranAPIError.audioNotFound
+        }
+
+        episodeCache[collectionId] = episodes
+        return episodes
     }
 }
 
-// MARK: - Quran Central JSON Models
+// MARK: - iTunes Lookup API Models
 
-private struct QCReciter: Codable {
-    let id: Int
-    let slug: String
-    let name: String
-    let postCount: Int?
-    let country: String?
-    let dialect: String?
-    let popular: Bool?
-    let female: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case id, slug, name
-        case postCount = "post_count"
-        case country, dialect, popular, female
-    }
+private struct ITunesLookupResult: Codable {
+    let resultCount: Int
+    let results: [ITunesLookupItem]
 }
 
-private struct QCReciterDetail: Codable {
-    let title: String?
-    let description: String?
-    let image: String?
-    let items: [QCPlaylistItem]?
+private struct ITunesLookupItem: Codable {
+    let wrapperType: String?
+    let trackName: String?
+    let episodeUrl: String?
+    let collectionId: Int?
+    let trackTimeMillis: Int?
 }
 
-struct QCPlaylistItem: Codable {
+// MARK: - Episode Model
+
+struct QCEpisode {
     let title: String
-    let url: String
-    let duration: String?
+    let audioURL: String
 }
