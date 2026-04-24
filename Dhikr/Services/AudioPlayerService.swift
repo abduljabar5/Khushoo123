@@ -581,11 +581,10 @@ class AudioPlayerService: NSObject, ObservableObject {
     
     // MARK: - Verse Navigation
     func nextVerse() {
-        
-        if repeatMode == .all {
+
+        if repeatMode == .all, let surah = currentSurah, let reciter = currentReciter {
             // Restart from beginning
-            loadFullSurahAudio(surah: currentSurah!, reciter: currentReciter!)
-        } else {
+            loadFullSurahAudio(surah: surah, reciter: reciter)
         }
     }
     
@@ -722,10 +721,10 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     func nextTrack() {
-        guard !currentPlaylist.isEmpty else {
+        guard !currentPlaylist.isEmpty, let currentReciter = currentReciter else {
             return
         }
-        
+
         var nextIndex = -1
         
         if isShuffleEnabled {
@@ -757,7 +756,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         if nextIndex != -1 {
             let nextSurah = currentPlaylist[nextIndex]
             self.currentSurahIndex = nextIndex
-            load(surah: nextSurah, reciter: self.currentReciter!)
+            load(surah: nextSurah, reciter: currentReciter)
         } else {
             pause() // Or handle as desired
         }
