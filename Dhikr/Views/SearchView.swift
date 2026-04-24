@@ -708,6 +708,16 @@ private struct SacredEarlyUnlockSection: View {
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
                             showUnlockedSuccess = true
                         }
+                    } else if showUnlockedSuccess {
+                        // Unlock window ended — next prayer is starting or shields
+                        // reapplied. Dismiss the success view so the countdown/lock
+                        // UI comes back. Reset wasWaiting so the ready pulse can
+                        // fire again next time.
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            showUnlockedSuccess = false
+                        }
+                        wasWaiting = true
+                        pulseRing = false
                     }
                 }
             }
