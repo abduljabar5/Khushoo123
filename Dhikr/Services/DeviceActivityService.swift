@@ -38,9 +38,9 @@ class DeviceActivityService: ObservableObject {
         return Int(normalized.timeIntervalSince1970)
     }
 
-    /// Get activity names for prayers that are about to start (within protection window)
-    /// These should NOT be cancelled during rescheduling — but only if the prayer is still selected
-    /// - Parameter selectedPrayers: The currently selected prayer names. Only imminent prayers in this set are protected.
+    /// Get activity names for prayers that are currently active OR about to start (within protection window).
+    /// These should NOT be cancelled during rescheduling — but only if the prayer is still selected.
+    /// - Parameter selectedPrayers: The currently selected prayer names. Only prayers in this set are protected.
     private func getImminentPrayerActivityNames(selectedPrayers: Set<String>) -> Set<DeviceActivityName> {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let schedules = groupDefaults.object(forKey: prayerScheduleKey) as? [[String: Any]] else {
@@ -52,7 +52,8 @@ class DeviceActivityService: ObservableObject {
 
         for schedule in schedules {
             guard let name = schedule["name"] as? String,
-                  let timestamp = schedule["date"] as? TimeInterval else {
+                  let timestamp = schedule["date"] as? TimeInterval,
+                  let duration = schedule["duration"] as? Double else {
                 continue
             }
 
@@ -62,10 +63,19 @@ class DeviceActivityService: ObservableObject {
             }
 
             let blockingStartTime = Date(timeIntervalSince1970: timestamp)
+            let blockingEndTime = blockingStartTime.addingTimeInterval(duration)
             let timeUntilStart = blockingStartTime.timeIntervalSince(now)
 
-            // If prayer starts within protection window (and hasn't passed), protect it
-            if timeUntilStart > 0 && timeUntilStart <= imminentPrayerProtectionSeconds {
+            // Protect if CURRENTLY ACTIVE (now is between start and end)
+            // Stopping an active schedule triggers intervalDidEnd() which clears shields
+            if now >= blockingStartTime && now <= blockingEndTime {
+                let normalizedTs = normalizeTimestamp(blockingStartTime)
+                let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
+                imminentActivities.insert(activityName)
+                print("🛡️ [PrayerBlocking] Protecting ACTIVE prayer: \(name)")
+            }
+            // Protect if starting within protection window (and hasn't started yet)
+            else if timeUntilStart > 0 && timeUntilStart <= imminentPrayerProtectionSeconds {
                 let normalizedTs = normalizeTimestamp(blockingStartTime)
                 let activityName = DeviceActivityName("Prayer_\(name)_\(normalizedTs)")
                 imminentActivities.insert(activityName)
@@ -185,6 +195,11 @@ class DeviceActivityService: ObservableObject {
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
             groupDefaults.set(Date().timeIntervalSince1970, forKey: "lastRollingWindowUpdate")
             groupDefaults.synchronize()
+        }
+
+        // Schedule a local notification to remind user to reopen the app before schedules expire
+        if success {
+            BackgroundRefreshService.scheduleExpiryReminder()
         }
 
         return success

@@ -154,38 +154,30 @@ class BlockingStateService: ObservableObject {
         earlyUnlockCurrentInterval()
     }
 
-    /// Validate and recover from state mismatches between extension and main app
+    /// Validate and recover from state mismatches between extension and main app.
+    /// Trust UserDefaults (written by the extension) as ground truth — NOT ManagedSettingsStore,
+    /// which may not be loaded yet after a cold start and would incorrectly clear blocking state.
     private func validateAndRecoverBlockingState() {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
-        
-        let appsBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")
-        let store = ManagedSettingsStore()
-        
-        // Check if ManagedSettings has any restrictions applied
-        let hasRestrictions = (store.shield.applications?.count ?? 0) > 0 ||
-                            store.shield.applicationCategories != nil ||
-                            (store.shield.webDomains?.count ?? 0) > 0
-        
-        // Detect state mismatch
-        if appsBlocked != hasRestrictions {
 
-            // Trust the ManagedSettings state as ground truth
-            if hasRestrictions {
-                groupDefaults.set(true, forKey: "appsActuallyBlocked")
-                appsActuallyBlocked = true
-            } else {
-                groupDefaults.set(false, forKey: "appsActuallyBlocked")
-                appsActuallyBlocked = false
-                // Clear any lingering blocking state
-                groupDefaults.removeObject(forKey: "blockingStartTime")
-                groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+        let appsBlocked = groupDefaults.bool(forKey: "appsActuallyBlocked")
+
+        // Trust the extension's UserDefaults flag as ground truth.
+        // The extension sets appsActuallyBlocked = true in intervalDidStart() and
+        // false in intervalDidEnd(). This is reliable across cold starts.
+        appsActuallyBlocked = appsBlocked
+
+        // If the extension says apps are not blocked, clean up any stale main-app state
+        if !appsBlocked {
+            if blockingStartTime != nil || earlyUnlockAvailableAt != nil {
                 blockingStartTime = nil
                 earlyUnlockAvailableAt = nil
-                // If shields are gone, voice confirmation is no longer needed
-                if isWaitingForVoiceConfirmation {
-                    isWaitingForVoiceConfirmation = false
-                    groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
-                }
+                groupDefaults.removeObject(forKey: "blockingStartTime")
+                groupDefaults.removeObject(forKey: "earlyUnlockAvailableAt")
+            }
+            if isWaitingForVoiceConfirmation {
+                isWaitingForVoiceConfirmation = false
+                groupDefaults.set(false, forKey: "isWaitingForVoiceConfirmation")
             }
         }
     }
@@ -716,7 +708,15 @@ class BlockingStateService: ObservableObject {
     /// Perform early unlock for the current interval (strict mode must be off)
     func earlyUnlockCurrentInterval() {
         guard !isStrictModeEnabled else { return }
-        guard let endTime = blockingEndTime else { return }
+
+        // If blockingEndTime is nil (corrupted state from cold start), fall back to
+        // clearing shields directly via clearBlocking() so the user isn't stuck forever.
+        guard let endTime = blockingEndTime else {
+            if appsActuallyBlocked {
+                clearBlocking()
+            }
+            return
+        }
 
         // Mark current prayer as completed when user early unlocks
         markCurrentPrayerAsCompleted()

@@ -319,6 +319,7 @@ struct ReciterDetailView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(surahs) { surah in
                         Button(action: {
+                            HapticManager.shared.impact(.light)
                             audioPlayerService.load(surah: surah, reciter: effectiveReciter)
                         }) {
                             SacredSurahRow(

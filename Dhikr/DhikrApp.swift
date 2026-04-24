@@ -38,6 +38,9 @@ struct DhikrApp: App {
     // Scene Phase
     @Environment(\.scenePhase) private var scenePhase
 
+    // Track app launch time to avoid premature premium-loss checks on cold start
+    private let appLaunchUptime = ProcessInfo.processInfo.systemUptime
+
     var body: some Scene {
         WindowGroup {
             MainContentView(locationService: locationService)
@@ -316,6 +319,15 @@ struct DhikrApp: App {
         ) { _ in
             print("⚠️ [DhikrApp] UserLostPremium notification received")
 
+            // SAFETY: Ignore premium-loss during the first 15 seconds after launch.
+            // StoreKit entitlements may not be loaded yet on cold start, causing a
+            // false "lost premium" conclusion.
+            let timeSinceLaunch = ProcessInfo.processInfo.systemUptime - self.appLaunchUptime
+            guard timeSinceLaunch >= 15 else {
+                print("⏳ [DhikrApp] UserLostPremium ignored - too soon after launch (\(Int(timeSinceLaunch))s)")
+                return
+            }
+
             // FIX: Double-check that user is actually not premium before clearing settings
             // This is a safety guard in case the notification was sent incorrectly
             guard !self.subscriptionService.hasPremiumAccess else {
@@ -374,8 +386,8 @@ struct DhikrApp: App {
 
     /// Retry checking premium status until verification completes or max attempts reached
     private func checkPremiumStatusWithRetry(attempt: Int, maxAttempts: Int) {
-        // Delay increases with each attempt: 1s, 2s, 3s
-        let delay = Double(attempt)
+        // Delays: 5s, 10s, 20s — give StoreKit plenty of time to load on cold start
+        let delay = attempt == 1 ? 5.0 : (attempt == 2 ? 10.0 : 20.0)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             // If verification completed, run the check
@@ -400,6 +412,18 @@ struct DhikrApp: App {
         // This prevents race condition where we check before StoreKit sync completes
         guard subscriptionService.hasVerifiedPremiumStatus else {
             print("⏳ [DhikrApp] Subscription status not yet verified - skipping premium check")
+            return
+        }
+
+        // SAFETY: Don't clear shields within 15 seconds of app launch.
+        // On cold start after force close, StoreKit may not have loaded entitlements yet
+        // even though hasVerifiedPremiumStatus is true. The sync can complete with an
+        // empty entitlements list before StoreKit's cache is ready, causing a false
+        // "premium lost" conclusion. Waiting 15s gives StoreKit time to sync.
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let timeSinceLaunch = uptime - appLaunchUptime
+        guard timeSinceLaunch >= 15 else {
+            print("⏳ [DhikrApp] Too soon after launch (\(Int(timeSinceLaunch))s) - skipping premium unblock check")
             return
         }
 
@@ -682,6 +706,9 @@ struct DhikrApp: App {
             // Also try initial scheduling for post-onboarding scenario
             await scheduleBlockingIfConditionsMet(storage: initialStorage)
 
+            // Schedule prayer notifications now that storage is available
+            PrayerNotificationService.shared.scheduleWeeklyPrayerReminders()
+
             // Mark scheduling as complete and trigger success banner
             await MainActor.run {
                 if BlockingStateService.shared.isSchedulingBlocking {
@@ -755,6 +782,9 @@ struct DhikrApp: App {
 
             // Also try initial scheduling for post-onboarding scenario
             await scheduleBlockingIfConditionsMet(storage: storage)
+
+            // Schedule prayer notifications now that storage is available
+            PrayerNotificationService.shared.scheduleWeeklyPrayerReminders()
 
         } catch {
             print("❌ [DhikrApp] Fetch failed: \(error.localizedDescription)")

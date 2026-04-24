@@ -73,6 +73,8 @@ class SubscriptionService: ObservableObject {
     private var isInitialSync: Bool = true  // Track if this is the first sync to avoid false "became premium" triggers
     private var productsLoaded: Bool = false  // Track if products have been loaded
     @Published private(set) var hasCompletedSuccessfulCheck: Bool = false  // Track if we've done a successful StoreKit check
+    private let launchUptime = ProcessInfo.processInfo.systemUptime  // Track init time to detect cold start window
+    private let coldStartWindow: TimeInterval = 15  // Seconds to wait before trusting "no entitlements" result
 
     enum PurchaseState: Equatable {
         case idle
@@ -148,7 +150,13 @@ class SubscriptionService: ObservableObject {
                 if user != nil {
                     await self.syncSubscriptionStatus()
                 } else {
-                    // Don't clear premium status - check StoreKit for local purchases
+                    // User signed out — clear manual grant (it's tied to the account)
+                    self.hasManualGrant = false
+                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
+                        groupDefaults.set(false, forKey: "hasManualGrant")
+                        groupDefaults.synchronize()
+                    }
+                    // Still check StoreKit for local purchases (not account-dependent)
                     await self.syncSubscriptionStatus()
                 }
             }
@@ -286,31 +294,53 @@ class SubscriptionService: ObservableObject {
 
         let wasPremium = self.isPremium
 
+        // How long since the app launched (cold start detection)
+        let timeSinceLaunch = ProcessInfo.processInfo.systemUptime - launchUptime
+        let isInColdStartWindow = timeSinceLaunch < coldStartWindow
+
         // FIX: Only update premium status if we're certain about the result
         // Don't downgrade to false if we couldn't complete a proper check
         if isPremiumActive {
             // Always upgrade to premium if we found active subscription
             self.isPremium = true
             hasCompletedSuccessfulCheck = true
-        } else if successfulCheck || (productsLoaded && !foundEntitlement) {
-            // Only downgrade to false if:
-            // 1. We completed a successful check and found no active subscription, OR
-            // 2. Products are loaded and we found no entitlements at all
+        } else if successfulCheck {
+            // Definitive check: StoreKit verified subscription status as expired/revoked
             self.isPremium = false
             hasCompletedSuccessfulCheck = true
-            print("ℹ️ [SubscriptionService] Setting premium to false (successful check, no subscription)")
+            print("ℹ️ [SubscriptionService] Setting premium to false (subscription verified as expired/revoked)")
+        } else if productsLoaded && !foundEntitlement {
+            // Products loaded but StoreKit returned no entitlements.
+            // During cold start window, this is unreliable — StoreKit's entitlement cache
+            // may not be ready yet. Don't downgrade or poison the UserDefaults cache.
+            if isInColdStartWindow && wasPremium {
+                print("⏳ [SubscriptionService] No entitlements but in cold start window (\(Int(timeSinceLaunch))s) — keeping cached premium")
+                // Don't set hasCompletedSuccessfulCheck — force retry later
+            } else {
+                self.isPremium = false
+                hasCompletedSuccessfulCheck = true
+                print("ℹ️ [SubscriptionService] Setting premium to false (no entitlements, past cold start window)")
+            }
         } else {
             // Uncertain state - keep existing value (from cache)
             print("⚠️ [SubscriptionService] Uncertain state - keeping cached premium: \(self.isPremium)")
         }
 
-        // FIX: Only sync to UserDefaults if we're certain about the result
-        // This prevents overwriting a valid cached "true" with "false" due to race conditions
+        // Only save to UserDefaults cache when we're certain about the result.
+        // CRITICAL: Never save isPremium=false during cold start window — this would
+        // poison the cache if the user kills the app before StoreKit loads, causing
+        // all future launches to start with isPremium=false.
         if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            if isPremiumActive || hasCompletedSuccessfulCheck {
+            if isPremiumActive {
+                groupDefaults.set(true, forKey: "isPremiumUser")
+                groupDefaults.synchronize()
+                print("💾 [SubscriptionService] Saved premium status to cache: true")
+            } else if hasCompletedSuccessfulCheck && !isInColdStartWindow {
                 groupDefaults.set(self.isPremium, forKey: "isPremiumUser")
                 groupDefaults.synchronize()
                 print("💾 [SubscriptionService] Saved premium status to cache: \(self.isPremium)")
+            } else {
+                print("⏳ [SubscriptionService] Skipping cache write (cold start window or uncertain)")
             }
         }
 

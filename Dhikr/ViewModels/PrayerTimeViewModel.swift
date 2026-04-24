@@ -753,13 +753,9 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         prayers[index].hasReminder = true
         UserDefaults.standard.set(true, forKey: "reminder_\(prayerName)")
 
-        if let prayerDate = getPrayerDate(for: prayers[index]) {
-            PrayerNotificationService.shared.schedulePrayerReminder(
-                prayerName: prayerName,
-                prayerTime: prayerDate,
-                minutesBefore: 0
-            )
-        }
+        // Schedule the full 7-day window so notifications keep firing day after day,
+        // not just for today/tomorrow.
+        PrayerNotificationService.shared.scheduleWeeklyPrayerReminders()
 
         HapticManager.shared.impact(.medium)
     }
@@ -768,9 +764,8 @@ class PrayerTimeViewModel: NSObject, ObservableObject {
         prayers[index].hasReminder = false
         UserDefaults.standard.set(false, forKey: "reminder_\(prayerName)")
 
-        if let prayerDate = getPrayerDate(for: prayers[index]) {
-            PrayerNotificationService.shared.cancelPrayerReminder(prayerName: prayerName, prayerTime: prayerDate)
-        }
+        // Cancel every future day, not just today's reminder.
+        PrayerNotificationService.shared.cancelAllRemindersForPrayer(prayerName: prayerName)
 
         HapticManager.shared.impact(.light)
     }

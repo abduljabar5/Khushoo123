@@ -81,7 +81,10 @@ struct RecentsView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { dismiss() }) {
+                    Button(action: {
+                        HapticManager.shared.impact(.light)
+                        dismiss()
+                    }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(themeManager.theme.secondaryText)

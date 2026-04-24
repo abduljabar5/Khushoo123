@@ -9,8 +9,6 @@ import Foundation
 import UIKit
 import CoreLocation
 import BackgroundTasks
-import FirebaseMessaging
-import FirebaseFunctions
 import ManagedSettings
 
 @MainActor
@@ -48,7 +46,7 @@ class BackgroundRefreshService: NSObject, ObservableObject {
     func scheduleBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: backgroundTaskIdentifier)
 
-        // Schedule for 6 hours from now (matching FCM interval)
+        // Schedule for 6 hours from now
         request.earliestBeginDate = Date(timeIntervalSinceNow: 6 * 3600)
 
         do {
@@ -217,7 +215,7 @@ class BackgroundRefreshService: NSObject, ObservableObject {
 
     }
 
-    // MARK: - Manual Refresh (called from UI or FCM)
+    // MARK: - Manual Refresh (called from UI)
 
     func triggerManualRefresh(reason: String = "Manual") async {
         let success = await performPrayerTimeRefresh(reason: reason)
@@ -227,67 +225,56 @@ class BackgroundRefreshService: NSObject, ObservableObject {
         } else {
         }
     }
-}
 
-// MARK: - Firebase Cloud Messaging Extension
+    // MARK: - Schedule Expiry Notification
 
-extension BackgroundRefreshService: MessagingDelegate {
-
-    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-
-        // Store FCM token for local use
-        if let token = fcmToken, let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-            groupDefaults.set(token, forKey: "fcmToken")
-            groupDefaults.synchronize()
-
-            // Save to Firestore for Cloud Functions to use
-            Task {
-                await self.saveFCMTokenToFirestore(token: token)
-            }
-        }
-    }
-
-    /// Save FCM token to Firestore for Cloud Functions
-    private func saveFCMTokenToFirestore(token: String) async {
-
-        let functions = Functions.functions()
-        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-        let userId = AuthenticationService.shared.currentUser?.id
-
-        do {
-            let result = try await functions.httpsCallable("saveFCMToken").call([
-                "token": token,
-                "userId": userId ?? "",
-                "appVersion": appVersion ?? "unknown"
-            ])
-
-            if let data = result.data as? [String: Any], let success = data["success"] as? Bool, success {
-            } else {
-            }
-        } catch {
-        }
-    }
-}
-
-// MARK: - Silent Notification Handler
-
-extension BackgroundRefreshService {
-
-    func handleSilentNotification(userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-
-        // Check premium status and disable features if expired
-        checkAndDisablePremiumFeaturesIfNeeded()
-
-        // Check if it's a prayer time refresh notification
-        if let refreshType = userInfo["refreshType"] as? String, refreshType == "prayerTimeUpdate" {
-
-            let success = await performPrayerTimeRefresh(reason: "Silent Notification")
-
-            return success ? .newData : .failed
+    /// Schedule a local notification to remind user to open the app before blocking schedules expire.
+    /// Call this after scheduling the rolling window.
+    nonisolated static func scheduleExpiryReminder() {
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
+              let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]],
+              !schedules.isEmpty else {
+            return
         }
 
-        return .noData
+        // Find the last scheduled prayer's end time
+        var latestEnd: TimeInterval = 0
+        for schedule in schedules {
+            guard let timestamp = schedule["date"] as? TimeInterval,
+                  let duration = schedule["duration"] as? Double else { continue }
+            let end = timestamp + duration
+            if end > latestEnd { latestEnd = end }
+        }
+
+        guard latestEnd > 0 else { return }
+
+        // Schedule notification 12 hours before the last schedule ends
+        let reminderTime = Date(timeIntervalSince1970: latestEnd - (12 * 3600))
+        guard reminderTime > Date() else { return }
+
+        // Remove any existing expiry reminder
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["focus_schedule_expiry_reminder"])
+
+        let content = UNMutableNotificationContent()
+        content.title = "Focus Mode"
+        content.body = "Open Khushoo to keep your apps blocked during prayer times this week."
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: max(1, reminderTime.timeIntervalSinceNow),
+            repeats: false
+        )
+
+        let request = UNNotificationRequest(
+            identifier: "focus_schedule_expiry_reminder",
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request)
     }
+
+    // MARK: - Premium Feature Check
 
     /// Check if user has lost premium access (trial expired, subscription lapsed)
     /// and disable all premium features: app blocking, Haya mode, monitoring.
@@ -328,8 +315,6 @@ extension BackgroundRefreshService {
         BlockingStateService.shared.clearBlocking()
 
         // 5. Disable Haya mode flag directly in UserDefaults so it stays off
-        //    when the app launches and FocusSettingsManager reads initial state.
-        //    Don't rely on FocusSettingsManager singleton in background.
         let hayaWasOn = groupDefaults?.bool(forKey: "focusHayaMode") ?? false
         if hayaWasOn {
             groupDefaults?.set(false, forKey: "focusHayaMode")
@@ -343,7 +328,6 @@ extension BackgroundRefreshService {
         groupDefaults?.removeObject(forKey: "blockingEndTime")
 
         // 7. Only clear prayer selections if apps were actually blocked.
-        //    If not blocked, preserve user's settings for when they re-subscribe.
         if appsBlocked || isBlocking {
             groupDefaults?.set(false, forKey: "focusSelectedFajr")
             groupDefaults?.set(false, forKey: "focusSelectedDhuhr")

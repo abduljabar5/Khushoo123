@@ -17,14 +17,8 @@ class PlayerArtworkViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let surahImageService = SurahImageService.shared
-    private let subscriptionService = SubscriptionService.shared
     private var cancellables = Set<AnyCancellable>()
     private let audioPlayerService: AudioPlayerService
-
-    /// Check if user can access premium cover art
-    private var canAccessPremiumCovers: Bool {
-        return subscriptionService.hasPremiumAccess
-    }
 
     init(audioPlayerService: AudioPlayerService) {
         self.audioPlayerService = audioPlayerService
@@ -39,26 +33,14 @@ class PlayerArtworkViewModel: ObservableObject {
     }
 
     private func fetchArtwork(for surah: Surah) {
-        if canAccessPremiumCovers {
-            fetchFromFirebaseStorage(for: surah)
-            return
-        }
-
-        // No access to premium covers
-        self.artworkURL = nil
-        self.artworkImage = nil
-    }
-
-    private func fetchFromFirebaseStorage(for surah: Surah) {
         self.isLoading = true
         self.errorMessage = nil
 
         Task {
             if let image = await surahImageService.fetchSurahCover(for: surah.number) {
                 self.artworkImage = image
-                self.artworkURL = nil // Clear URL since we're using direct image
+                self.artworkURL = nil
             } else {
-                // Fallback: no artwork for authenticated users if Firebase fetch fails
                 self.artworkImage = nil
                 self.artworkURL = nil
             }

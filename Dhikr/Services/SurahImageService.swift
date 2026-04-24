@@ -10,34 +10,20 @@ class SurahImageService {
     private let fileManager = FileManager.default
     private var cacheDirectory: URL?
 
-    /// Check if user can access premium cover art
-    @MainActor
-    private func canAccessPremiumCovers() -> Bool {
-        return SubscriptionService.shared.hasPremiumAccess
-    }
-
-    /// Ensure user has a valid Firebase Auth session for Storage access
-    /// Signs in anonymously if premium but not authenticated
+    /// Ensure user has a valid Firebase Auth session for Storage access.
+    /// Signs in anonymously if not already authenticated. Cover art is free
+    /// for everyone, so no premium check.
     private func ensureAuthenticatedForStorage() async -> Bool {
-        // If already authenticated, we're good
         if Auth.auth().currentUser != nil {
             return true
         }
 
-        // Check if user is premium (needs to be on MainActor)
-        let isPremium = await MainActor.run { SubscriptionService.shared.hasPremiumAccess }
-
-        // If premium but not authenticated, sign in anonymously
-        if isPremium {
-            do {
-                _ = try await Auth.auth().signInAnonymously()
-                return true
-            } catch {
-                return false
-            }
+        do {
+            _ = try await Auth.auth().signInAnonymously()
+            return true
+        } catch {
+            return false
         }
-
-        return false
     }
 
     private init() {
@@ -70,11 +56,6 @@ class SurahImageService {
     /// - Parameter surahNumber: The surah number (1-114)
     /// - Returns: UIImage if available, nil otherwise
     func fetchSurahCover(for surahNumber: Int) async -> UIImage? {
-        // Check if user can access premium covers (premium OR authenticated)
-        let hasAccess = await canAccessPremiumCovers()
-        guard hasAccess else { return nil }
-
-        // Validate surah number
         guard surahNumber >= 1 && surahNumber <= 114 else { return nil }
 
         // Check local cache first
@@ -82,11 +63,9 @@ class SurahImageService {
             return cachedImage
         }
 
-        // Ensure we have a valid Firebase Auth session for Storage access
-        // This signs in anonymously if user is premium but not authenticated
+        // Anonymous Firebase Auth session is enough for Storage reads.
         guard await ensureAuthenticatedForStorage() else { return nil }
 
-        // Fetch from Firebase Storage
         return await downloadFromFirebase(surahNumber: surahNumber)
     }
 
@@ -94,17 +73,11 @@ class SurahImageService {
     /// Limited to 5 concurrent downloads with throttling to avoid overwhelming Firebase
     func prefetchCovers(for surahNumbers: [Int]) {
         Task {
-            // Ensure we have a valid Firebase Auth session before prefetching
             guard await ensureAuthenticatedForStorage() else { return }
 
-            // Limit prefetch to first 10 items to avoid excessive downloads
             let limitedNumbers = Array(surahNumbers.prefix(10))
 
             for surahNumber in limitedNumbers {
-                // Check if user can still access premium covers
-                let hasAccess = await canAccessPremiumCovers()
-                guard hasAccess else { break }
-
                 // Skip if already cached
                 if loadFromCache(surahNumber: surahNumber) != nil {
                     continue

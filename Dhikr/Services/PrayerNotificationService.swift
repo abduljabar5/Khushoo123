@@ -85,10 +85,13 @@ class PrayerNotificationService: ObservableObject {
         isEnabled: Bool,
         minutesBefore: Int = 5
     ) {
-        // Always clear existing notifications first (even if disabled)
-        clearPrePrayerNotifications()
+        // Don't clear before scheduling — add() with same identifier replaces existing ones.
+        // Async clear races with scheduling and wipes newly added notifications.
+        // If disabled, clear explicitly below.
 
-        guard isEnabled && hasNotificationPermission else {
+        guard isEnabled else {
+            // Disabled — safe to clear since we won't schedule anything after
+            clearPrePrayerNotifications()
             return
         }
 
@@ -182,8 +185,8 @@ class PrayerNotificationService: ObservableObject {
 
             scheduledCount += 1
 
-            // Limit to prevent too many notifications
-            if scheduledCount >= 20 {
+            // Budget: 15 pre-prayer + 35 weekly + 3 dhikr + 1 expiry = 54 (under iOS 64 limit)
+            if scheduledCount >= 15 {
                 break
             }
         }
@@ -248,10 +251,6 @@ class PrayerNotificationService: ObservableObject {
         prayerTime: Date,
         minutesBefore: Int = 0
     ) {
-        guard hasNotificationPermission else {
-            print("⚠️ [PrayerReminder] No notification permission")
-            return
-        }
 
         let now = Date()
         let reminderTime = prayerTime.addingTimeInterval(-TimeInterval(minutesBefore * 60))
@@ -333,15 +332,23 @@ class PrayerNotificationService: ObservableObject {
         print("🔕 [PrayerReminder] Cancelled reminder for \(prayerName)")
     }
 
+    /// Cancel all pending reminders for a prayer across every scheduled day
+    func cancelAllRemindersForPrayer(prayerName: String) {
+        let prefix = "\(prayerReminderIdentifierPrefix)\(prayerName)_"
+        notificationCenter.getPendingNotificationRequests { [weak self] requests in
+            let identifiers = requests
+                .filter { $0.identifier.hasPrefix(prefix) }
+                .map { $0.identifier }
+            guard !identifiers.isEmpty else { return }
+            self?.notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+            print("🔕 [PrayerReminder] Cancelled \(identifiers.count) future reminders for \(prayerName)")
+        }
+    }
+
     /// Schedule reminders for all prayers with reminders enabled
     func scheduleAllPrayerReminders(prayers: [(name: String, time: Date, hasReminder: Bool)], minutesBefore: Int = 0) {
-        guard hasNotificationPermission else {
-            print("⚠️ [PrayerReminder] No notification permission - requesting...")
-            return
-        }
-
-        // Clear existing prayer time reminders first
-        clearPrayerTimeReminders()
+        // Don't gate on hasNotificationPermission — it's set asynchronously and may be stale.
+        // Don't clear before scheduling — add() with same identifier replaces existing ones.
 
         let now = Date()
         var scheduledCount = 0
@@ -379,18 +386,24 @@ class PrayerNotificationService: ObservableObject {
 
     // MARK: - Multi-Day Prayer Reminder Scheduling
 
-    /// Schedule prayer reminders for the next 7 days using stored prayer times
-    /// This should be called on app launch, app becoming active, and from background refresh
+    /// Schedule prayer reminders for the next 7 days using stored prayer times.
+    /// Only schedules prayers the user has explicitly enabled via the bell icon
+    /// (`reminder_<prayerName>` in standard defaults). The focus-mode
+    /// `prayerRemindersEnabled` toggle controls pre-prayer warnings, not these.
+    /// Should be called on app launch, app becoming active, when a bell is toggled,
+    /// and from background refresh.
     func scheduleWeeklyPrayerReminders() {
-        guard hasNotificationPermission else {
-            print("⚠️ [PrayerReminder] No notification permission for weekly scheduling")
-            return
+        // Don't gate on hasNotificationPermission — it's set asynchronously via callback
+        // and may still be false on cold start. notificationCenter.add() is safe to call
+        // without permissions (it just errors in the callback).
+
+        let prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
+        let enabledPrayers = prayerNames.filter {
+            UserDefaults.standard.bool(forKey: "reminder_\($0)")
         }
 
-        // Check if reminders are enabled
-        let prayerRemindersEnabled = UserDefaults.standard.bool(forKey: "prayerRemindersEnabled")
-        guard prayerRemindersEnabled else {
-            print("📅 [PrayerReminder] Prayer reminders disabled - skipping weekly schedule")
+        guard !enabledPrayers.isEmpty else {
+            print("📅 [PrayerReminder] No per-prayer reminders enabled - skipping weekly schedule")
             return
         }
 
@@ -401,8 +414,10 @@ class PrayerNotificationService: ObservableObject {
             return
         }
 
-        // Clear existing reminders first
-        clearPrayerTimeReminders()
+        // Don't clear before scheduling — notificationCenter.add() with the same identifier
+        // automatically replaces existing notifications. Clearing is async (callback-based)
+        // and races with the synchronous scheduling loop, causing newly scheduled
+        // notifications to be wiped out when the clear callback fires late.
 
         let calendar = Calendar.current
         let now = Date()
@@ -410,7 +425,6 @@ class PrayerNotificationService: ObservableObject {
         formatter.dateFormat = "HH:mm"
 
         var scheduledCount = 0
-        let prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
 
         // Schedule for next 7 days
         for dayOffset in 0..<7 {
@@ -422,11 +436,7 @@ class PrayerNotificationService: ObservableObject {
                 calendar.isDate($0.date, inSameDayAs: startOfDay)
             }) else { continue }
 
-            // Get reminder settings for each prayer
-            for prayerName in prayerNames {
-                // Check if this prayer has reminder enabled
-                let hasReminder = UserDefaults.standard.bool(forKey: "reminder_\(prayerName)")
-                guard hasReminder else { continue }
+            for prayerName in enabledPrayers {
 
                 // Get prayer time string
                 let timeString: String
@@ -457,9 +467,10 @@ class PrayerNotificationService: ObservableObject {
                 schedulePrayerReminder(prayerName: prayerName, prayerTime: prayerDate, minutesBefore: 0)
                 scheduledCount += 1
 
-                // iOS limit is 64 pending notifications - stay well under
-                if scheduledCount >= 50 {
-                    print("📅 [PrayerReminder] Reached scheduling limit of 50")
+                // iOS limit is 64 pending notifications total across the app.
+                // Budget: 35 weekly reminders + 15 pre-prayer + 3 dhikr + 1 expiry = 54
+                if scheduledCount >= 35 {
+                    print("📅 [PrayerReminder] Reached weekly reminder limit of 35")
                     return
                 }
             }

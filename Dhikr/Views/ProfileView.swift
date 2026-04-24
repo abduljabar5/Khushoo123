@@ -69,7 +69,6 @@ struct ProfileView: View {
     // App Storage
     @AppStorage("autoPlayNextSurah") private var autoPlayNextSurah = true
     @AppStorage("showSleepTimer") private var showSleepTimer = true
-    @AppStorage("prayerRemindersEnabled") private var prayerRemindersEnabled = true
     @AppStorage("dhikrRemindersEnabled") private var dhikrRemindersEnabled = true
     @AppStorage("userDisplayName") private var userDisplayName: String = ""
 
@@ -645,18 +644,6 @@ struct ProfileView: View {
                 SacredPreferenceGroup(title: "NOTIFICATIONS") {
                     VStack(spacing: 0) {
                         SacredToggleRow(
-                            icon: "moon.stars",
-                            title: "Prayer reminders",
-                            isOn: $prayerRemindersEnabled,
-                            accentColor: sacredGold
-                        )
-                        .onChange(of: prayerRemindersEnabled) { newValue in
-                            handlePrayerRemindersToggle(newValue)
-                        }
-
-                        SacredDivider()
-
-                        SacredToggleRow(
                             icon: "sparkles",
                             title: "Dhikr reminders",
                             isOn: $dhikrRemindersEnabled,
@@ -736,7 +723,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
-                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.5", accentColor: warmGray)
+                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.6", accentColor: warmGray)
 
                 SacredDivider()
 
@@ -925,11 +912,6 @@ struct ProfileView: View {
     private func setupOnAppear() {
         audioPlayerService.isAutoplayEnabled = autoPlayNextSurah
 
-        if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
-           let value = groupDefaults.object(forKey: "prayerRemindersEnabled") as? Bool {
-            prayerRemindersEnabled = value
-        }
-
         Task {
             if dhikrRemindersEnabled && prayerNotificationService.hasNotificationPermission {
                 scheduleDhikrReminders()
@@ -947,31 +929,6 @@ struct ProfileView: View {
             return mostListened.key
         }
         return "None"
-    }
-
-    private func handlePrayerRemindersToggle(_ isEnabled: Bool) {
-        Task {
-            if isEnabled {
-                let granted = await prayerNotificationService.requestNotificationPermission()
-                if granted {
-                    UserDefaults.standard.set(true, forKey: "prayerRemindersEnabled")
-                    if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                        groupDefaults.set(true, forKey: "prayerRemindersEnabled")
-                        groupDefaults.synchronize()
-                    }
-                    await BackgroundRefreshService.shared.triggerManualRefresh(reason: "Prayer reminders enabled")
-                } else {
-                    await MainActor.run { prayerRemindersEnabled = false }
-                }
-            } else {
-                UserDefaults.standard.set(false, forKey: "prayerRemindersEnabled")
-                if let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") {
-                    groupDefaults.set(false, forKey: "prayerRemindersEnabled")
-                    groupDefaults.synchronize()
-                }
-                prayerNotificationService.clearPrePrayerNotifications()
-            }
-        }
     }
 
     private func handleDhikrRemindersToggle(_ isEnabled: Bool) {

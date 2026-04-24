@@ -1152,18 +1152,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
 
     private func fetchSurahCoverArtwork(for surah: Surah) async {
-        // Check if user can access premium covers (premium OR authenticated)
-        let isPremium = await MainActor.run { SubscriptionService.shared.hasPremiumAccess }
-        let isAuthenticated = Auth.auth().currentUser != nil
-
-        guard isPremium || isAuthenticated else {
-            await MainActor.run {
-                self.currentArtwork = nil
-            }
-            return
-        }
-
-        // Fetch from Firebase Storage (SurahImageService handles anonymous auth if needed)
+        // Cover art is free for everyone. SurahImageService signs in anonymously
+        // when the user isn't already authenticated.
         if let image = await SurahImageService.shared.fetchSurahCover(for: surah.number) {
             await MainActor.run {
                 self.currentArtwork = image

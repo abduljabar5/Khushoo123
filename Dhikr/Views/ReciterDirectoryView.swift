@@ -174,11 +174,13 @@ struct ReciterDirectoryView: View {
     // MARK: - Helper Methods
 
     private func clearRecents() {
+        HapticManager.shared.notification(.warning)
         RecentRecitersManager.shared.clearAllReciters()
         self.recentReciters = []
     }
 
     private func handleReciterTap(_ reciter: Reciter) {
+        HapticManager.shared.impact(.light)
         RecentRecitersManager.shared.addReciter(reciter)
         self.recentReciters = RecentRecitersManager.shared.loadRecentReciters()
         self.selectedReciter = reciter
@@ -505,6 +507,7 @@ private struct SacredReciterRow: View {
 
             // Bookmark
             Button(action: {
+                HapticManager.shared.impact(.light)
                 FavoritesManager.shared.toggleFavorite(reciter: reciter)
                 isSaved.toggle()
             }) {

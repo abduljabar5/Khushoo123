@@ -2,12 +2,10 @@
 //  OrientationLock.swift
 //  Dhikr
 //
-//  AppDelegate for Orientation Lock + Firebase Cloud Messaging
+//  AppDelegate for Orientation Lock + Notifications
 //
 
 import UIKit
-import FirebaseCore
-import FirebaseMessaging
 import UserNotifications
 
 // MARK: - AppDelegate
@@ -22,10 +20,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
 
-        // Firebase is configured in DhikrApp.swift, so we don't configure it here
-
-        // Setup Firebase Cloud Messaging
-        setupFirebaseMessaging(application)
+        // Set notification delegate
+        UNUserNotificationCenter.current().delegate = self
 
         // Setup background refresh
         BackgroundRefreshService.shared.scheduleBackgroundRefresh()
@@ -49,60 +45,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         }
     }
 
-    // MARK: - Firebase Cloud Messaging Setup
-
-    private func setupFirebaseMessaging(_ application: UIApplication) {
-
-        // Set FCM messaging delegate
-        Messaging.messaging().delegate = BackgroundRefreshService.shared
-
-        // Set notification delegate
-        UNUserNotificationCenter.current().delegate = self
-
-        // Register for remote notifications
-        application.registerForRemoteNotifications()
-
-    }
-
-    // MARK: - Remote Notifications
-
-    func application(
-        _ application: UIApplication,
-        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-    ) {
-
-        // Pass device token to FCM
-        Messaging.messaging().apnsToken = deviceToken
-
-        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-    }
-
-    func application(
-        _ application: UIApplication,
-        didFailToRegisterForRemoteNotificationsWithError error: Error
-    ) {
-    }
-
-    // MARK: - Silent Notifications
-
-    func application(
-        _ application: UIApplication,
-        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
-        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
-    ) {
-
-        // Check if it's a silent notification
-        if let contentAvailable = userInfo["content-available"] as? Int, contentAvailable == 1 {
-
-            Task {
-                let result = await BackgroundRefreshService.shared.handleSilentNotification(userInfo: userInfo)
-                completionHandler(result)
-            }
-        } else {
-            completionHandler(.noData)
-        }
-    }
-
     // MARK: - Notification Delegate
 
     func userNotificationCenter(
@@ -120,18 +62,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-
-        let userInfo = response.notification.request.content.userInfo
-
-        // Handle notification tap
-        if let refreshType = userInfo["refreshType"] as? String, refreshType == "prayerTimeUpdate" {
-
-            // Trigger foreground refresh
-            Task {
-                await BackgroundRefreshService.shared.triggerManualRefresh(reason: "Notification Tap")
-            }
-        }
-
         completionHandler()
     }
 
@@ -145,7 +75,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     func applicationWillEnterForeground(_ application: UIApplication) {
 
-        // Check if rolling window needs update (prayer time fetch happens in SearchView)
+        // Check if rolling window needs update
         Task {
             let storage = PrayerTimeService().loadStorage()
 
@@ -158,4 +88,4 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             }
         }
     }
-} 
+}

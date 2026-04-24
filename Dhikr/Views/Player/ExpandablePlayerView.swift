@@ -95,7 +95,10 @@ struct ExpandablePlayerView: View {
                         // Capsule handle / iPad chevron
                         if isIPad {
                             HStack {
-                                Button(action: { collapsePlayer() }) {
+                                Button(action: {
+                                    HapticManager.shared.impact(.light)
+                                    collapsePlayer()
+                                }) {
                                     Image(systemName: "chevron.down.circle.fill")
                                         .font(.system(size: 32))
                                         .foregroundColor(.secondary)
@@ -153,7 +156,10 @@ struct ExpandablePlayerView: View {
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
-                    .onTapGesture { expandPlayer() }
+                    .onTapGesture {
+                        HapticManager.shared.impact(.light)
+                        expandPlayer()
+                    }
 
                     miniButtons
                 }
@@ -224,7 +230,10 @@ struct ExpandablePlayerView: View {
         .frame(height: effectiveSafeTop + 40)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
-        .onTapGesture { collapsePlayer() }
+        .onTapGesture {
+            HapticManager.shared.impact(.light)
+            collapsePlayer()
+        }
     }
 
     // MARK: - Artwork (shared, morphing)
@@ -336,6 +345,7 @@ struct ExpandablePlayerView: View {
                 }
 
                 Button {
+                    HapticManager.shared.impact(.medium)
                     audioPlayerService.togglePlayPause()
                 } label: {
                     Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
@@ -345,6 +355,7 @@ struct ExpandablePlayerView: View {
                 }
 
                 Button {
+                    HapticManager.shared.impact(.light)
                     audioPlayerService.nextTrack()
                 } label: {
                     Image(systemName: "forward.fill")
@@ -384,6 +395,7 @@ struct ExpandablePlayerView: View {
                         if let reciter = audioPlayerService.currentReciter {
                             ForEach(allSurahs) { surah in
                                 Button(action: {
+                                    HapticManager.shared.selection()
                                     audioPlayerService.load(surah: surah, reciter: reciter)
                                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                         showSurahList = false
