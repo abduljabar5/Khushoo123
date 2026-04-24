@@ -243,6 +243,10 @@ struct SearchView: View {
                         showingConfirmationSheet: $showingUnlockConfirmation
                     )
                     .padding(.horizontal, RS.horizontalPadding)
+
+                    BlockedCountFooter()
+                        .padding(.horizontal, RS.horizontalPadding)
+                        .padding(.top, RS.spacing(20))
                 }
                 .padding(.bottom, RS.spacing(40))
             }
@@ -2307,6 +2311,50 @@ private struct FocusBenefitRow: View {
 
             Spacer()
         }
+    }
+}
+
+// MARK: - Blocked Count Footer
+
+private struct BlockedCountFooter: View {
+    @AppStorage("totalAppBlocks", store: UserDefaults(suiteName: "group.fm.mrc.Dhikr"))
+    private var totalAppBlocks = 0
+    @AppStorage("statsStartedAt", store: UserDefaults(suiteName: "group.fm.mrc.Dhikr"))
+    private var statsStartedAt: Double = 0
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+
+    var body: some View {
+        if totalAppBlocks > 0 {
+            Text(footerText)
+                .font(.system(size: 12, weight: .light))
+                .foregroundColor(warmGray)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .onAppear {
+                    // Stamp the "since" date the first time this footer renders
+                    // after counter has ticked at least once.
+                    if statsStartedAt == 0 {
+                        statsStartedAt = Date().timeIntervalSince1970
+                    }
+                }
+        }
+    }
+
+    private var footerText: String {
+        let noun = totalAppBlocks == 1 ? "app" : "apps"
+        if statsStartedAt > 0 {
+            let date = Date(timeIntervalSince1970: statsStartedAt)
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+            return "\(totalAppBlocks) \(noun) blocked since \(formatter.string(from: date))"
+        }
+        return "\(totalAppBlocks) \(noun) blocked"
     }
 }
 
