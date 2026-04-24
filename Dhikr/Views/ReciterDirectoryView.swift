@@ -244,30 +244,14 @@ struct ReciterDirectoryView: View {
 
     @MainActor
     private func applyFilters(query: String) {
-        if query.isEmpty {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
             filteredReciters = allReciters
         } else {
-            let normalizedQuery = ReciterSearch.normalize(query)
-            let queryTokens = normalizedQuery.split(separator: " ").map(String.init)
-
-            // Score each reciter and include matches
-            var scored: [(Reciter, Int)] = []
-            for reciter in allReciters {
-                let score = ReciterSearch.score(
-                    reciterName: reciter.englishName,
-                    query: query,
-                    normalizedQuery: normalizedQuery,
-                    queryTokens: queryTokens
-                )
-                if score > 0 {
-                    scored.append((reciter, score))
-                }
+            filteredReciters = allReciters.filter { reciter in
+                reciter.englishName.localizedCaseInsensitiveContains(trimmed) ||
+                reciter.name.localizedCaseInsensitiveContains(trimmed)
             }
-
-            // Sort by score descending (best matches first)
-            filteredReciters = scored
-                .sorted { $0.1 > $1.1 }
-                .map { $0.0 }
         }
         loadInitialBatch()
     }
