@@ -622,6 +622,13 @@ class BlockingStateService: ObservableObject {
         updateBlockingState(isBlocking: false, prayerName: "", endTime: nil)
     }
 
+    /// Public wrapper so views can mark prayers completed as soon as the user
+    /// confirms with "Wallahi", without needing to also clear shields.
+    /// Idempotent — safe to call multiple times for the same confirmation.
+    func markCurrentPrayersAsPrayed() {
+        markPrayersAsCompleted()
+    }
+
     private func markPrayersAsCompleted() {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return }
 

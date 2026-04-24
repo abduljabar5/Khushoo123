@@ -255,6 +255,14 @@ struct VoiceConfirmationView: View {
                 stopCountdown()
                 speechService.stopRecording()
             }
+            .onChange(of: speechService.transcript) { _ in
+                // Mark prayer(s) completed the moment the user says Wallahi,
+                // independent of whether they also tap "Unlock Apps". Saying Wallahi
+                // IS the claim that they prayed. markPrayersAsCompleted is idempotent.
+                if speechService.isConfirmationCorrect {
+                    blockingState.markCurrentPrayersAsPrayed()
+                }
+            }
         }
     }
 
