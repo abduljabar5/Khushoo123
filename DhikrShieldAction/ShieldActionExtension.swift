@@ -25,7 +25,15 @@ class ShieldActionExtension: ShieldActionDelegate {
     private func handleAction(action: ShieldAction, completionHandler: @escaping (ShieldActionResponse) -> Void) {
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
         let isStrictMode = groupDefaults?.bool(forKey: "focusStrictMode") ?? false
-        
+
+        // Count every shield interaction as one block event — this is the
+        // only user-visible signal we get that blocking actually stopped someone.
+        // Primary + secondary both count because either way the shield did its job.
+        if let groupDefaults = groupDefaults {
+            let current = groupDefaults.integer(forKey: "totalAppBlocks")
+            groupDefaults.set(current + 1, forKey: "totalAppBlocks")
+        }
+
         switch action {
         case .primaryButtonPressed:
             if isStrictMode {

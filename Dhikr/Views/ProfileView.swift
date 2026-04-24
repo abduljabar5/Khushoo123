@@ -72,6 +72,9 @@ struct ProfileView: View {
     @AppStorage("dhikrRemindersEnabled") private var dhikrRemindersEnabled = true
     @AppStorage("userDisplayName") private var userDisplayName: String = ""
 
+    // App Group shared counter — incremented by DhikrShieldAction extension
+    @AppStorage("totalAppBlocks", store: UserDefaults(suiteName: "group.fm.mrc.Dhikr")) private var totalAppBlocks = 0
+
     private var displayName: String {
         if authService.isAuthenticated {
             return authService.currentUser?.displayName ?? "User"
@@ -640,6 +643,18 @@ struct ProfileView: View {
                     }
                 }
 
+                // Focus Mode Stats
+                SacredPreferenceGroup(title: "FOCUS MODE") {
+                    VStack(spacing: 0) {
+                        SacredInfoRow(
+                            icon: "shield.lefthalf.filled",
+                            title: "Apps blocked",
+                            value: "\(totalAppBlocks)",
+                            accentColor: softGreen
+                        )
+                    }
+                }
+
                 // Notifications
                 SacredPreferenceGroup(title: "NOTIFICATIONS") {
                     VStack(spacing: 0) {
@@ -723,7 +738,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 24)
 
             VStack(spacing: 0) {
-                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.6", accentColor: warmGray)
+                SacredInfoRow(icon: "app.badge", title: "Version", value: "1.1.7", accentColor: warmGray)
 
                 SacredDivider()
 
