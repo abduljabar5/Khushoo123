@@ -27,6 +27,7 @@ class QuranAPIService: ObservableObject {
     private var allReciters: [Reciter] = []
     private var hasLoadedReciters = false
     private var hasLoadedQCReciters = false
+    private var hasLoadedCloudflareReciters = false
     
     private init() {
         // Don't preload reciters - only load when user navigates to reciters page
@@ -49,19 +50,23 @@ class QuranAPIService: ObservableObject {
 
         isLoadingReciters = false
 
-        // After MP3Quran reciters load, merge QC reciters in background
+        // After MP3Quran reciters load, merge QC + Cloudflare reciters in background
         if hasLoadedReciters {
             Task { await mergeQuranCentralReciters() }
+            Task { await mergeCloudflareReciters() }
         }
     }
-    
+
     // MARK: - Public API (Returns cached data instantly)
     func fetchReciters() async throws -> [Reciter] {
         // If already loaded, return immediately
         if hasLoadedReciters && !allReciters.isEmpty {
-            // Trigger QC merge if not done yet (non-blocking)
+            // Trigger merges if not done yet (non-blocking)
             if !hasLoadedQCReciters {
                 Task { await mergeQuranCentralReciters() }
+            }
+            if !hasLoadedCloudflareReciters {
+                Task { await mergeCloudflareReciters() }
             }
             return allReciters
         }
@@ -120,6 +125,38 @@ class QuranAPIService: ObservableObject {
         self.allReciters = merged
         self.reciters = merged
         self.hasLoadedQCReciters = true
+    }
+
+    // MARK: - Cloudflare R2 Merge
+
+    @MainActor
+    private func mergeCloudflareReciters() async {
+        guard !hasLoadedCloudflareReciters else { return }
+
+        // Cloudflare reciters are a premium feature — skip fetch for free users
+        guard SubscriptionService.shared.hasPremiumAccess else { return }
+
+        let cfReciters = await CloudflareReciterService.shared.fetchReciters()
+        guard !cfReciters.isEmpty else { return }
+
+        // Filter out duplicates by englishName (case-insensitive)
+        let existingNames = Set(allReciters.map { $0.englishName.lowercased() })
+        let uniqueCFReciters = cfReciters.filter {
+            !existingNames.contains($0.englishName.lowercased())
+        }
+
+        guard !uniqueCFReciters.isEmpty else {
+            hasLoadedCloudflareReciters = true
+            return
+        }
+
+        let merged = (allReciters + uniqueCFReciters).sorted {
+            $0.englishName.localizedCaseInsensitiveCompare($1.englishName) == .orderedAscending
+        }
+
+        self.allReciters = merged
+        self.reciters = merged
+        self.hasLoadedCloudflareReciters = true
     }
 
     // MARK: - API Base URLs
@@ -324,6 +361,14 @@ class QuranAPIService: ObservableObject {
         // Route Quran Central reciters to their service
         if reciter.identifier.hasPrefix("qurancentral_") {
             return try await QuranCentralService.shared.constructAudioURL(
+                surahNumber: surahNumber,
+                reciterIdentifier: reciter.identifier
+            )
+        }
+
+        // Route Cloudflare R2 reciters to their service
+        if reciter.identifier.hasPrefix("cloudflare_") {
+            return try await CloudflareReciterService.shared.constructAudioURL(
                 surahNumber: surahNumber,
                 reciterIdentifier: reciter.identifier
             )
