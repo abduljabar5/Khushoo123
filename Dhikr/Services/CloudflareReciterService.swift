@@ -50,7 +50,11 @@ class CloudflareReciterService {
         guard let url = URL(string: "\(baseURL)/index.json") else { return [] }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            // Always revalidate against the origin via ETag so newly added reciters
+            // appear on next cold start without serving a stale body from URL cache.
+            // R2 returns ETag + Last-Modified, so 304 responses keep this efficient.
+            let request = URLRequest(url: url, cachePolicy: .reloadRevalidatingCacheData)
+            let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return [] }
 
             let index = try JSONDecoder().decode(CloudflareIndex.self, from: data)
