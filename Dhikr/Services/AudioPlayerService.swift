@@ -506,6 +506,9 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     func play() {
+        // Block resuming a premium-reciter track whose preview cap has fired
+        if blockedByPreviewCap() { return }
+
         if player?.currentItem != nil {
 
             guard let player = player else {
@@ -688,10 +691,11 @@ class AudioPlayerService: NSObject, ObservableObject {
 
             // Free-tier preview cap: pause + paywall when free user crosses 60s on a premium reciter.
             // Guard with a "fired once" flag so we don't repeatedly fire while paused.
+            // cachedHasPremiumAccess reads from App Group defaults — safe off-main-actor.
             if !self.previewExpiredForCurrentItem,
                let reciter = self.currentReciter,
                reciter.isPremium,
-               !SubscriptionService.shared.hasPremiumAccess,
+               !self.cachedHasPremiumAccess(),
                newTime >= self.previewDuration {
                 self.previewExpiredForCurrentItem = true
                 self.handlePreviewExpired()
@@ -701,11 +705,36 @@ class AudioPlayerService: NSObject, ObservableObject {
 
     private func handlePreviewExpired() {
         pause()
-        seek(to: 0)
+        // Don't seek to 0 — that would give a fresh 60s next time play() is called.
+        // play() guards against resuming an expired item, so the user must upgrade
+        // or switch tracks to keep listening.
         NotificationCenter.default.post(
             name: .showPremiumReciterPaywall,
             object: currentReciter
         )
+    }
+
+    /// Returns true and triggers the paywall again if a free user tries to resume
+    /// playback after their preview ran out on a premium reciter. Caller should
+    /// abort whatever play action it was about to perform.
+    /// Reads cached premium status from App Group defaults so it can be invoked
+    /// off the main actor (SubscriptionService.hasPremiumAccess is @MainActor).
+    private func blockedByPreviewCap() -> Bool {
+        guard previewExpiredForCurrentItem,
+              let reciter = currentReciter,
+              reciter.isPremium,
+              !cachedHasPremiumAccess() else {
+            return false
+        }
+        NotificationCenter.default.post(
+            name: .showPremiumReciterPaywall,
+            object: reciter
+        )
+        return true
+    }
+
+    private func cachedHasPremiumAccess() -> Bool {
+        return UserDefaults(suiteName: "group.fm.mrc.Dhikr")?.bool(forKey: "isPremiumUser") ?? false
     }
     
     // Lightweight method to update only time-sensitive info

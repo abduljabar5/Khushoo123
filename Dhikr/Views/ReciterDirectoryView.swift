@@ -461,10 +461,19 @@ private struct SacredReciterRow: View {
 
             // Info
             VStack(alignment: .leading, spacing: 6) {
-                Text(reciter.englishName)
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(themeManager.theme.primaryText)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(reciter.englishName)
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(themeManager.theme.primaryText)
+                        .lineLimit(1)
+
+                    if reciter.isPremium {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(sacredGold)
+                            .accessibilityLabel("Premium reciter")
+                    }
+                }
 
                 HStack(spacing: 8) {
                     if let country = reciter.country {
@@ -472,6 +481,11 @@ private struct SacredReciterRow: View {
                     }
                     if let dialect = reciter.dialect {
                         SacredTag(text: dialect, color: sacredGold)
+                    }
+                    if reciter.isPremium {
+                        SacredTag(text: "PREMIUM", color: sacredGold)
+                    } else {
+                        SacredTag(text: "FREE", color: softGreen)
                     }
                 }
             }

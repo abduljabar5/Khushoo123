@@ -15,6 +15,12 @@ struct ExpandablePlayerView: View {
     @EnvironmentObject var quranAPIService: QuranAPIService
     @ObservedObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
+
+    private var isPreviewMode: Bool {
+        guard let reciter = audioPlayerService.currentReciter else { return false }
+        return reciter.isPremium && !subscriptionService.hasPremiumAccess
+    }
 
     @Binding var expandProgress: CGFloat
     @Binding var isExpanded: Bool
@@ -315,9 +321,23 @@ struct ExpandablePlayerView: View {
             } else {
                 Text(audioPlayerService.currentSurah?.englishName ?? "Not Playing")
                     .font(.callout)
-                Text(audioPlayerService.currentReciter?.englishName ?? "")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
+                HStack(spacing: 6) {
+                    Text(audioPlayerService.currentReciter?.englishName ?? "")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    if isPreviewMode {
+                        Text("PREVIEW")
+                            .font(.system(size: 9, weight: .semibold))
+                            .tracking(0.8)
+                            .foregroundColor(Color(red: 0.77, green: 0.65, blue: 0.46))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color(red: 0.77, green: 0.65, blue: 0.46).opacity(0.15))
+                            )
+                    }
+                }
             }
         }
         .lineLimit(1)

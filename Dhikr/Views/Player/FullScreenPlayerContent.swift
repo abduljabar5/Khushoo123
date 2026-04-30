@@ -19,7 +19,13 @@ struct FullScreenPlayerContent: View {
     @State private var showSleepTimerSheet = false
     @State private var showAmbientSoundSheet = false
     @ObservedObject private var ambientSoundService = BackgroundSoundService.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @AppStorage("showSleepTimer") private var showSleepTimer = true
+
+    private var isPreviewMode: Bool {
+        guard let reciter = audioPlayerService.currentReciter else { return false }
+        return reciter.isPremium && !subscriptionService.hasPremiumAccess
+    }
 
     // Sacred colors
     private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
@@ -103,10 +109,25 @@ struct FullScreenPlayerContent: View {
                             .foregroundColor(warmGray)
                     }
 
-                    Text(audioPlayerService.currentReciter?.englishName ?? "")
-                        .font(.system(size: isIPad ? 16 : RS.fontSize(14), weight: .light))
-                        .foregroundColor(warmGray)
-                        .lineLimit(1)
+                    HStack(spacing: 8) {
+                        Text(audioPlayerService.currentReciter?.englishName ?? "")
+                            .font(.system(size: isIPad ? 16 : RS.fontSize(14), weight: .light))
+                            .foregroundColor(warmGray)
+                            .lineLimit(1)
+
+                        if isPreviewMode {
+                            Text("PREVIEW · 60s")
+                                .font(.system(size: 10, weight: .semibold))
+                                .tracking(1)
+                                .foregroundColor(sacredGold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(sacredGold.opacity(0.15))
+                                )
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity)
             }

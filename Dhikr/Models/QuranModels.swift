@@ -94,10 +94,15 @@ struct Reciter: Codable, Identifiable, Equatable, Hashable {
         return availableSurahs.count >= 114
     }
 
-    /// True for reciters served from premium-only sources (QuranCentral / Cloudflare R2).
-    /// MP3Quran reciters (no prefix) remain fully free.
+    /// True if full playback requires a subscription. Free users get a 60s preview.
+    /// QC + Cloudflare reciters are always premium. MP3Quran reciters are free
+    /// only when they appear in the curated FreeReciterList (popular + soothing
+    /// names shown on the home page).
     var isPremium: Bool {
-        return identifier.hasPrefix("qurancentral_") || identifier.hasPrefix("cloudflare_")
+        if identifier.hasPrefix("qurancentral_") || identifier.hasPrefix("cloudflare_") {
+            return true
+        }
+        return !FreeReciterList.contains(englishName: englishName)
     }
 
     // Custom decoder for backwards compatibility with stored data
