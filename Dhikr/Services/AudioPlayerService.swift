@@ -73,6 +73,11 @@ class AudioPlayerService: NSObject, ObservableObject {
     private var isPreloaded = false // Track if audio is just preloaded vs actively playing
     private var preloadedSurah: Surah?
     private var preloadedReciter: Reciter?
+
+    // Free-tier preview cap on premium reciters: 60s, then auto-pause + paywall trigger.
+    // Enforced inside setupTimeObserver so seeking past the cap also triggers it.
+    private let previewDuration: TimeInterval = 60
+    private var previewExpiredForCurrentItem = false
     
     // MARK: - UserDefaults Keys
     private let lastPlayedSurahKey = "lastPlayedSurah"
@@ -680,7 +685,27 @@ class AudioPlayerService: NSObject, ObservableObject {
                 self.currentTime = newTime
                 self.updatePlaybackTime()
             }
+
+            // Free-tier preview cap: pause + paywall when free user crosses 60s on a premium reciter.
+            // Guard with a "fired once" flag so we don't repeatedly fire while paused.
+            if !self.previewExpiredForCurrentItem,
+               let reciter = self.currentReciter,
+               reciter.isPremium,
+               !SubscriptionService.shared.hasPremiumAccess,
+               newTime >= self.previewDuration {
+                self.previewExpiredForCurrentItem = true
+                self.handlePreviewExpired()
+            }
         }
+    }
+
+    private func handlePreviewExpired() {
+        pause()
+        seek(to: 0)
+        NotificationCenter.default.post(
+            name: .showPremiumReciterPaywall,
+            object: currentReciter
+        )
     }
     
     // Lightweight method to update only time-sensitive info
@@ -1197,6 +1222,8 @@ class AudioPlayerService: NSObject, ObservableObject {
             self.preloadedReciter = nil
             // Reset time tracking for new track
             self.lastRecordedTime = 0
+            // Reset preview cap state — each new track gets a fresh 60s window
+            self.previewExpiredForCurrentItem = false
         }
         
         // Log the track to the recents manager
@@ -1437,4 +1464,12 @@ class AudioPlayerService: NSObject, ObservableObject {
         } catch {
         }
     }
+}
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    /// Posted when a free user crosses the 60-second preview cap on a premium reciter.
+    /// MainTabView listens and shows the paywall sheet.
+    static let showPremiumReciterPaywall = Notification.Name("showPremiumReciterPaywall")
 } 

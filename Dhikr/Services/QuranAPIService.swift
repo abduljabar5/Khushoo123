@@ -102,9 +102,8 @@ class QuranAPIService: ObservableObject {
     private func mergeQuranCentralReciters() async {
         guard !hasLoadedQCReciters else { return }
 
-        // QC reciters are a premium feature — skip fetch for free users
-        guard SubscriptionService.shared.hasPremiumAccess else { return }
-
+        // QC reciters are visible to all users so they can browse + 60s preview.
+        // Full playback is gated in AudioPlayerService for non-premium users.
         let qcReciters = await QuranCentralService.shared.fetchReciters()
         guard !qcReciters.isEmpty else { return }
 
@@ -133,9 +132,8 @@ class QuranAPIService: ObservableObject {
     private func mergeCloudflareReciters() async {
         guard !hasLoadedCloudflareReciters else { return }
 
-        // Cloudflare reciters are a premium feature — skip fetch for free users
-        guard SubscriptionService.shared.hasPremiumAccess else { return }
-
+        // Cloudflare reciters are visible to all users so they can browse + 60s preview.
+        // Full playback is gated in AudioPlayerService for non-premium users.
         let cfReciters = await CloudflareReciterService.shared.fetchReciters()
         guard !cfReciters.isEmpty else { return }
 

@@ -127,12 +127,6 @@ struct ReciterDirectoryView: View {
                     }
                 }
             }
-            .blur(radius: subscriptionService.hasPremiumAccess ? 0 : 10)
-
-            // Premium lock overlay
-            if !subscriptionService.hasPremiumAccess {
-                PremiumLockedView(feature: .reciterSearch)
-            }
         }
         .onAppear {
             if allReciters.isEmpty {
@@ -191,11 +185,6 @@ struct ReciterDirectoryView: View {
     }
 
     private func loadData() {
-        guard subscriptionService.hasPremiumAccess else {
-            isLoading = false
-            return
-        }
-
         self.recentReciters = RecentRecitersManager.shared.loadRecentReciters()
         loadFavoritesCache()
 

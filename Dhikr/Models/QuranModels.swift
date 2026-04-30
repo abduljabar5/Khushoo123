@@ -94,6 +94,12 @@ struct Reciter: Codable, Identifiable, Equatable, Hashable {
         return availableSurahs.count >= 114
     }
 
+    /// True for reciters served from premium-only sources (QuranCentral / Cloudflare R2).
+    /// MP3Quran reciters (no prefix) remain fully free.
+    var isPremium: Bool {
+        return identifier.hasPrefix("qurancentral_") || identifier.hasPrefix("cloudflare_")
+    }
+
     // Custom decoder for backwards compatibility with stored data
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

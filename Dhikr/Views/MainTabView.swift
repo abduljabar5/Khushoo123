@@ -104,6 +104,13 @@ struct MainTabView: View {
         .onChange(of: themeManager.currentTheme) { _ in
             configureTabBarAppearance()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showPremiumReciterPaywall)) { _ in
+            // Free user just hit the 60-second preview cap on a premium reciter.
+            // Re-check premium status defensively in case it changed between the
+            // post and now (subscription verifies async on a separate path).
+            guard !subscriptionService.hasPremiumAccess else { return }
+            showPaywall = true
+        }
         .onChange(of: audioPlayerService.shouldShowFullScreenPlayer) { shouldShow in
             if shouldShow && audioPlayerService.currentSurah != nil {
                 withAnimation(.spring(duration: 0.5, bounce: 0)) {
