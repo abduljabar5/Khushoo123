@@ -187,7 +187,7 @@ struct RequestReciterSheet: View {
             .alert("Couldn't send request", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Please try again or email khushooios@gmail.com")
+                Text("Something went wrong. Please try again in a moment.")
             }
             .onAppear {
                 if name.isEmpty && !prefillName.isEmpty {

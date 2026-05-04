@@ -35,13 +35,21 @@ class ReciterRequestService {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
 
+        let user = Auth.auth().currentUser
         var data: [String: Any] = [
             "name": trimmedName,
             "timestamp": FieldValue.serverTimestamp(),
-            "userId": Auth.auth().currentUser?.uid ?? "anonymous",
+            "userId": user?.uid ?? "anonymous",
+            "isPremium": SubscriptionService.shared.hasPremiumAccess,
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
             "platform": "iOS"
         ]
+
+        // Attach the user's email if they're signed in — lets us notify them
+        // when the requested reciter actually goes live in the catalog.
+        if let email = user?.email, !email.isEmpty {
+            data["userEmail"] = email
+        }
 
         if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
             data["note"] = note
