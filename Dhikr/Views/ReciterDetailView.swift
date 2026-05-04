@@ -107,9 +107,18 @@ struct ReciterDetailView: View {
 
             // Name and info
             VStack(spacing: 8) {
-                Text(reciter.englishName)
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundColor(themeManager.theme.primaryText)
+                HStack(spacing: 8) {
+                    Text(reciter.englishName)
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundColor(themeManager.theme.primaryText)
+
+                    if reciter.isPremium {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(sacredGold)
+                            .accessibilityLabel("Premium reciter")
+                    }
+                }
 
                 HStack(spacing: 12) {
                     if let country = reciter.country {
@@ -119,6 +128,11 @@ struct ReciterDetailView: View {
                         SacredDetailTag(text: dialect, color: sacredGold)
                     }
                     SacredDetailTag(text: reciter.language.uppercased(), color: warmGray)
+                    if reciter.isPremium {
+                        SacredDetailTag(text: "PREMIUM", color: sacredGold)
+                    } else {
+                        SacredDetailTag(text: "FREE", color: softGreen)
+                    }
                 }
             }
 
