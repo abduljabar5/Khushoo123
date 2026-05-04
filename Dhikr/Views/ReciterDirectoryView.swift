@@ -24,6 +24,7 @@ struct ReciterDirectoryView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var favoritesCache: Set<String> = []
     @State private var currentBatchIndex = 0
+    @State private var showRequestSheet = false
 
     private let batchSize = 20
 
@@ -115,18 +116,27 @@ struct ReciterDirectoryView: View {
                                 )
                             }
 
-                            SacredAllRecitersView(
-                                reciters: displayedReciters,
-                                onReciterTapped: handleReciterTap,
-                                onLoadMore: loadMoreReciters,
-                                favoritesCache: favoritesCache,
-                                hasMore: displayedReciters.count < filteredReciters.count
-                            )
+                            if filteredReciters.isEmpty && !searchText.isEmpty {
+                                NoSearchResultsView(query: searchText) {
+                                    showRequestSheet = true
+                                }
+                            } else {
+                                SacredAllRecitersView(
+                                    reciters: displayedReciters,
+                                    onReciterTapped: handleReciterTap,
+                                    onLoadMore: loadMoreReciters,
+                                    favoritesCache: favoritesCache,
+                                    hasMore: displayedReciters.count < filteredReciters.count
+                                )
+                            }
                         }
                         .padding(.bottom, 20)
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showRequestSheet) {
+            RequestReciterSheet(prefillName: searchText)
         }
         .onAppear {
             if allReciters.isEmpty {
@@ -243,6 +253,13 @@ struct ReciterDirectoryView: View {
             }
         }
         loadInitialBatch()
+
+        // Passive catalog-growth signal: if a search returned nothing and
+        // we've actually loaded the full catalog, log the query so we know
+        // which reciters users want but can't find.
+        if filteredReciters.isEmpty && !trimmed.isEmpty && !allReciters.isEmpty {
+            ReciterRequestService.shared.logZeroResultSearch(query: trimmed)
+        }
     }
 
     private func loadFavoritesCache() {
@@ -545,6 +562,82 @@ private struct SacredTag: View {
                             .stroke(color.opacity(0.2), lineWidth: 0.5)
                     )
             )
+    }
+}
+
+// MARK: - No Search Results / Request CTA
+
+private struct NoSearchResultsView: View {
+    let query: String
+    let onRequest: () -> Void
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .fill(sacredGold.opacity(0.1))
+                    .frame(width: 64, height: 64)
+
+                Image(systemName: "person.crop.circle.badge.questionmark")
+                    .font(.system(size: 26, weight: .light))
+                    .foregroundColor(sacredGold)
+            }
+
+            VStack(spacing: 6) {
+                Text("No reciters found")
+                    .font(.system(size: 17, weight: .light))
+                    .foregroundColor(themeManager.theme.primaryText)
+
+                Text("\u{201C}\(query)\u{201D} isn't in the catalog yet.")
+                    .font(.system(size: 13))
+                    .foregroundColor(warmGray)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: {
+                HapticManager.shared.impact(.light)
+                onRequest()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                    Text("Request this reciter")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    Capsule().fill(sacredGold)
+                )
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(sacredGold.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 20)
     }
 }
 

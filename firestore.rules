@@ -44,6 +44,19 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // Reciter requests - users suggest reciters to add. Console reads weekly.
+    match /reciter_requests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+
+    // Zero-result search log - passive signal of which reciters users want
+    // but couldn't find. Console reads weekly.
+    match /reciter_search_no_results/{logId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+
     // Default: deny all
     match /{document=**} {
       allow read, write: if false;
