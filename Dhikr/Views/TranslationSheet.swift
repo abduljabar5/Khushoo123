@@ -88,7 +88,7 @@ struct TranslationSheet: View {
                 // Header
                 VStack(spacing: 6) {
                     Text(surah.arabicName)
-                        .font(.custom("Amiri Quran", size: 28, relativeTo: .title2))
+                        .font(.system(size: 26, weight: .light, design: .serif))
                         .foregroundColor(themeManager.theme.primaryText)
                     Text(surah.englishName)
                         .font(.system(size: 13))
@@ -117,9 +117,7 @@ struct TranslationSheet: View {
 
     private func verseCard(_ verse: TranslatedVerse) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Verse number + Arabic. Amiri Quran is a Naskh-script typeface
-            // designed for Quranic typesetting — falls back to system serif if
-            // the bundled font fails to register at app launch.
+            // Verse number + Arabic
             HStack(alignment: .top, spacing: 12) {
                 Text("\(verse.number)")
                     .font(.system(size: 11, weight: .medium))
@@ -131,11 +129,11 @@ struct TranslationSheet: View {
                     )
 
                 Text(verse.arabic)
-                    .font(.custom("Amiri Quran", size: 24, relativeTo: .title3))
+                    .font(.system(size: 22, weight: .regular, design: .serif))
                     .foregroundColor(themeManager.theme.primaryText)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .lineSpacing(14)
+                    .lineSpacing(8)
                     .environment(\.layoutDirection, .rightToLeft)
             }
 
