@@ -416,6 +416,13 @@ private struct SacredReciterRow: View {
     let favoritesCache: Set<String>
     @State private var isSaved: Bool
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
+
+    /// Tier indicators are shown to free users only — they're functional info
+    /// for "what can I actually play in full." For premium users they're noise.
+    private var shouldShowTierIndicator: Bool {
+        !subscriptionService.hasPremiumAccess
+    }
 
     private var sacredGold: Color {
         Color(red: 0.77, green: 0.65, blue: 0.46)
@@ -467,7 +474,7 @@ private struct SacredReciterRow: View {
                         .foregroundColor(themeManager.theme.primaryText)
                         .lineLimit(1)
 
-                    if reciter.isPremium {
+                    if shouldShowTierIndicator && reciter.isPremium {
                         Image(systemName: "crown.fill")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(sacredGold)
@@ -482,10 +489,12 @@ private struct SacredReciterRow: View {
                     if let dialect = reciter.dialect {
                         SacredTag(text: dialect, color: sacredGold)
                     }
-                    if reciter.isPremium {
-                        SacredTag(text: "PREMIUM", color: sacredGold)
-                    } else {
-                        SacredTag(text: "FREE", color: softGreen)
+                    if shouldShowTierIndicator {
+                        if reciter.isPremium {
+                            SacredTag(text: "PREMIUM", color: sacredGold)
+                        } else {
+                            SacredTag(text: "FREE", color: softGreen)
+                        }
                     }
                 }
             }

@@ -15,6 +15,13 @@ struct ReciterDetailView: View {
     @ObservedObject private var recentsManager = RecentsManager.shared
     @ObservedObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
+
+    /// Tier indicators are shown to free users only — premium users don't need
+    /// to see "PREMIUM" on every reciter, it's just visual noise.
+    private var shouldShowTierIndicator: Bool {
+        !subscriptionService.hasPremiumAccess
+    }
     @State private var surahs: [Surah] = []
     @State private var isLoading = true
     @State private var selectedMoshafIndex: Int = 0
@@ -112,7 +119,7 @@ struct ReciterDetailView: View {
                         .font(.system(size: 24, weight: .light))
                         .foregroundColor(themeManager.theme.primaryText)
 
-                    if reciter.isPremium {
+                    if shouldShowTierIndicator && reciter.isPremium {
                         Image(systemName: "crown.fill")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(sacredGold)
@@ -128,10 +135,12 @@ struct ReciterDetailView: View {
                         SacredDetailTag(text: dialect, color: sacredGold)
                     }
                     SacredDetailTag(text: reciter.language.uppercased(), color: warmGray)
-                    if reciter.isPremium {
-                        SacredDetailTag(text: "PREMIUM", color: sacredGold)
-                    } else {
-                        SacredDetailTag(text: "FREE", color: softGreen)
+                    if shouldShowTierIndicator {
+                        if reciter.isPremium {
+                            SacredDetailTag(text: "PREMIUM", color: sacredGold)
+                        } else {
+                            SacredDetailTag(text: "FREE", color: softGreen)
+                        }
                     }
                 }
             }
