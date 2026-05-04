@@ -190,7 +190,7 @@ struct HomeView: View {
     private var headerSection: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: RS.spacing(6)) {
-                Text("السلام عليكم")
+                 Text("السلام عليكم")
                     .font(.system(size: RS.fontSize(20), weight: .regular, design: .serif))
                     .foregroundColor(sacredGold)
 
@@ -597,29 +597,50 @@ struct HomeView: View {
     private func processReciters(_ reciters: [Reciter]) {
         popularReciters = Array(reciters.filter { popularReciterNames.contains($0.englishName) }.prefix(10))
         soothingReciters = Array(reciters.filter { soothingReciterNames.contains($0.englishName) }.prefix(10))
-        spotlightReciter = getWeeklySpotlightReciter(from: popularReciters, fallback: reciters)
+        spotlightReciter = getDailySpotlightReciter(from: reciters, popularFallback: popularReciters)
         isLoading = false
     }
 
-    private func getWeeklySpotlightReciter(from popular: [Reciter], fallback: [Reciter]) -> Reciter? {
-        let defaults = UserDefaults.standard
-        let calendar = Calendar.current
-        let now = Date()
+    /// Curated rotation order for the daily spotlight. Cycles deterministically
+    /// by day-of-year so every user sees the same spotlight on the same day —
+    /// makes the feature shareable ("today's spotlight is X"). Mix of popular
+    /// free voices and the small Cloudflare premium catalog. Order picked
+    /// deliberately to vary tempo/style day to day.
+    private static let spotlightCuratedNames: [String] = [
+        "Mishary Alafasi",
+        "Abdulrahman Alsudaes",
+        "Saud Al Jumah",                  // Cloudflare premium
+        "Saad Al-Ghamdi",
+        "Maher Al Meaqli",
+        "Yasser Al-Dosari",
+        "Youssef Al Suqair",              // Cloudflare premium
+        "Abdulbasit Abdulsamad",
+        "Mohammed Siddiq Al-Minshawi",
+        "Ahmad Al-Ajmy",
+        "Idrees Abkr",
+        "Abdullah Al-Johany",
+    ]
 
-        if let savedID = defaults.string(forKey: "weeklySpotlightReciterID"),
-           let savedDate = defaults.object(forKey: "weeklySpotlightDate") as? Date,
-           calendar.component(.weekOfYear, from: savedDate) == calendar.component(.weekOfYear, from: now),
-           calendar.component(.year, from: savedDate) == calendar.component(.year, from: now),
-           let reciter = popular.first(where: { $0.identifier == savedID }) ?? fallback.first(where: { $0.identifier == savedID }) {
-            return reciter
+    private func getDailySpotlightReciter(from allReciters: [Reciter], popularFallback: [Reciter]) -> Reciter? {
+        guard !allReciters.isEmpty else { return nil }
+
+        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
+        let curated = HomeView.spotlightCuratedNames
+
+        // Walk forward from today's slot until we find a curated reciter that's
+        // actually loaded. Handles cases where Cloudflare/QC reciters haven't
+        // merged yet on first launch — we pick the next available curated
+        // entry instead of a random one, so rotation stays coherent.
+        for offset in 0..<curated.count {
+            let index = (dayOfYear - 1 + offset) % curated.count
+            let name = curated[index]
+            if let match = allReciters.first(where: { $0.englishName == name }) {
+                return match
+            }
         }
 
-        let newSpotlight = popular.randomElement() ?? fallback.randomElement()
-        if let spotlight = newSpotlight {
-            defaults.set(spotlight.identifier, forKey: "weeklySpotlightReciterID")
-            defaults.set(now, forKey: "weeklySpotlightDate")
-        }
-        return newSpotlight
+        // Final fallback: a popular reciter (free, always available).
+        return popularFallback.first ?? allReciters.first
     }
 
     private func loadVerseOfTheDay() {
