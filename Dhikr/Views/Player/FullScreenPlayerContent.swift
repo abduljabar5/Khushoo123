@@ -18,7 +18,6 @@ struct FullScreenPlayerContent: View {
     @Binding var isExpanded: Bool
     @State private var showSleepTimerSheet = false
     @State private var showAmbientSoundSheet = false
-    @State private var showTranslationSheet = false
     @ObservedObject private var ambientSoundService = BackgroundSoundService.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
     @AppStorage("showSleepTimer") private var showSleepTimer = true
@@ -80,16 +79,6 @@ struct FullScreenPlayerContent: View {
             AmbientSoundSheet()
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showTranslationSheet) {
-            if let surah = audioPlayerService.currentSurah {
-                TranslationSheet(
-                    surahNumber: surah.number,
-                    surahEnglishName: surah.englishName
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
         }
     }
 
@@ -306,20 +295,6 @@ struct FullScreenPlayerContent: View {
                 .animation(.easeInOut(duration: 0.2), value: ambientSoundService.currentSound?.id)
             }
             .buttonStyle(SacredPlayerButtonStyle())
-
-            Button(action: {
-                HapticManager.shared.impact(.light)
-                showTranslationSheet = true
-            }) {
-                VStack(spacing: RS.spacing(6)) {
-                    Image(systemName: "text.book.closed")
-                        .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
-                        .foregroundColor(warmGray)
-                }
-                .frame(height: RS.dimension(35))
-            }
-            .buttonStyle(SacredPlayerButtonStyle())
-            .disabled(audioPlayerService.currentSurah == nil)
 
             Button(action: {
                 HapticManager.shared.selection()
