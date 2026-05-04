@@ -734,7 +734,15 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
 
     private func cachedHasPremiumAccess() -> Bool {
-        return UserDefaults(suiteName: "group.fm.mrc.Dhikr")?.bool(forKey: "isPremiumUser") ?? false
+        // Mirror SubscriptionService.hasPremiumAccess (isPremium || hasManualGrant).
+        // Both keys are written to group defaults by SubscriptionService whenever
+        // the live state changes, so this cache stays consistent with @MainActor truth.
+        // Reading only isPremiumUser missed manual-grant users (referrals, comps),
+        // which caused audio to pause without a paywall ever appearing.
+        guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr") else { return false }
+        let isPremium = groupDefaults.bool(forKey: "isPremiumUser")
+        let hasManualGrant = groupDefaults.bool(forKey: "hasManualGrant")
+        return isPremium || hasManualGrant
     }
     
     // Lightweight method to update only time-sensitive info
