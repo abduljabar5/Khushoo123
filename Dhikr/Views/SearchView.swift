@@ -1790,6 +1790,8 @@ private struct SacredAdditionalSettingsView: View {
     @State private var showingHayaModeEnableAlert = false
     @State private var showingHayaModeDisableStep1Alert = false
     @State private var showingHayaModeDisableStep2Alert = false
+    @State private var showingLowerGazeSheet = false
+    @StateObject private var panicService = PanicModeService.shared
     // Timer for Haya Mode countdown
     private let hayaModeTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -1927,6 +1929,49 @@ private struct SacredAdditionalSettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
 
+                // Lower Gaze — only visible when Haya is enabled. Shielded
+                // social-app block for moments of weakness; closes the gap
+                // where adult content slips past the Haya web filter via
+                // social-app native feeds.
+                if focusManager.hayaMode && !panicService.isActive {
+                    Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
+
+                    Button(action: {
+                        HapticManager.shared.impact(.medium)
+                        showingLowerGazeSheet = true
+                    }) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(sacredGold.opacity(0.15))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "eye.slash.fill")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(sacredGold)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Lower Gaze")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(themeManager.theme.primaryText)
+                                Text("Block social apps when tempted")
+                                    .font(.system(size: 12, weight: .light))
+                                    .foregroundColor(warmGray)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(sacredGold)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+
                 Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
 
                 // Pre-Prayer Notification
@@ -2063,6 +2108,11 @@ private struct SacredAdditionalSettingsView: View {
             if focusManager.hayaModeDisablePending {
                 focusManager.completeHayaModeDisableIfReady()
             }
+        }
+        .sheet(isPresented: $showingLowerGazeSheet) {
+            LowerGazeSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }

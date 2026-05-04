@@ -75,6 +75,10 @@ struct MainTabView: View {
                 EarlyUnlockBanner()
                     .padding(.horizontal, 16)
                     .zIndex(100)
+
+                LowerGazeBanner()
+                    .padding(.horizontal, 16)
+                    .zIndex(99)
             }
             .padding(.top, 8)
             .opacity(1 - playerExpandProgress)
@@ -110,6 +114,12 @@ struct MainTabView: View {
             // post and now (subscription verifies async on a separate path).
             guard !subscriptionService.hasPremiumAccess else { return }
             showPaywall = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .lowerGazeOpenDhikr)) { _ in
+            withAnimation { selectedTab = 2 }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .lowerGazeOpenVerse)) { _ in
+            withAnimation { selectedTab = 0 }
         }
         .onChange(of: audioPlayerService.shouldShowFullScreenPlayer) { shouldShow in
             if shouldShow && audioPlayerService.currentSurah != nil {
