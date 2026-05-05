@@ -102,16 +102,21 @@ struct LowerGazeSheet: View {
                         }
                         .padding(.top, 12)
 
-                        // Web-domain defaults always apply, so we can let users
-                        // start without picking apps. But surface a hint when no
-                        // apps are configured so they understand the gap.
+                        // Empty state: show a prominent setup card up top so
+                        // existing Haya users (who installed before the chained-
+                        // picker flow shipped) have an obvious path to configure
+                        // their app block list. Without this, the only entry was
+                        // the small "Add apps" text link below — too easy to miss.
+                        if !selectionModel.hasSelection {
+                            setupAppsCard
+                        }
+
                         durationPickerCards
                         startButton
 
-                        if !selectionModel.hasSelection {
-                            noAppsConfiguredHint
+                        if selectionModel.hasSelection {
+                            changeAppsLink
                         }
-                        changeAppsLink
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
@@ -254,21 +259,67 @@ struct LowerGazeSheet: View {
         .padding(.top, 4)
     }
 
-    private var noAppsConfiguredHint: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 12))
+    /// Prominent first-run setup card for users who haven't picked any apps yet.
+    /// Shown when PanicAppSelectionModel is empty — most importantly, for users
+    /// who already had Haya Mode enabled before the chained-picker flow existed,
+    /// since they never got the auto-prompt during Haya enable.
+    private var setupAppsCard: some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "exclamationmark.circle")
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundColor(sacredGold)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Set up your block list")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(themeManager.theme.primaryText)
+                    Text("Pick the social apps Lower Gaze should block. Recommended: Instagram, TikTok, X, Snapchat, YouTube.")
+                        .font(.system(size: 12, weight: .light))
+                        .foregroundColor(warmGray)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Button(action: {
+                HapticManager.shared.impact(.light)
+                showAppPicker = true
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                    Text("Pick apps to block")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(sacredGold)
+                )
+            }
+
+            Text("You can still start a session without picking apps — Safari will block social sites either way.")
+                .font(.system(size: 11, weight: .light))
                 .foregroundColor(warmGray)
-            Text("No apps configured. Social websites in Safari will still be blocked.")
-                .font(.system(size: 11))
-                .foregroundColor(warmGray)
-                .multilineTextAlignment(.leading)
-            Spacer(minLength: 0)
+                .multilineTextAlignment(.center)
         }
-        .padding(12)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(warmGray.opacity(0.08))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(sacredGold.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                )
         )
     }
 
