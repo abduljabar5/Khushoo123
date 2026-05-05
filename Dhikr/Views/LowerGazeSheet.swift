@@ -98,13 +98,16 @@ struct LowerGazeSheet: View {
                         }
                         .padding(.top, 12)
 
+                        // Web-domain defaults always apply, so we can let users
+                        // start without picking apps. But surface a hint when no
+                        // apps are configured so they understand the gap.
+                        durationPickerCards
+                        startButton
+
                         if !selectionModel.hasSelection {
-                            firstRunPickerCard
-                        } else {
-                            durationPickerCards
-                            startButton
-                            changeAppsLink
+                            noAppsConfiguredHint
                         }
+                        changeAppsLink
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
@@ -236,11 +239,29 @@ struct LowerGazeSheet: View {
 
     private var changeAppsLink: some View {
         Button(action: { showAppPicker = true }) {
-            Text("Change apps to block")
+            Text(selectionModel.hasSelection ? "Change apps to block" : "Add apps to block")
                 .font(.system(size: 12))
                 .foregroundColor(warmGray)
         }
         .padding(.top, 4)
+    }
+
+    private var noAppsConfiguredHint: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 12))
+                .foregroundColor(warmGray)
+            Text("No apps configured. Social websites in Safari will still be blocked.")
+                .font(.system(size: 11))
+                .foregroundColor(warmGray)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(warmGray.opacity(0.08))
+        )
     }
 
     // MARK: - Actions

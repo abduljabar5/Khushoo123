@@ -30,6 +30,23 @@ class PanicModeService: ObservableObject {
 
     private let endTimeKey = "panicModeEndTime"
 
+    /// Hardcoded social / video / forum domains blocked at the web-content
+    /// filter layer for every Lower Gaze session. Catches users who try to
+    /// route around the app shield by opening Safari or Chrome. Constructable
+    /// without FamilyActivityPicker since WebDomain is a non-opaque value
+    /// type — Apple lets us hardcode these unlike app/category tokens.
+    private static let defaultBlockedWebDomains: Set<WebDomain> = [
+        WebDomain(domain: "instagram.com"),
+        WebDomain(domain: "tiktok.com"),
+        WebDomain(domain: "x.com"),
+        WebDomain(domain: "twitter.com"),
+        WebDomain(domain: "snapchat.com"),
+        WebDomain(domain: "reddit.com"),
+        WebDomain(domain: "youtube.com"),
+        WebDomain(domain: "pinterest.com"),
+        WebDomain(domain: "facebook.com"),
+    ]
+
     /// Periodic ticker so the banner countdown updates and we auto-clean
     /// once the deadline passes.
     private var tickTimer: Timer?
@@ -63,29 +80,17 @@ class PanicModeService: ObservableObject {
     /// returns false without doing anything.
     @discardableResult
     func start(duration: TimeInterval) -> Bool {
+        // Web-domain defaults always apply, so a session is meaningful even
+        // with an empty FamilyActivitySelection (Safari/Chrome browsing of
+        // social sites is still blocked). The selection just determines the
+        // app-shield surface.
         let selection = PanicAppSelectionModel.shared.selection
-        let isEmpty = selection.applicationTokens.isEmpty
-            && selection.categoryTokens.isEmpty
-            && selection.webDomainTokens.isEmpty
-        guard !isEmpty else { return false }
-
         let end = Date().addingTimeInterval(duration)
         endTime = end
         isActive = true
         blockedAppCount = selection.applicationTokens.count + selection.categoryTokens.count
 
-        // Apply shields via the dedicated panic store so we don't disturb the
-        // prayer-time store's state.
-        if !selection.applicationTokens.isEmpty {
-            store.shield.applications = selection.applicationTokens
-        }
-        if !selection.categoryTokens.isEmpty {
-            store.shield.applicationCategories = .specific(selection.categoryTokens)
-            store.shield.webDomainCategories = .specific(selection.categoryTokens)
-        }
-        if !selection.webDomainTokens.isEmpty {
-            store.shield.webDomains = selection.webDomainTokens
-        }
+        applyShields(for: selection)
 
         // Persist deadline so a force-quit + relaunch resumes the lock.
         groupDefaults?.set(end.timeIntervalSince1970, forKey: endTimeKey)
@@ -102,6 +107,7 @@ class PanicModeService: ObservableObject {
         store.shield.applicationCategories = nil
         store.shield.webDomainCategories = nil
         store.shield.webDomains = nil
+        store.webContent.blockedByFilter = nil
 
         groupDefaults?.removeObject(forKey: endTimeKey)
         groupDefaults?.synchronize()
@@ -126,20 +132,31 @@ class PanicModeService: ObservableObject {
             isActive = true
             let selection = PanicAppSelectionModel.shared.selection
             blockedAppCount = selection.applicationTokens.count + selection.categoryTokens.count
-            if !selection.applicationTokens.isEmpty {
-                store.shield.applications = selection.applicationTokens
-            }
-            if !selection.categoryTokens.isEmpty {
-                store.shield.applicationCategories = .specific(selection.categoryTokens)
-                store.shield.webDomainCategories = .specific(selection.categoryTokens)
-            }
-            if !selection.webDomainTokens.isEmpty {
-                store.shield.webDomains = selection.webDomainTokens
-            }
+            applyShields(for: selection)
             startTicker()
         } else {
             clear()
         }
+    }
+
+    /// Apply both the user-picked tokens (from FamilyActivityPicker) AND the
+    /// hardcoded social web-domain set. Web domains run through the content
+    /// filter independently of FamilyControls tokens, so they work even if
+    /// the user's app selection is empty — the lockdown still catches anyone
+    /// who tries to route around app blocks via Safari/Chrome.
+    private func applyShields(for selection: FamilyActivitySelection) {
+        if !selection.applicationTokens.isEmpty {
+            store.shield.applications = selection.applicationTokens
+        }
+        if !selection.categoryTokens.isEmpty {
+            store.shield.applicationCategories = .specific(selection.categoryTokens)
+            store.shield.webDomainCategories = .specific(selection.categoryTokens)
+        }
+        if !selection.webDomainTokens.isEmpty {
+            store.shield.webDomains = selection.webDomainTokens
+        }
+        // Default web-domain block — applies regardless of picker state.
+        store.webContent.blockedByFilter = .specific(Self.defaultBlockedWebDomains)
     }
 
     // MARK: - Ticker

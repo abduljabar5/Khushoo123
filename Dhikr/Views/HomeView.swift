@@ -17,7 +17,10 @@ struct HomeView: View {
     @StateObject private var favoritesManager = FavoritesManager.shared
     @StateObject private var blockingState = BlockingStateService.shared
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var focusManager = FocusSettingsManager.shared
+    @StateObject private var panicService = PanicModeService.shared
     @EnvironmentObject var prayerViewModel: PrayerTimeViewModel
+    @State private var showingLowerGazeSheet = false
 
     // Sacred color palette
     private var sacredGold: Color {
@@ -104,6 +107,12 @@ struct HomeView: View {
                         .opacity(sectionAppeared[4] ? 1 : 0)
                         .offset(y: sectionAppeared[4] ? 0 : 20)
 
+                    if focusManager.hayaMode && !panicService.isActive {
+                        lowerGazeCardSection
+                            .opacity(sectionAppeared[5] ? 1 : 0)
+                            .offset(y: sectionAppeared[5] ? 0 : 20)
+                    }
+
                     spotlightSection
                         .opacity(sectionAppeared[5] ? 1 : 0)
                         .offset(y: sectionAppeared[5] ? 0 : 20)
@@ -181,6 +190,11 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingQiblaCompass) {
             SacredQiblaCompassModal()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingLowerGazeSheet) {
+            LowerGazeSheet()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -355,6 +369,55 @@ struct HomeView: View {
                 )
             }
         }
+    }
+
+    // MARK: - Lower Gaze (Haya users only, panic-mode entry point)
+    private var lowerGazeCardSection: some View {
+        Button(action: {
+            HapticManager.shared.impact(.medium)
+            showingLowerGazeSheet = true
+        }) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "eye.slash.fill")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(sacredGold)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LOWER GAZE")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.5)
+                        .foregroundColor(sacredGold)
+                    Text("Block social apps when tempted")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(themeManager.theme.primaryText)
+                    Text("One tap — cannot be disabled until timer ends")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(warmGray)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(sacredGold)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(sacredGold.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - Spotlight
