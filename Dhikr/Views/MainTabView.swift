@@ -20,6 +20,11 @@ struct MainTabView: View {
     @State private var showPaywall = false
     @State private var showShareReferralPopup = false
     @State private var showFeedbackPrompt = false
+    /// Shows on every cold start while we're testing 1.1.7. Process-state
+    /// resets on force-close, so this naturally triggers per cold launch.
+    /// To gate later: replace with @AppStorage("hasSeenWhatsNew_v117") and
+    /// flip in WhatsNewSheet.dismiss().
+    @State private var showWhatsNew = true
     @AppStorage("hasShownFeedbackPrompt") private var hasShownFeedbackPrompt = false
 
     private var shouldShowMiniPlayer: Bool {
@@ -93,6 +98,11 @@ struct MainTabView: View {
             ShareReferralPopup(isPresented: $showShareReferralPopup, onUpgrade: {
                 showPaywall = true
             })
+        }
+        .sheet(isPresented: $showWhatsNew) {
+            WhatsNewSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .environmentObject(audioPlayerService)
         .environmentObject(quranAPIService)
