@@ -85,6 +85,7 @@ struct HomeView: View {
         ZStack {
             pageBackground.ignoresSafeArea()
 
+            ScrollViewReader { scrollProxy in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: RS.sectionSpacing) {
                     headerSection
@@ -122,6 +123,7 @@ struct HomeView: View {
                         .offset(y: sectionAppeared[6] ? 0 : 20)
 
                     verseOfTheDaySection
+                        .id("verseOfTheDay")
                         .opacity(sectionAppeared[7] ? 1 : 0)
                         .offset(y: sectionAppeared[7] ? 0 : 20)
 
@@ -137,6 +139,16 @@ struct HomeView: View {
                 .padding(.top, RS.spacing(16))
                 .padding(.bottom, audioPlayerService.currentSurah != nil ? RS.spacing(140) : RS.spacing(100))
             }
+            .onReceive(NotificationCenter.default.publisher(for: .lowerGazeOpenVerse)) { _ in
+                // Tab switch is handled by MainTabView; we scroll inside Home.
+                // Tiny delay so the tab switch animation lands first.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        scrollProxy.scrollTo("verseOfTheDay", anchor: .top)
+                    }
+                }
+            }
+            } // ScrollViewReader
         }
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))

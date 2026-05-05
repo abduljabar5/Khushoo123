@@ -20,7 +20,11 @@ struct LowerGazeSheet: View {
     @StateObject private var selectionModel = PanicAppSelectionModel.shared
 
     @State private var showAppPicker = false
-    @State private var selectedDuration: TimeInterval = 1800 // 30 min default
+    /// Last-used duration is remembered between sessions so the picker pre-selects
+    /// the user's recent choice on subsequent opens. Stored in seconds. Default
+    /// 30 min on first run.
+    @AppStorage("lowerGazeLastUsedDuration") private var lastUsedDuration: Double = 1800
+    @State private var selectedDuration: TimeInterval = 1800
 
     private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
     private var softGreen: Color { Color(red: 0.55, green: 0.68, blue: 0.55) }
@@ -131,6 +135,10 @@ struct LowerGazeSheet: View {
                 // Persist immediately when the picker closes so the next run
                 // sees the new selection without waiting for the debounce.
                 if !showing { selectionModel.forceSave() }
+            }
+            .onAppear {
+                // Pre-select the user's last-used duration when the sheet opens.
+                selectedDuration = lastUsedDuration
             }
         }
     }
@@ -272,6 +280,8 @@ struct LowerGazeSheet: View {
             showAppPicker = true
             return
         }
+        // Remember this choice so the next session pre-selects it.
+        lastUsedDuration = selectedDuration
         HapticManager.shared.notification(.success)
         dismiss()
     }

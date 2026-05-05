@@ -239,6 +239,44 @@ class FocusSettingsManager: ObservableObject {
         setupAppSelectionObserver()
         setupPremiumLostObserver()
         setupPremiumCheckObserver()
+        setupAppActiveObserver()
+    }
+
+    /// Re-verify Haya filter every time the app returns to foreground.
+    /// Catches a real iOS quirk: if a user revokes Khushoo's Screen Time
+    /// permission in Settings while the app is alive (then re-grants it),
+    /// the filter is cleared system-side but our singleton still thinks
+    /// hayaMode is on. Without this, the toggle says ON but no sites are
+    /// actually blocked.
+    private func setupAppActiveObserver() {
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reapplyHayaModeIfNeeded()
+            }
+        }
+    }
+
+    /// If toggle is ON but the actual ManagedSettings filter is gone, try
+    /// to re-apply. If it stays nil after applying (Screen Time still revoked),
+    /// fall back to verifyHayaModeConsistency which will sync the toggle to OFF
+    /// so the UI stops lying.
+    private func reapplyHayaModeIfNeeded() {
+        guard hayaMode else { return }
+
+        let store = ManagedSettingsStore()
+        if store.webContent.blockedByFilter == nil {
+            print("🛡️ Haya Mode: Filter missing on foreground — re-applying")
+            applyHayaModeFilter(true)
+
+            // Verify it actually stuck. If not, sync state down to honest.
+            if store.webContent.blockedByFilter == nil {
+                verifyHayaModeConsistency()
+            }
+        }
     }
 
     private func setupPremiumLostObserver() {
