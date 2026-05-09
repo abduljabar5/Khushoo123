@@ -20,6 +20,12 @@ struct SearchView: View {
     @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var showingAppPicker = false
     @State private var appSelection = FamilyActivitySelection()
+    /// Lower Gaze entry point lives in mainContent now (its own card under
+    /// Today's Schedule), so the sheet trigger and active-state observer
+    /// belong here on SearchView. The Haya-enable chained picker still lives
+    /// on SacredAdditionalSettingsView with its own state.
+    @State private var showingLowerGazeSheetFromCard = false
+    @StateObject private var panicService = PanicModeService.shared
 
     // Sacred colors
     private var sacredGold: Color {
@@ -106,6 +112,11 @@ struct SearchView: View {
                 // Cancel action
             }
         }
+        .sheet(isPresented: $showingLowerGazeSheetFromCard) {
+            LowerGazeSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .onAppear {
             // Track focus feature viewed
             AnalyticsService.shared.trackFocusBlockingViewed()
@@ -191,6 +202,18 @@ struct SearchView: View {
                         isLocked: (blockingStateService.isCurrentlyBlocking || blockingStateService.appsActuallyBlocked) && !blockingStateService.isEarlyUnlockedActive
                     )
                     .padding(.horizontal, RS.horizontalPadding)
+
+                    // Lower Gaze — its own card, not nested under any toggle.
+                    // Universal panic block for social media — visible to all
+                    // users regardless of Haya status, since the cool-off use
+                    // case applies broadly.
+                    if !panicService.isActive {
+                        SacredLowerGazeCard {
+                            HapticManager.shared.impact(.medium)
+                            showingLowerGazeSheetFromCard = true
+                        }
+                        .padding(.horizontal, RS.horizontalPadding)
+                    }
 
                     // Select Prayers
                     SacredPrayerToggleSection(
@@ -553,6 +576,71 @@ private struct SacredSettingsLockedBanner: View {
     }
 }
 
+// MARK: - Sacred Lower Gaze Card
+
+private struct SacredLowerGazeCard: View {
+    let onTap: () -> Void
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "eye.slash.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(sacredGold)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("LOWER GAZE")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.5)
+                        .foregroundColor(sacredGold)
+                    Text("Block social apps when tempted")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(themeManager.theme.primaryText)
+                    Text("One tap — cannot be disabled until timer ends")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(warmGray)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(sacredGold)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(sacredGold.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
 // MARK: - Sacred Early Unlock Section
 
 private struct SacredEarlyUnlockSection: View {
@@ -819,7 +907,9 @@ private struct SacredTodayScheduleSection: View {
         let isForTomorrow: Bool
     }
 
-    /// Read scheduled prayers - today's first (including past ones grayed out), then tomorrow's after all today's are done
+    /// Read today's scheduled prayers — all 5 stay visible all day, with past
+    /// prayers shown struck-through. Once midnight rolls over, "today" becomes
+    /// the new day and tomorrow's schedule populates naturally.
     private func loadScheduledPrayers() -> ScheduleLoadResult {
         guard let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr"),
               let schedules = groupDefaults.object(forKey: "PrayerTimeSchedules") as? [[String: Any]] else {
@@ -829,11 +919,7 @@ private struct SacredTodayScheduleSection: View {
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else {
-            return ScheduleLoadResult(prayers: [], isForTomorrow: false)
-        }
 
-        // Convert all schedules to ScheduledPrayer with their dates
         func makePrayer(from schedule: [String: Any]) -> ScheduledPrayer? {
             guard let name = schedule["name"] as? String,
                   let timestamp = schedule["date"] as? TimeInterval,
@@ -842,7 +928,6 @@ private struct SacredTodayScheduleSection: View {
             }
             let blockingStart = Date(timeIntervalSince1970: timestamp)
             let blockingEnd = blockingStart.addingTimeInterval(duration)
-            // Prayer is past if blocking period has ended
             let isPast = now > blockingEnd
             return ScheduledPrayer(
                 name: name,
@@ -852,29 +937,10 @@ private struct SacredTodayScheduleSection: View {
             )
         }
 
-        // Get all today's prayers (including past ones)
         let todayPrayers = schedules.compactMap { makePrayer(from: $0) }
             .filter { calendar.isDate($0.blockingStartTime, inSameDayAs: today) }
             .sorted { $0.blockingStartTime < $1.blockingStartTime }
 
-        // Check if ALL today's prayers are past (switch to tomorrow after Isha is done)
-        let allTodayPast = !todayPrayers.isEmpty && todayPrayers.allSatisfy { $0.isPast }
-
-        if !todayPrayers.isEmpty && !allTodayPast {
-            return ScheduleLoadResult(prayers: todayPrayers, isForTomorrow: false)
-        }
-
-        // If no today prayers or all are past, show tomorrow's
-        let tomorrowPrayers = schedules.compactMap { makePrayer(from: $0) }
-            .filter { calendar.isDate($0.blockingStartTime, inSameDayAs: tomorrow) }
-            .sorted { $0.blockingStartTime < $1.blockingStartTime }
-
-        // If we have tomorrow prayers, show them; otherwise show today's (all past)
-        if !tomorrowPrayers.isEmpty {
-            return ScheduleLoadResult(prayers: tomorrowPrayers, isForTomorrow: true)
-        }
-
-        // Fallback: show today's prayers even if all past
         return ScheduleLoadResult(prayers: todayPrayers, isForTomorrow: false)
     }
 
@@ -1930,51 +1996,6 @@ private struct SacredAdditionalSettingsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
-
-                // Lower Gaze — universal panic block for social media. Original
-                // framing was Haya-only (closes the gap where adult content
-                // slips past the web filter via in-app feeds), but the same
-                // mechanism is genuinely useful for any "doom-scroll cooloff"
-                // moment, not just Haya users. Now visible to everyone, gated
-                // only on the panic mode itself not currently being active.
-                if !panicService.isActive {
-                    Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
-
-                    Button(action: {
-                        HapticManager.shared.impact(.medium)
-                        showingLowerGazeSheet = true
-                    }) {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(sacredGold.opacity(0.15))
-                                    .frame(width: 36, height: 36)
-                                Image(systemName: "eye.slash.fill")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(sacredGold)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Lower Gaze")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(themeManager.theme.primaryText)
-                                Text("Block social apps when tempted")
-                                    .font(.system(size: 12, weight: .light))
-                                    .foregroundColor(warmGray)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(sacredGold)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
 
                 Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
 
