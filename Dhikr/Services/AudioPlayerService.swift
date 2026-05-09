@@ -182,70 +182,8 @@ class AudioPlayerService: NSObject, ObservableObject {
 
         // Load auto-play setting (default to true)
         self.isAutoplayEnabled = UserDefaults.standard.object(forKey: "autoPlayNextSurah") as? Bool ?? true
-
-        // Log all tracking data on app launch
-        logAllTrackingData()
     }
 
-    // MARK: - Tracking Data Logging
-    private func logAllTrackingData() {
-
-        // Audio Player Tracking Data
-        let audioTrackingData: [String: Any] = [
-            "totalListeningTime": totalListeningTime,
-            "totalListeningTimeFormatted": getTotalListeningTimeString(),
-            "completedSurahNumbers": Array(completedSurahNumbers).sorted(),
-            "completedSurahCount": completedSurahNumbers.count,
-            "likedItemsCount": likedItems.count,
-            "likedItems": likedItems.map { ["surahNumber": $0.surahNumber, "reciterIdentifier": $0.reciterIdentifier, "dateAdded": ISO8601DateFormatter().string(from: $0.dateAdded)] },
-            "autoPlayEnabled": isAutoplayEnabled
-        ]
-
-        if let audioJSON = try? JSONSerialization.data(withJSONObject: audioTrackingData, options: .prettyPrinted),
-           let audioJSONString = String(data: audioJSON, encoding: .utf8) {
-        }
-
-        // Recent Plays
-        let recentPlays = RecentsManager.shared.recentItems.map { item in
-            return [
-                "surah": "\(item.surah.number). \(item.surah.englishName)",
-                "reciter": item.reciter.englishName,
-                "playedAt": ISO8601DateFormatter().string(from: item.playedAt)
-            ]
-        }
-
-        if let recentsJSON = try? JSONSerialization.data(withJSONObject: ["recentPlays": recentPlays], options: .prettyPrinted),
-           let recentsJSONString = String(data: recentsJSON, encoding: .utf8) {
-        }
-
-        // Favorite Reciters
-        let favoriteReciters = FavoritesManager.shared.favoriteReciters.map { item in
-            return [
-                "identifier": item.identifier,
-                "dateAdded": ISO8601DateFormatter().string(from: item.dateAdded)
-            ]
-        }
-
-        if let favoritesJSON = try? JSONSerialization.data(withJSONObject: ["favoriteReciters": favoriteReciters], options: .prettyPrinted),
-           let favoritesJSONString = String(data: favoritesJSON, encoding: .utf8) {
-        }
-
-        // Last Played Info
-        if let lastPlayed = getLastPlayedInfo() {
-            let lastPlayedData: [String: Any] = [
-                "surah": "\(lastPlayed.surah.number). \(lastPlayed.surah.englishName)",
-                "reciter": lastPlayed.reciter.englishName,
-                "time": lastPlayed.time
-            ]
-
-            if let lastPlayedJSON = try? JSONSerialization.data(withJSONObject: ["lastPlayed": lastPlayedData], options: .prettyPrinted),
-               let lastPlayedJSONString = String(data: lastPlayedJSON, encoding: .utf8) {
-            }
-        } else {
-        }
-
-    }
-    
     // MARK: - Activation
     func activate() {
         setupAudioSession()

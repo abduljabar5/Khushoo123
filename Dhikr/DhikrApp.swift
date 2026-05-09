@@ -66,8 +66,15 @@ struct DhikrApp: App {
                     // Migrate existing users to new app selection validation
                     migrateAppSelectionValidation()
 
-                    // Prioritize audio service for immediate UI responsiveness
-                    audioPlayerService.activate()
+                    // Defer audio session activation by 200ms.
+                    // AVAudioSession.setCategory + setActive blocks 150-300ms
+                    // on cold start (CoreAudio init). Letting the first frame
+                    // paint first makes launch feel instant; the user can't
+                    // tap play before this fires anyway. Same pattern as
+                    // preloadLastPlayed below.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        audioPlayerService.activate()
+                    }
 
                     // Fetch 6-month prayer times on app launch
                     fetch6MonthPrayerTimesOnLaunch()
@@ -76,7 +83,7 @@ struct DhikrApp: App {
                     setupPremiumListener()
 
                     // Preload last played audio in background for instant continue
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         audioPlayerService.preloadLastPlayed()
                     }
 

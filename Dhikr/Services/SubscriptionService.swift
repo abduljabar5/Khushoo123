@@ -111,10 +111,11 @@ class SubscriptionService: ObservableObject {
                 print("✅ [SubscriptionService] Loaded cached manual grant: true")
             }
 
-            // Refresh widgets immediately if user has cached premium access
-            if cachedPremium || self.hasManualGrant {
-                WidgetCenter.shared.reloadAllTimelines()
-            }
+            // Don't reload widgets here — WidgetCenter.reloadAllTimelines is
+            // synchronous and adds 100-500ms to cold start. Premium status
+            // hasn't actually CHANGED in init; we just read what was already
+            // in cache. Genuine status changes still reload widgets via
+            // syncSubscriptionStatus and the StoreKit listener paths.
         }
 
         // Start listening for transaction updates
