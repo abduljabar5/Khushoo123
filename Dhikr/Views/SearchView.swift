@@ -899,6 +899,7 @@ private struct SacredTodayScheduleSection: View {
         let blockingStartTime: Date
         let durationSeconds: Double
         let isPast: Bool
+        let isCurrentlyActive: Bool
     }
 
     /// Result of loading scheduled prayers - includes which day they're for
@@ -929,11 +930,13 @@ private struct SacredTodayScheduleSection: View {
             let blockingStart = Date(timeIntervalSince1970: timestamp)
             let blockingEnd = blockingStart.addingTimeInterval(duration)
             let isPast = now > blockingEnd
+            let isCurrentlyActive = now >= blockingStart && now <= blockingEnd
             return ScheduledPrayer(
                 name: name,
                 blockingStartTime: blockingStart,
                 durationSeconds: duration,
-                isPast: isPast
+                isPast: isPast,
+                isCurrentlyActive: isCurrentlyActive
             )
         }
 
@@ -1012,7 +1015,8 @@ private struct SacredTodayScheduleSection: View {
                             duration: 0,
                             isEnabled: false,
                             isLocked: isLocked,
-                            isPast: false
+                            isPast: false,
+                            isCurrentlyActive: false
                         )
                         if prayerName != "Isha" {
                             Divider()
@@ -1029,7 +1033,8 @@ private struct SacredTodayScheduleSection: View {
                             duration: prayer.durationSeconds / 60, // Convert to minutes for display
                             isEnabled: true,
                             isLocked: isLocked,
-                            isPast: prayer.isPast
+                            isPast: prayer.isPast,
+                            isCurrentlyActive: prayer.isCurrentlyActive
                         )
                         if index < cachedPrayers.count - 1 {
                             Divider()
@@ -1058,6 +1063,13 @@ private struct SacredTodayScheduleSection: View {
             cachedPrayers = result.prayers
             isShowingTomorrow = result.isForTomorrow
         }
+        // Re-evaluate isPast / isCurrentlyActive every 30s so rows cross out
+        // and the active-pulse starts/stops without requiring user interaction.
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
+            let result = loadScheduledPrayers()
+            cachedPrayers = result.prayers
+            isShowingTomorrow = result.isForTomorrow
+        }
         .id(refreshTrigger) // Force view identity change when trigger changes
     }
 }
@@ -1071,9 +1083,17 @@ private struct SacredPrayerScheduleRow: View {
     let isEnabled: Bool
     let isLocked: Bool
     let isPast: Bool
+    let isCurrentlyActive: Bool
 
     @StateObject private var themeManager = ThemeManager.shared
 
+    /// Animation state. shimmerOffset slides the gold gradient across the row
+    /// when isPast flips false→true. pulseScale loops while isCurrentlyActive.
+    @State private var shimmerOffset: CGFloat = -1.0
+    @State private var hasShimmered: Bool = false
+    @State private var pulseScale: CGFloat = 1.0
+
+    private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
     private var softGreen: Color {
         Color(red: 0.55, green: 0.68, blue: 0.55)
     }
@@ -1108,10 +1128,23 @@ private struct SacredPrayerScheduleRow: View {
 
     var body: some View {
         HStack {
-            Image(systemName: isPast ? "checkmark.circle.fill" : prayerIcon(for: prayerName))
-                .font(.system(size: 14, weight: .light))
-                .foregroundColor(isPast ? warmGray.opacity(0.5) : (isEnabled && !isLocked ? softGreen : warmGray.opacity(0.5)))
-                .frame(width: 24)
+            ZStack {
+                // Gentle pulse halo behind the icon while this prayer's
+                // blocking window is currently active. Heartbeat-slow scale
+                // + opacity, gold tone — calm, not distracting.
+                if isCurrentlyActive {
+                    Circle()
+                        .fill(sacredGold.opacity(0.18))
+                        .frame(width: 28, height: 28)
+                        .scaleEffect(pulseScale)
+                        .opacity(2 - pulseScale)  // fades as it grows
+                }
+
+                Image(systemName: isPast ? "checkmark.circle.fill" : prayerIcon(for: prayerName))
+                    .font(.system(size: 14, weight: .light))
+                    .foregroundColor(iconColor)
+            }
+            .frame(width: 24)
 
             Text(prayerName)
                 .font(.system(size: 14, weight: .regular))
@@ -1141,6 +1174,71 @@ private struct SacredPrayerScheduleRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        // Gold shimmer that sweeps left-to-right when the row first transitions
+        // to past. GeometryReader-driven so the gradient always covers the
+        // exact row width regardless of device size.
+        .overlay(shimmerOverlay)
+        .onAppear {
+            // Skip the shimmer animation on first appear if already past — we
+            // only want it to play on the live transition, not on every render.
+            if isPast { hasShimmered = true }
+
+            if isCurrentlyActive { startPulse() }
+        }
+        .onChange(of: isPast) { newValue in
+            if newValue && !hasShimmered {
+                hasShimmered = true
+                playShimmer()
+            }
+        }
+        .onChange(of: isCurrentlyActive) { newValue in
+            if newValue {
+                startPulse()
+            } else {
+                pulseScale = 1.0
+            }
+        }
+    }
+
+    private var iconColor: Color {
+        if isPast { return warmGray.opacity(0.5) }
+        if isCurrentlyActive { return sacredGold }
+        if isEnabled && !isLocked { return softGreen }
+        return warmGray.opacity(0.5)
+    }
+
+    private var shimmerOverlay: some View {
+        GeometryReader { geo in
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    sacredGold.opacity(0.5),
+                    Color.clear
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: geo.size.width * 0.6)
+            .offset(x: shimmerOffset * geo.size.width)
+            .blendMode(.plusLighter)
+            .allowsHitTesting(false)
+        }
+        .clipped()
+    }
+
+    private func playShimmer() {
+        shimmerOffset = -1.0
+        withAnimation(.easeInOut(duration: 0.7)) {
+            shimmerOffset = 1.2
+        }
+    }
+
+    private func startPulse() {
+        // Reset before starting so re-triggers always play from base state.
+        pulseScale = 1.0
+        withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+            pulseScale = 1.45
+        }
     }
 }
 
