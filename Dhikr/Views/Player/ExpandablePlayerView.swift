@@ -17,6 +17,10 @@ struct ExpandablePlayerView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
 
+    /// Token that the SurahCompleteBloom watches — bumps each time a surah
+    /// completion notification fires. Used as the bloom trigger.
+    @State private var bloomTrigger: Int = 0
+
     private var isPreviewMode: Bool {
         guard let reciter = audioPlayerService.currentReciter else { return false }
         return reciter.isPremium && !subscriptionService.hasPremiumAccess
@@ -120,7 +124,7 @@ struct ExpandablePlayerView: View {
 
                         Spacer().frame(maxHeight: 20)
 
-                        // Artwork + surah list overlay (card flip)
+                        // Artwork + surah list overlay (card flip) + completion bloom
                         ZStack {
                             artworkView(size: artworkSize, cornerRadius: artworkRadius)
                                 .rotation3DEffect(.degrees(showSurahList ? 180 : 0), axis: (x: 0, y: 1, z: 0))
@@ -129,6 +133,11 @@ struct ExpandablePlayerView: View {
                             surahListView(size: artworkSize)
                                 .rotation3DEffect(.degrees(showSurahList ? 0 : -180), axis: (x: 0, y: 1, z: 0))
                                 .opacity(showSurahList ? 1 : 0)
+
+                            // Particle bloom overlay — radiates from artwork center
+                            // when a surah finishes. Trigger token is the completed
+                            // surah number so each completion plays once.
+                            SurahCompleteBloom(trigger: bloomTrigger)
                         }
                         .frame(width: artworkSize, height: artworkSize)
                         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showSurahList)
@@ -220,6 +229,13 @@ struct ExpandablePlayerView: View {
             )
         }
         .ignoresSafeArea()
+        .onReceive(NotificationCenter.default.publisher(for: .surahCompleted)) { _ in
+            // Bump the bloom trigger so the particle bloom plays once on every
+            // surah completion. Lives here instead of in FullScreenPlayerContent
+            // so the artwork's overlay (which is in this view's hierarchy) sees
+            // the change directly.
+            bloomTrigger += 1
+        }
     }
 
     // MARK: - Capsule Handle

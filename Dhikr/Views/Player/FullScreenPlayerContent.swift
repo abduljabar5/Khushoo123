@@ -18,6 +18,12 @@ struct FullScreenPlayerContent: View {
     @Binding var isExpanded: Bool
     @State private var showSleepTimerSheet = false
     @State private var showAmbientSoundSheet = false
+
+    /// Heart pop animation state. heartScale springs to 1.3x then back to 1.0
+    /// (or 1.1 if liked) on tap. heartRippleOpacity fades a ring out behind.
+    @State private var heartScale: CGFloat = 1.0
+    @State private var heartRippleScale: CGFloat = 0.5
+    @State private var heartRippleOpacity: Double = 0
     @ObservedObject private var ambientSoundService = BackgroundSoundService.shared
     @StateObject private var subscriptionService = SubscriptionService.shared
     @AppStorage("showSleepTimer") private var showSleepTimer = true
@@ -139,17 +145,35 @@ struct FullScreenPlayerContent: View {
                     if let surah = audioPlayerService.currentSurah,
                        let reciter = audioPlayerService.currentReciter {
                         HapticManager.shared.impact(.medium)
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            audioPlayerService.toggleLike(surahNumber: surah.number, reciterIdentifier: reciter.identifier)
-                        }
+                        audioPlayerService.toggleLike(surahNumber: surah.number, reciterIdentifier: reciter.identifier)
+                        playHeartPop()
                     }
                 }) {
-                    Image(systemName: isCurrentSurahLiked() ? "heart.fill" : "heart")
-                        .font(.system(size: isIPad ? 26 : RS.fontSize(22), weight: .light))
-                        .foregroundColor(isCurrentSurahLiked() ? Color(red: 0.85, green: 0.4, blue: 0.4) : warmGray)
-                        .scaleEffect(isCurrentSurahLiked() ? 1.1 : 1.0)
+                    ZStack {
+                        // Ripple ring expanding behind the heart on tap.
+                        Circle()
+                            .stroke(Color(red: 0.85, green: 0.4, blue: 0.4), lineWidth: 1.5)
+                            .frame(width: isIPad ? 36 : RS.fontSize(32),
+                                   height: isIPad ? 36 : RS.fontSize(32))
+                            .scaleEffect(heartRippleScale)
+                            .opacity(heartRippleOpacity)
+                            .allowsHitTesting(false)
+
+                        Image(systemName: isCurrentSurahLiked() ? "heart.fill" : "heart")
+                            .font(.system(size: isIPad ? 26 : RS.fontSize(22), weight: .light))
+                            .foregroundColor(isCurrentSurahLiked() ? Color(red: 0.85, green: 0.4, blue: 0.4) : warmGray)
+                            .scaleEffect(heartScale)
+                    }
                 }
                 .buttonStyle(SacredPlayerButtonStyle())
+                .onAppear {
+                    // Settle to the resting scale for the current liked state.
+                    heartScale = isCurrentSurahLiked() ? 1.1 : 1.0
+                }
+                .onChange(of: audioPlayerService.currentSurah?.number) { _ in
+                    // New track loaded — snap heart to resting state for new context.
+                    heartScale = isCurrentSurahLiked() ? 1.1 : 1.0
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -333,5 +357,29 @@ struct FullScreenPlayerContent: View {
     private func formatSleepTime(_ seconds: TimeInterval) -> String {
         let minutes = Int(seconds) / 60
         return "\(minutes)m"
+    }
+
+    /// Heart pop: scale up + spring back, ripple ring expands and fades.
+    /// Plays on every tap (like AND unlike) for consistent tactile feedback.
+    private func playHeartPop() {
+        // Pop the heart up then settle to the (newly toggled) resting state.
+        let restingScale: CGFloat = isCurrentSurahLiked() ? 1.1 : 1.0
+        heartScale = restingScale
+        withAnimation(.spring(response: 0.18, dampingFraction: 0.55)) {
+            heartScale = 1.35
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                heartScale = restingScale
+            }
+        }
+
+        // Ripple ring expands and fades.
+        heartRippleScale = 0.5
+        heartRippleOpacity = 0.7
+        withAnimation(.easeOut(duration: 0.55)) {
+            heartRippleScale = 2.0
+            heartRippleOpacity = 0
+        }
     }
 }

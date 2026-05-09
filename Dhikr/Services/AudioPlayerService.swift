@@ -695,10 +695,15 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
     
     @objc private func playerDidFinishPlaying(note: NSNotification) {
-        
+
         if let surah = currentSurah {
             markSurahCompleted(surah)
         }
+
+        // Tell the player UI to play the celebratory particle bloom.
+        // Posted regardless of repeat/autoplay path so the moment is always
+        // marked.
+        NotificationCenter.default.post(name: .surahCompleted, object: currentSurah)
         if duration > 0 {
             addListeningTime(duration)
         }
@@ -1447,4 +1452,8 @@ extension Notification.Name {
     /// Posted when a free user crosses the 60-second preview cap on a premium reciter.
     /// MainTabView listens and shows the paywall sheet.
     static let showPremiumReciterPaywall = Notification.Name("showPremiumReciterPaywall")
+
+    /// Posted when a surah audio file finishes playing. The player UI listens
+    /// and animates a particle bloom around the album artwork.
+    static let surahCompleted = Notification.Name("surahCompleted")
 } 

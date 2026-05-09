@@ -492,6 +492,13 @@ struct SacredDhikrCard: View {
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showingInputSheet = false
 
+    /// Milestone halo state. Bumps when the count crosses a multiple of 100
+    /// or when the daily goal is hit. Calm gold expansion + fade.
+    @State private var milestoneHaloScale: CGFloat = 0.6
+    @State private var milestoneHaloOpacity: Double = 0
+    @State private var lastSeenMilestone: Int = 0
+    @State private var hasFiredGoalHalo: Bool = false
+
     private var theme: AppTheme { themeManager.theme }
 
     private var progress: Double {
@@ -525,9 +532,22 @@ struct SacredDhikrCard: View {
                     Button(action: {
                         showingInputSheet = true
                     }) {
-                        Text("\(count)")
-                            .font(.system(size: RS.fontSize(40), weight: .light))
-                            .foregroundColor(accentColor)
+                        ZStack {
+                            // Milestone halo — gold bloom when crossing a
+                            // multiple of 100 or hitting the daily goal.
+                            // Calibrated low frequency so it stays special.
+                            Circle()
+                                .fill(accentColor.opacity(0.35))
+                                .frame(width: 80, height: 80)
+                                .scaleEffect(milestoneHaloScale)
+                                .opacity(milestoneHaloOpacity)
+                                .blur(radius: 10)
+                                .allowsHitTesting(false)
+
+                            Text("\(count)")
+                                .font(.system(size: RS.fontSize(40), weight: .light))
+                                .foregroundColor(accentColor)
+                        }
                     }
 
                     Text("/ \(goal)")
@@ -631,6 +651,38 @@ struct SacredDhikrCard: View {
                     }
                 }
             )
+        }
+        .onAppear {
+            // Initialize milestone tracking so a card appearing with an
+            // already-large count doesn't immediately fire a halo.
+            lastSeenMilestone = count - (count % 100)
+            hasFiredGoalHalo = goal > 0 && count >= goal
+        }
+        .onChange(of: count) { newCount in
+            // Multiple-of-100 milestone (only forward progress).
+            let newMilestone = newCount - (newCount % 100)
+            if newMilestone > lastSeenMilestone && newMilestone > 0 {
+                lastSeenMilestone = newMilestone
+                fireMilestoneHalo()
+            }
+
+            // Daily goal hit — once per session per goal-state.
+            if goal > 0 && newCount >= goal && !hasFiredGoalHalo {
+                hasFiredGoalHalo = true
+                fireMilestoneHalo()
+            } else if newCount < goal {
+                // Reset so re-hitting fires again (e.g. goal raised).
+                hasFiredGoalHalo = false
+            }
+        }
+    }
+
+    private func fireMilestoneHalo() {
+        milestoneHaloScale = 0.6
+        milestoneHaloOpacity = 1.0
+        withAnimation(.easeOut(duration: 0.8)) {
+            milestoneHaloScale = 2.0
+            milestoneHaloOpacity = 0
         }
     }
 }

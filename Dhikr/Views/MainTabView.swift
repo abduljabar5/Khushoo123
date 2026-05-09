@@ -25,6 +25,10 @@ struct MainTabView: View {
     /// To gate later: replace with @AppStorage("hasSeenWhatsNew_v117") and
     /// flip in WhatsNewSheet.dismiss().
     @State private var showWhatsNew = true
+
+    /// Lower Gaze ripple trigger — bumps each time a panic session starts.
+    @StateObject private var panicService = PanicModeService.shared
+    @State private var lowerGazeStartTrigger: Int = 0
     @AppStorage("hasShownFeedbackPrompt") private var hasShownFeedbackPrompt = false
 
     private var shouldShowMiniPlayer: Bool {
@@ -130,6 +134,17 @@ struct MainTabView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .lowerGazeOpenVerse)) { _ in
             withAnimation { selectedTab = 0 }
+        }
+        .onChange(of: panicService.isActive) { isActive in
+            // Bump trigger on the false→true transition so the start ripple
+            // plays once per session.
+            if isActive {
+                lowerGazeStartTrigger += 1
+            }
+        }
+        .overlay {
+            LowerGazeStartRipple(trigger: lowerGazeStartTrigger)
+                .allowsHitTesting(false)
         }
         .onChange(of: audioPlayerService.shouldShowFullScreenPlayer) { shouldShow in
             if shouldShow && audioPlayerService.currentSurah != nil {
