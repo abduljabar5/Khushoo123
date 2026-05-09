@@ -16,6 +16,9 @@ struct LowerGazeBanner: View {
     @StateObject private var panicService = PanicModeService.shared
     @StateObject private var themeManager = ThemeManager.shared
     @State private var isExpanded = false
+    /// Tracks whether we've already auto-expanded this banner instance for
+    /// the current panic session. Reset whenever isActive flips false→true.
+    @State private var didAutoExpandForCurrentSession = false
 
     private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
     private var softGreen: Color { Color(red: 0.55, green: 0.68, blue: 0.55) }
@@ -84,6 +87,35 @@ struct LowerGazeBanner: View {
                             .stroke(sacredGold.opacity(0.25), lineWidth: 1)
                     )
             )
+            .onAppear {
+                // First render of this banner instance — if a session is
+                // already active (we just started one), auto-expand once so
+                // the cooloff CTAs are visible without a tap. User can still
+                // collapse if they don't want them.
+                autoExpandIfFirstSeenThisSession()
+            }
+            .onChange(of: panicService.isActive) { isActive in
+                if isActive {
+                    autoExpandIfFirstSeenThisSession()
+                } else {
+                    // Session ended; reset the flag so the next session also
+                    // gets the one-time auto-expand.
+                    didAutoExpandForCurrentSession = false
+                    isExpanded = false
+                }
+            }
+        }
+    }
+
+    private func autoExpandIfFirstSeenThisSession() {
+        guard panicService.isActive, !didAutoExpandForCurrentSession else { return }
+        didAutoExpandForCurrentSession = true
+        // Tiny delay so the spring animation reads as intentional rather than
+        // a flash of state on initial render.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                isExpanded = true
+            }
         }
     }
 

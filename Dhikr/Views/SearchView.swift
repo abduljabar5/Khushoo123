@@ -1931,11 +1931,13 @@ private struct SacredAdditionalSettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
 
-                // Lower Gaze — only visible when Haya is enabled. Shielded
-                // social-app block for moments of weakness; closes the gap
-                // where adult content slips past the Haya web filter via
-                // social-app native feeds.
-                if focusManager.hayaMode && !panicService.isActive {
+                // Lower Gaze — universal panic block for social media. Original
+                // framing was Haya-only (closes the gap where adult content
+                // slips past the web filter via in-app feeds), but the same
+                // mechanism is genuinely useful for any "doom-scroll cooloff"
+                // moment, not just Haya users. Now visible to everyone, gated
+                // only on the panic mode itself not currently being active.
+                if !panicService.isActive {
                     Divider().background(warmGray.opacity(0.2)).padding(.horizontal, 16)
 
                     Button(action: {
