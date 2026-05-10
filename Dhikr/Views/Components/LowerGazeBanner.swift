@@ -165,6 +165,15 @@ struct LowerGazeBanner: View {
         Button(action: {
             HapticManager.shared.impact(.light)
             action()
+            // Collapse the banner after picking a cooloff action — user has
+            // committed to a substitute activity, no need to keep the menu open.
+            // Tiny delay so the action's own UI work (tab switch, sheet open)
+            // lands first.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isExpanded = false
+                }
+            }
         }) {
             HStack(spacing: 12) {
                 ZStack {
