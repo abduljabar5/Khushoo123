@@ -24,6 +24,14 @@ struct AmbientSoundSheet: View {
             ? Color(red: 0.12, green: 0.13, blue: 0.15)
             : Color.white
     }
+    /// Sheet background. Matches LowerGazeSheet/FeedbackSheet/WhatsNewSheet
+    /// rather than the global theme.primaryBackground (which is navy #0A1628
+    /// and reads visibly blue against the neutral-dark other sheets).
+    private var pageBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11)
+            : Color(red: 0.96, green: 0.95, blue: 0.93)
+    }
 
     private let columns = [
         GridItem(.flexible(), spacing: 14),
@@ -34,7 +42,7 @@ struct AmbientSoundSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                themeManager.theme.primaryBackground.ignoresSafeArea()
+                pageBackground.ignoresSafeArea()
 
                 VStack(spacing: 24) {
                     Text("Layer a calming sound underneath your recitation")

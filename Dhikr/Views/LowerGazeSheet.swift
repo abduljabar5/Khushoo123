@@ -22,11 +22,24 @@ struct LowerGazeSheet: View {
 
     @State private var showAppPicker = false
     @State private var showScreenTimeDeniedAlert = false
-    /// Last-used duration is remembered between sessions so the picker pre-selects
-    /// the user's recent choice on subsequent opens. Stored in seconds. Default
-    /// 30 min on first run.
+    /// Last-used preset duration is remembered between sessions so the picker
+    /// pre-selects the user's recent choice on subsequent opens. Only preset
+    /// values are persisted — "Until next prayer" is moment-specific and not
+    /// meaningful to restore.
     @AppStorage("lowerGazeLastUsedDuration") private var lastUsedDuration: Double = 1800
-    @State private var selectedDuration: TimeInterval = 1800
+
+    /// Stable identifier for the currently-selected duration option. Tracking
+    /// by kind (not raw seconds) prevents "Until next prayer" from un-selecting
+    /// itself as the countdown ticks down between renders.
+    @State private var selectedKind: DurationKind = .preset(seconds: 1800)
+
+    /// Persistent identifier for each picker option. Presets carry their
+    /// fixed seconds value; untilNextPrayer is dynamic and recomputed at
+    /// start time.
+    private enum DurationKind: Equatable {
+        case preset(seconds: TimeInterval)
+        case untilNextPrayer
+    }
 
     private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
     private var softGreen: Color { Color(red: 0.55, green: 0.68, blue: 0.55) }
@@ -46,19 +59,27 @@ struct LowerGazeSheet: View {
             : Color.white
     }
 
-    /// Built-in presets. Until-next-prayer is dynamic.
+    /// Picker option. `kind` is the stable identifier for selection; the
+    /// `currentSeconds` value can drift between renders for untilNextPrayer
+    /// without affecting which option appears checked.
     private struct DurationOption: Identifiable {
-        let id = UUID()
+        var id: String {
+            switch kind {
+            case .preset(let s): return "preset_\(Int(s))"
+            case .untilNextPrayer: return "untilNextPrayer"
+            }
+        }
         let label: String
-        let seconds: TimeInterval
+        let kind: DurationKind
+        let currentSeconds: TimeInterval
     }
 
     private var durationOptions: [DurationOption] {
         var opts: [DurationOption] = [
-            DurationOption(label: "15 min", seconds: 15 * 60),
-            DurationOption(label: "30 min", seconds: 30 * 60),
-            DurationOption(label: "1 hour", seconds: 60 * 60),
-            DurationOption(label: "2 hours", seconds: 2 * 60 * 60),
+            DurationOption(label: "15 min", kind: .preset(seconds: 15 * 60), currentSeconds: 15 * 60),
+            DurationOption(label: "30 min", kind: .preset(seconds: 30 * 60), currentSeconds: 30 * 60),
+            DurationOption(label: "1 hour", kind: .preset(seconds: 60 * 60), currentSeconds: 60 * 60),
+            DurationOption(label: "2 hours", kind: .preset(seconds: 2 * 60 * 60), currentSeconds: 2 * 60 * 60),
         ]
         if let prayer = nextPrayerTime() {
             let secondsUntil = prayer.time.timeIntervalSinceNow
@@ -67,7 +88,8 @@ struct LowerGazeSheet: View {
             if secondsUntil > 5 * 60 {
                 opts.append(DurationOption(
                     label: "Until \(prayer.name) (\(formatPrayerWindow(secondsUntil)))",
-                    seconds: secondsUntil
+                    kind: .untilNextPrayer,
+                    currentSeconds: secondsUntil
                 ))
             }
         }
@@ -144,8 +166,10 @@ struct LowerGazeSheet: View {
                 if !showing { selectionModel.forceSave() }
             }
             .onAppear {
-                // Pre-select the user's last-used duration when the sheet opens.
-                selectedDuration = lastUsedDuration
+                // Pre-select the user's last-used preset duration. We don't
+                // restore "Until next prayer" — that's a moment-specific
+                // choice and the next prayer is different each open.
+                selectedKind = .preset(seconds: lastUsedDuration)
                 // Refresh auth status so the in-sheet banner reflects reality
                 // if the user revoked permission since last opening.
                 screenTimeAuth.updateAuthorizationStatus()
@@ -211,14 +235,14 @@ struct LowerGazeSheet: View {
             ForEach(durationOptions) { option in
                 Button(action: {
                     HapticManager.shared.selection()
-                    selectedDuration = option.seconds
+                    selectedKind = option.kind
                 }) {
                     HStack {
                         Text(option.label)
                             .font(.system(size: 15, weight: .regular))
                             .foregroundColor(themeManager.theme.primaryText)
                         Spacer()
-                        if abs(selectedDuration - option.seconds) < 1 {
+                        if selectedKind == option.kind {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(sacredGold)
                         } else {
@@ -234,7 +258,7 @@ struct LowerGazeSheet: View {
                             .overlay(
                                 RoundedRectangle(cornerRadius: 14)
                                     .stroke(
-                                        abs(selectedDuration - option.seconds) < 1
+                                        selectedKind == option.kind
                                             ? sacredGold.opacity(0.4)
                                             : sacredGold.opacity(0.1),
                                         lineWidth: 1
@@ -351,13 +375,34 @@ struct LowerGazeSheet: View {
                     return
                 }
 
-                guard PanicModeService.shared.start(duration: selectedDuration) else {
+                // Resolve the selected kind to a concrete seconds value AT START
+                // TIME so untilNextPrayer always reflects the true remaining
+                // window, not whatever was on screen when the user tapped.
+                let resolvedSeconds: TimeInterval
+                switch selectedKind {
+                case .preset(let seconds):
+                    resolvedSeconds = seconds
+                case .untilNextPrayer:
+                    if let prayer = nextPrayerTime() {
+                        resolvedSeconds = max(60, prayer.time.timeIntervalSinceNow)
+                    } else {
+                        // Prayer data unavailable at start — fall back to 30 min.
+                        resolvedSeconds = 30 * 60
+                    }
+                }
+
+                guard PanicModeService.shared.start(duration: resolvedSeconds) else {
                     // Selection became empty between picker and start — re-prompt
                     showAppPicker = true
                     return
                 }
-                // Remember this choice so the next session pre-selects it.
-                lastUsedDuration = selectedDuration
+
+                // Only persist preset durations. untilNextPrayer is moment-
+                // specific and shouldn't be restored next time the sheet opens.
+                if case .preset(let seconds) = selectedKind {
+                    lastUsedDuration = seconds
+                }
+
                 HapticManager.shared.notification(.success)
                 dismiss()
             }
