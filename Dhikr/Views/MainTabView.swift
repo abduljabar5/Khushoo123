@@ -20,11 +20,18 @@ struct MainTabView: View {
     @State private var showPaywall = false
     @State private var showShareReferralPopup = false
     @State private var showFeedbackPrompt = false
-    /// Shows on every cold start while we're testing 1.1.7. Process-state
-    /// resets on force-close, so this naturally triggers per cold launch.
-    /// To gate later: replace with @AppStorage("hasSeenWhatsNew_v117") and
-    /// flip in WhatsNewSheet.dismiss().
-    @State private var showWhatsNew = true
+    /// Shows once per user per major version. Flips to true via @AppStorage
+    /// when the user dismisses WhatsNewSheet. Bump the storage key suffix
+    /// (e.g. v118) when the next version's sheet is ready to surface.
+    @AppStorage("hasSeenWhatsNew_v117") private var hasSeenWhatsNew: Bool = false
+    private var showWhatsNew: Binding<Bool> {
+        Binding(
+            get: { !hasSeenWhatsNew },
+            set: { newValue in
+                if !newValue { hasSeenWhatsNew = true }
+            }
+        )
+    }
 
     /// Lower Gaze ripple trigger — bumps each time a panic session starts.
     @StateObject private var panicService = PanicModeService.shared
@@ -103,7 +110,7 @@ struct MainTabView: View {
                 showPaywall = true
             })
         }
-        .sheet(isPresented: $showWhatsNew) {
+        .sheet(isPresented: showWhatsNew) {
             WhatsNewSheet()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)

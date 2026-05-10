@@ -18,6 +18,10 @@ struct WhatsNewSheet: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var quranAPIService = QuranAPIService.shared
     @StateObject private var audioPlayerService = AudioPlayerService.shared
+    /// Persistent flag flipped to true on first dismiss. MainTabView gates
+    /// presentation on the inverse so the sheet shows exactly once per user
+    /// per major version. Bump the key suffix on subsequent versions.
+    @AppStorage("hasSeenWhatsNew_v117") private var hasSeenWhatsNew: Bool = false
 
     private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
     private var softGreen: Color { Color(red: 0.55, green: 0.68, blue: 0.55) }
@@ -69,7 +73,10 @@ struct WhatsNewSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { dismiss() }) {
+                    Button(action: {
+                        hasSeenWhatsNew = true
+                        dismiss()
+                    }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
                             .foregroundColor(warmGray.opacity(0.6))
@@ -229,13 +236,17 @@ struct WhatsNewSheet: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 bulletRow(icon: "eye.slash", title: "Lower Gaze",
-                    body: "When you feel tempted, block social apps for as long as you need. Available with Haya Mode.")
+                    body: "When you feel tempted, block social apps for as long as you need. Free for everyone.")
                 bulletRow(icon: "magnifyingglass", title: "Browse every reciter",
                     body: "Free 60-second preview on premium reciters. Search and discover without signing up.")
                 bulletRow(icon: "person.crop.circle.badge.plus", title: "Request a reciter",
-                    body: "Suggest who you'd love to hear next — we review weekly.")
-                bulletRow(icon: "wrench.adjustable", title: "Stability fixes",
-                    body: "Resolved a crash on track auto-advance and tightened search.")
+                    body: "Suggest who you'd love to hear next — we review every week.")
+                bulletRow(icon: "star.circle", title: "Daily Spotlight",
+                    body: "A new featured reciter every day. Same one for everyone — share what you discover.")
+                bulletRow(icon: "sparkles", title: "Beautiful new touches",
+                    body: "Animations across the player, dhikr counter, and prayer schedule make the app feel more alive.")
+                bulletRow(icon: "bolt", title: "Faster + more stable",
+                    body: "Quicker cold starts and fixed a crash some users hit on track auto-advance.")
             }
         }
     }
@@ -275,6 +286,7 @@ struct WhatsNewSheet: View {
     private var dismissButton: some View {
         Button(action: {
             HapticManager.shared.impact(.light)
+            hasSeenWhatsNew = true
             dismiss()
         }) {
             Text("Got it")
@@ -302,6 +314,7 @@ struct WhatsNewSheet: View {
             await MainActor.run {
                 audioPlayerService.load(surah: surah, reciter: reciter)
                 audioPlayerService.shouldShowFullScreenPlayer = true
+                hasSeenWhatsNew = true
                 dismiss()
             }
         }
