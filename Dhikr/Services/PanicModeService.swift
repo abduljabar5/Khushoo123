@@ -97,6 +97,10 @@ class PanicModeService: ObservableObject {
         groupDefaults?.synchronize()
 
         startTicker()
+
+        // Analytics — captures adoption + which durations are popular.
+        AnalyticsService.shared.trackLowerGazeStarted(durationSeconds: duration)
+
         return true
     }
 

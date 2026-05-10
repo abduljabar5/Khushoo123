@@ -220,6 +220,7 @@ struct SearchView: View {
                     // there next to the locked controls.
                     if !subscriptionService.hasPremiumAccess {
                         SacredUpgradeBanner {
+                            AnalyticsService.shared.setPaywallSource("focusTabBanner")
                             NotificationCenter.default.post(name: .requestPaywall, object: nil)
                         }
                         .padding(.horizontal, RS.horizontalPadding)

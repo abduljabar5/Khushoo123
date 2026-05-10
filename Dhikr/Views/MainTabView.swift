@@ -107,6 +107,7 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showShareReferralPopup) {
             ShareReferralPopup(isPresented: $showShareReferralPopup, onUpgrade: {
+                AnalyticsService.shared.setPaywallSource("referralPopup")
                 showPaywall = true
             })
         }

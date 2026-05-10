@@ -580,6 +580,7 @@ struct PrayerTimeView: View {
                         if subscriptionService.hasPremiumAccess {
                             viewModel.togglePrayerCompletion(for: prayer.name)
                         } else {
+                            AnalyticsService.shared.setPaywallSource("prayerCompletionToggle")
                             showingPaywall = true
                         }
                     }

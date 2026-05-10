@@ -13,7 +13,22 @@ final class AnalyticsService {
 
     private let defaults = UserDefaults.standard
 
+    /// The UI surface that triggered the most recent paywall display. Set by
+    /// each paywall-trigger path so subsequent paywallViewed and
+    /// subscriptionStarted events carry attribution. Reset to nil when the
+    /// paywall is explicitly dismissed without conversion (optional).
+    private var currentPaywallSource: String?
+
     private init() {}
+
+    // MARK: - Paywall Source Attribution
+
+    /// Call this from any code path that opens the paywall, BEFORE showing it.
+    /// Common sources: "focusTabLocked", "reciterPreview", "hayaEnable",
+    /// "lowerGazeUpgrade", "lockedFeatureTap".
+    func setPaywallSource(_ source: String) {
+        currentPaywallSource = source
+    }
 
     // MARK: - Configuration
 
@@ -67,9 +82,18 @@ final class AnalyticsService {
         trackOnce("Feature.notificationsEnabled")
     }
 
-    /// Quran audio played
+    /// Quran audio played (lifetime once)
     func trackQuranAudioPlayed() {
         trackOnce("Engagement.quranPlayed")
+    }
+
+    /// Lower Gaze panic session started. Fires every time, with duration
+    /// (seconds) as a parameter so we can see which presets are most popular.
+    func trackLowerGazeStarted(durationSeconds: TimeInterval) {
+        TelemetryDeck.signal(
+            "Feature.lowerGazeStarted",
+            parameters: ["durationSeconds": String(Int(durationSeconds))]
+        )
     }
 
     /// Shared the app via referral
@@ -118,9 +142,14 @@ final class AnalyticsService {
 
     // MARK: - Conversion Events
 
-    /// Paywall viewed
+    /// Paywall viewed. Includes the source surface that triggered it, set
+    /// via setPaywallSource before display.
     func trackPaywallViewed() {
-        TelemetryDeck.signal("Conversion.paywallViewed")
+        var params: [String: String] = [:]
+        if let source = currentPaywallSource {
+            params["source"] = source
+        }
+        TelemetryDeck.signal("Conversion.paywallViewed", parameters: params)
     }
 
     /// Free user saw a locked feature overlay
@@ -128,9 +157,24 @@ final class AnalyticsService {
         TelemetryDeck.signal("Conversion.featureLocked", parameters: ["feature": feature])
     }
 
-    /// Subscription started
+    /// Free user crossed the 60-second preview cap on a premium reciter.
+    /// High-intent moment — the paywall fires immediately after this.
+    func trackPreviewCapHit(reciter: String) {
+        TelemetryDeck.signal(
+            "Conversion.previewCapHit",
+            parameters: ["reciter": reciter]
+        )
+    }
+
+    /// Subscription started. NOT trackOnce — we want every conversion logged
+    /// with its own source attribution. Source is the UI surface that led
+    /// to the paywall (focusTabLocked, reciterPreview, hayaEnable, etc.).
     func trackSubscriptionStarted(productId: String) {
-        trackOnce("Conversion.subscriptionStarted")
+        var params: [String: String] = ["productId": productId]
+        if let source = currentPaywallSource {
+            params["source"] = source
+        }
+        TelemetryDeck.signal("Conversion.subscriptionStarted", parameters: params)
     }
 
     /// Subscription cancelled

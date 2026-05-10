@@ -476,7 +476,10 @@ struct ProfileView: View {
 
     // MARK: - Subscription Prompt
     private var subscriptionPromptCard: some View {
-        Button(action: { showingPaywall = true }) {
+        Button(action: {
+            AnalyticsService.shared.setPaywallSource("profilePrompt")
+            showingPaywall = true
+        }) {
             HStack(spacing: 16) {
                 Circle()
                     .fill(sacredGold.opacity(0.15))

@@ -646,6 +646,15 @@ class AudioPlayerService: NSObject, ObservableObject {
         // Don't seek to 0 — that would give a fresh 60s next time play() is called.
         // play() guards against resuming an expired item, so the user must upgrade
         // or switch tracks to keep listening.
+
+        // Analytics — high-intent moment, captures which reciters drive the most
+        // conversion intent. Set source attribution so downstream subscription
+        // events know this paywall came from the preview cap.
+        if let reciterName = currentReciter?.englishName {
+            AnalyticsService.shared.trackPreviewCapHit(reciter: reciterName)
+        }
+        AnalyticsService.shared.setPaywallSource("reciterPreview")
+
         NotificationCenter.default.post(
             name: .showPremiumReciterPaywall,
             object: currentReciter

@@ -34,6 +34,7 @@ struct LockedPremiumContent<Content: View>: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         HapticManager.shared.impact(.light)
+                        AnalyticsService.shared.setPaywallSource("lockedFeatureTap")
                         NotificationCenter.default.post(name: .requestPaywall, object: nil)
                     }
 
