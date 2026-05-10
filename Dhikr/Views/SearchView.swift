@@ -81,12 +81,12 @@ struct SearchView: View {
         ZStack {
             pageBackground.ignoresSafeArea()
 
+            // Focus tab is now browseable by free users — premium gating happens
+            // at the per-control level (LockedPremiumContent wraps + paywall on
+            // tap). Only blur/overlay still in play is the Screen Time
+            // permission prompt for users who upgraded but haven't granted yet.
             mainContent
-                .blur(radius: subscriptionService.hasPremiumAccess && screenTimeAuth.isAuthorized ? 0 : 10)
-
-            if !subscriptionService.hasPremiumAccess {
-                PremiumLockedView(feature: .focus)
-            }
+                .blur(radius: subscriptionService.hasPremiumAccess && !screenTimeAuth.isAuthorized ? 10 : 0)
 
             if subscriptionService.hasPremiumAccess && !screenTimeAuth.isAuthorized {
                 SacredScreenTimePermissionOverlay(screenTimeAuth: screenTimeAuth)
@@ -215,11 +215,50 @@ struct SearchView: View {
                         .padding(.horizontal, RS.horizontalPadding)
                     }
 
+                    // Free-user banner explaining what's locked below.
+                    // Only shown when not premium so the upgrade story is right
+                    // there next to the locked controls.
+                    if !subscriptionService.hasPremiumAccess {
+                        SacredUpgradeBanner {
+                            NotificationCenter.default.post(name: .requestPaywall, object: nil)
+                        }
+                        .padding(.horizontal, RS.horizontalPadding)
+                    }
+
                     // Select Prayers
-                    SacredPrayerToggleSection(
-                        focusManager: focusManager,
-                        showOverlayWhenEmpty: true,
-                        onSelectApps: {
+                    LockedPremiumContent(isLocked: !subscriptionService.hasPremiumAccess) {
+                        SacredPrayerToggleSection(
+                            focusManager: focusManager,
+                            showOverlayWhenEmpty: true,
+                            onSelectApps: {
+                                Task {
+                                    let success = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
+                                    if success {
+                                        await MainActor.run {
+                                            showingAppPicker = true
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    .padding(.horizontal, RS.horizontalPadding)
+
+                    // Blocking Duration
+                    LockedPremiumContent(isLocked: !subscriptionService.hasPremiumAccess) {
+                        SacredBlockingDurationView(duration: $focusManager.blockingDuration)
+                    }
+                    .padding(.horizontal, RS.horizontalPadding)
+
+                    // Pre-Prayer Buffer
+                    LockedPremiumContent(isLocked: !subscriptionService.hasPremiumAccess) {
+                        SacredPrePrayerBufferView(buffer: $focusManager.prePrayerBuffer)
+                    }
+                    .padding(.horizontal, RS.horizontalPadding)
+
+                    // App Selection
+                    LockedPremiumContent(isLocked: !subscriptionService.hasPremiumAccess) {
+                        SacredSelectAppsView {
                             Task {
                                 let success = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
                                 if success {
@@ -229,42 +268,24 @@ struct SearchView: View {
                                 }
                             }
                         }
-                    )
-                    .padding(.horizontal, RS.horizontalPadding)
-
-                    // Blocking Duration
-                    SacredBlockingDurationView(duration: $focusManager.blockingDuration)
-                        .padding(.horizontal, RS.horizontalPadding)
-
-                    // Pre-Prayer Buffer
-                    SacredPrePrayerBufferView(buffer: $focusManager.prePrayerBuffer)
-                        .padding(.horizontal, RS.horizontalPadding)
-
-                    // App Selection
-                    SacredSelectAppsView {
-                        Task {
-                            let success = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
-                            if success {
-                                await MainActor.run {
-                                    showingAppPicker = true
-                                }
-                            }
-                        }
                     }
                     .padding(.horizontal, RS.horizontalPadding)
 
-                    // Screen Time denied warning
-                    if screenTimeAuth.authorizationStatus == .denied {
+                    // Screen Time denied warning (premium-only signal — only
+                    // relevant once the user has actually upgraded)
+                    if subscriptionService.hasPremiumAccess && screenTimeAuth.authorizationStatus == .denied {
                         SacredScreenTimeWarning()
                             .padding(.horizontal, RS.horizontalPadding)
                     }
 
-                    // Additional Settings
-                    SacredAdditionalSettingsView(
-                        strictMode: $focusManager.strictMode,
-                        prePrayerNotification: $focusManager.prayerRemindersEnabled,
-                        showingConfirmationSheet: $showingUnlockConfirmation
-                    )
+                    // Additional Settings (strict mode, Haya, pre-prayer notif)
+                    LockedPremiumContent(isLocked: !subscriptionService.hasPremiumAccess) {
+                        SacredAdditionalSettingsView(
+                            strictMode: $focusManager.strictMode,
+                            prePrayerNotification: $focusManager.prayerRemindersEnabled,
+                            showingConfirmationSheet: $showingUnlockConfirmation
+                        )
+                    }
                     .padding(.horizontal, RS.horizontalPadding)
 
                     BlockedCountFooter()
@@ -573,6 +594,75 @@ private struct SacredSettingsLockedBanner: View {
                 )
         )
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Sacred Upgrade Banner
+
+/// Inline upgrade prompt shown to free users above the locked Focus settings.
+/// Replaces the old full-screen PremiumLockedView overlay — controls below
+/// remain visible-but-locked so users see what they'd be unlocking.
+private struct SacredUpgradeBanner: View {
+    let onTap: () -> Void
+
+    @StateObject private var themeManager = ThemeManager.shared
+
+    private var sacredGold: Color { Color(red: 0.77, green: 0.65, blue: 0.46) }
+    private var warmGray: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.4, green: 0.4, blue: 0.42)
+            : Color(red: 0.6, green: 0.58, blue: 0.55)
+    }
+    private var cardBackground: Color {
+        themeManager.effectiveTheme == .dark
+            ? Color(red: 0.12, green: 0.13, blue: 0.15)
+            : Color.white
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(sacredGold.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "lock.open.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(sacredGold)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("UPGRADE")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.5)
+                        .foregroundColor(sacredGold)
+                    Text("Unlock prayer-time blocking")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(themeManager.theme.primaryText)
+                    Text("Auto-block apps during prayer · Strict mode · Haya")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(warmGray)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(sacredGold)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(cardBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(sacredGold.opacity(0.4), lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

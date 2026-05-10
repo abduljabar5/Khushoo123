@@ -1456,4 +1456,10 @@ extension Notification.Name {
     /// Posted when a surah audio file finishes playing. The player UI listens
     /// and animates a particle bloom around the album artwork.
     static let surahCompleted = Notification.Name("surahCompleted")
+
+    /// Generic "show the paywall" trigger. Used by free-user tap on premium-
+    /// gated controls (Focus tab toggles, Haya, etc.). MainTabView listens
+    /// and presents PaywallView. Centralized so any view can trigger from
+    /// anywhere in the hierarchy without prop drilling.
+    static let requestPaywall = Notification.Name("requestPaywall")
 } 

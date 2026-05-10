@@ -129,6 +129,13 @@ struct MainTabView: View {
             guard !subscriptionService.hasPremiumAccess else { return }
             showPaywall = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .requestPaywall)) { _ in
+            // Generic paywall trigger fired by free-user taps on premium-gated
+            // controls (Focus tab toggles, sliders, etc.). Same defensive
+            // re-check pattern.
+            guard !subscriptionService.hasPremiumAccess else { return }
+            showPaywall = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: .lowerGazeOpenDhikr)) { _ in
             withAnimation { selectedTab = 2 }
         }
