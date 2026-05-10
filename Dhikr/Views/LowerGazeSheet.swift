@@ -18,8 +18,10 @@ struct LowerGazeSheet: View {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var panicService = PanicModeService.shared
     @StateObject private var selectionModel = PanicAppSelectionModel.shared
+    @StateObject private var screenTimeAuth = ScreenTimeAuthorizationService.shared
 
     @State private var showAppPicker = false
+    @State private var showScreenTimeDeniedAlert = false
     /// Last-used duration is remembered between sessions so the picker pre-selects
     /// the user's recent choice on subsequent opens. Stored in seconds. Default
     /// 30 min on first run.
@@ -144,6 +146,19 @@ struct LowerGazeSheet: View {
             .onAppear {
                 // Pre-select the user's last-used duration when the sheet opens.
                 selectedDuration = lastUsedDuration
+                // Refresh auth status so the in-sheet banner reflects reality
+                // if the user revoked permission since last opening.
+                screenTimeAuth.updateAuthorizationStatus()
+            }
+            .alert("Screen Time Access Required", isPresented: $showScreenTimeDeniedAlert) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Lower Gaze needs Screen Time access to block apps. Enable it in Settings → Screen Time → Khushoo.")
             }
         }
     }
@@ -164,7 +179,7 @@ struct LowerGazeSheet: View {
 
             Button(action: {
                 HapticManager.shared.impact(.light)
-                showAppPicker = true
+                requestAuthThenShowPicker()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle")
@@ -251,7 +266,7 @@ struct LowerGazeSheet: View {
     }
 
     private var changeAppsLink: some View {
-        Button(action: { showAppPicker = true }) {
+        Button(action: { requestAuthThenShowPicker() }) {
             Text(selectionModel.hasSelection ? "Change apps to block" : "Add apps to block")
                 .font(.system(size: 12))
                 .foregroundColor(warmGray)
@@ -290,7 +305,7 @@ struct LowerGazeSheet: View {
 
             Button(action: {
                 HapticManager.shared.impact(.light)
-                showAppPicker = true
+                requestAuthThenShowPicker()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle.fill")
@@ -326,15 +341,43 @@ struct LowerGazeSheet: View {
     // MARK: - Actions
 
     private func startSession() {
-        guard PanicModeService.shared.start(duration: selectedDuration) else {
-            // Selection became empty between picker and start — re-prompt
-            showAppPicker = true
-            return
+        // Request Screen Time auth if not already granted — without it, the
+        // shields silently fail to apply.
+        Task {
+            let granted = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
+            await MainActor.run {
+                if !granted {
+                    showScreenTimeDeniedAlert = true
+                    return
+                }
+
+                guard PanicModeService.shared.start(duration: selectedDuration) else {
+                    // Selection became empty between picker and start — re-prompt
+                    showAppPicker = true
+                    return
+                }
+                // Remember this choice so the next session pre-selects it.
+                lastUsedDuration = selectedDuration
+                HapticManager.shared.notification(.success)
+                dismiss()
+            }
         }
-        // Remember this choice so the next session pre-selects it.
-        lastUsedDuration = selectedDuration
-        HapticManager.shared.notification(.success)
-        dismiss()
+    }
+
+    /// Request Screen Time auth, then open the FamilyActivityPicker if granted.
+    /// Without auth, the picker shows an empty/error state — bad UX. Routing
+    /// every entry point through this helper makes the contract explicit.
+    private func requestAuthThenShowPicker() {
+        Task {
+            let granted = await screenTimeAuth.requestAuthorizationIfNeededWithErrorHandling()
+            await MainActor.run {
+                if granted {
+                    showAppPicker = true
+                } else {
+                    showScreenTimeDeniedAlert = true
+                }
+            }
+        }
     }
 
     // MARK: - Next-Prayer Helper
