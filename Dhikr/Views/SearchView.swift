@@ -2046,9 +2046,7 @@ private struct SacredAdditionalSettingsView: View {
     @State private var showingHayaModeDisableStep1Alert = false
     @State private var showingHayaModeDisableStep2Alert = false
     @State private var showingLowerGazeSheet = false
-    @State private var showingPanicAppPickerAfterHaya = false
     @StateObject private var panicService = PanicModeService.shared
-    @StateObject private var panicSelection = PanicAppSelectionModel.shared
     // Timer for Haya Mode countdown
     private let hayaModeTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
@@ -2288,25 +2286,10 @@ private struct SacredAdditionalSettingsView: View {
         .alert("Enable Haya Mode?", isPresented: $showingHayaModeEnableAlert) {
             Button("Enable", role: .destructive) {
                 focusManager.hayaMode = true
-                // If the user hasn't yet configured Lower Gaze app blocks,
-                // prompt them now while they're in setup mode. Far better
-                // than asking later in a moment of weakness.
-                if !panicSelection.hasSelection {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        showingPanicAppPickerAfterHaya = true
-                    }
-                }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Haya Mode blocks adult content to help you maintain modesty and focus.\n\nOnce enabled, it takes 48 hours to disable. This waiting period helps you stay committed during moments of weakness.")
-        }
-        .familyActivityPicker(
-            isPresented: $showingPanicAppPickerAfterHaya,
-            selection: $panicSelection.selection
-        )
-        .onChange(of: showingPanicAppPickerAfterHaya) { showing in
-            if !showing { panicSelection.forceSave() }
         }
         // Haya Mode - Disable Step 1 (Guilt)
         .alert("Remember Your Intention", isPresented: $showingHayaModeDisableStep1Alert) {
