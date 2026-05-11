@@ -90,6 +90,10 @@ struct AmbientSoundSheet: View {
                 }
             }
         }
+        .tint(sacredGold) // Override iOS's default system blue on any
+                          // default-tinted controls (drag indicator interactions,
+                          // unset slider tints, system overlays) so the sheet
+                          // stays on-brand.
         .preferredColorScheme(themeManager.currentTheme == .auto ? nil : (themeManager.effectiveTheme == .dark ? .dark : .light))
     }
 
