@@ -34,6 +34,17 @@ class ShieldActionExtension: ShieldActionDelegate {
             groupDefaults.set(current + 1, forKey: "totalAppBlocks")
         }
 
+        // Lower Gaze sessions have no early unlock — the shield UI doesn't
+        // render any buttons during a panic block, but iOS may still route
+        // gesture-level actions here. Always defer so the user can't bypass.
+        if let lowerGazeEndTs = groupDefaults?.object(forKey: "panicModeEndTime") as? TimeInterval {
+            let endTime = Date(timeIntervalSince1970: lowerGazeEndTs)
+            if endTime > Date() {
+                completionHandler(.defer)
+                return
+            }
+        }
+
         switch action {
         case .primaryButtonPressed:
             if isStrictMode {

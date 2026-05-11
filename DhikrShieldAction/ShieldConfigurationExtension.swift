@@ -30,6 +30,19 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     private func createConfiguration() -> ShieldConfiguration {
         let groupDefaults = UserDefaults(suiteName: "group.fm.mrc.Dhikr")
+
+        // Lower Gaze sessions use a different named ManagedSettingsStore but
+        // the system still calls into this single shield extension for any
+        // blocked app. Detect Lower Gaze by checking the saved endTime — if
+        // it's in the future, this block was triggered by Lower Gaze, not by
+        // prayer-time scheduling. Render a different shield for that context.
+        if let lowerGazeEndTs = groupDefaults?.object(forKey: "panicModeEndTime") as? TimeInterval {
+            let endTime = Date(timeIntervalSince1970: lowerGazeEndTs)
+            if endTime > Date() {
+                return makeLowerGazeConfiguration(endTime: endTime)
+            }
+        }
+
         let isStrictMode = groupDefaults?.bool(forKey: "focusStrictMode") ?? false
 
         // Get context
@@ -129,7 +142,52 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             )
         }
     }
-    
+
+    /// Shield variant shown to users who hit a blocked app during an active
+    /// Lower Gaze (panic) session. Reframes the block as a self-imposed
+    /// commitment rather than a prayer-time interruption — the user chose
+    /// this lockout knowingly and can't end it early, so the copy stays
+    /// supportive instead of asking them to "open Khushoo and pray."
+    private func makeLowerGazeConfiguration(endTime: Date) -> ShieldConfiguration {
+        let sacredGold = UIColor(red: 0.77, green: 0.65, blue: 0.46, alpha: 1.0)
+        let backgroundColor = UIColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1.0)
+        let titleColor = UIColor.white
+        let subtitleColor = UIColor(white: 0.7, alpha: 1.0)
+
+        // Time-remaining string. Show hours+minutes if >= 60 min remain,
+        // minutes otherwise.
+        let remaining = max(0, endTime.timeIntervalSince(Date()))
+        let totalMinutes = Int(remaining / 60)
+        let timeString: String
+        if totalMinutes >= 60 {
+            let hours = totalMinutes / 60
+            let minutes = totalMinutes % 60
+            timeString = minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        } else {
+            timeString = "\(max(1, totalMinutes))m"
+        }
+
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        let unlockAt = formatter.string(from: endTime)
+
+        return ShieldConfiguration(
+            backgroundBlurStyle: .systemUltraThinMaterialDark,
+            backgroundColor: backgroundColor,
+            icon: UIImage(systemName: "eye.slash.fill")?.withTintColor(sacredGold, renderingMode: .alwaysOriginal),
+            title: ShieldConfiguration.Label(text: "Lower Gaze", color: titleColor),
+            subtitle: ShieldConfiguration.Label(
+                text: "You chose to step away. \(timeString) remaining · unlocks at \(unlockAt).",
+                color: subtitleColor
+            ),
+            // No primary button — Lower Gaze cannot be ended early. The shield
+            // is a soft wall; iOS provides the dismiss gesture but no unlock.
+            primaryButtonLabel: nil,
+            primaryButtonBackgroundColor: nil,
+            secondaryButtonLabel: nil
+        )
+    }
+
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         return createConfiguration()
     }
