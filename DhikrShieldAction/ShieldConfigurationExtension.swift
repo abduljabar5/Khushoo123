@@ -175,9 +175,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             backgroundBlurStyle: .systemUltraThinMaterialDark,
             backgroundColor: backgroundColor,
             icon: UIImage(systemName: "eye.slash.fill")?.withTintColor(sacredGold, renderingMode: .alwaysOriginal),
-            title: ShieldConfiguration.Label(text: "Lower Gaze", color: titleColor),
+            // Title is intentionally NOT the feature name ("Lower Gaze") — that
+            // can read preachy in the temptation moment when the shield slides
+            // over Instagram/TikTok. Use supportive, universal copy that
+            // affirms the user's choice without religious framing.
+            title: ShieldConfiguration.Label(text: "Take a Break", color: titleColor),
             subtitle: ShieldConfiguration.Label(
-                text: "You chose to step away. \(timeString) remaining · unlocks at \(unlockAt).",
+                text: "\(timeString) remaining · unlocks at \(unlockAt)",
                 color: subtitleColor
             ),
             // No primary button — Lower Gaze cannot be ended early. The shield
