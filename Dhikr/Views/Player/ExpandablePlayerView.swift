@@ -142,6 +142,13 @@ struct ExpandablePlayerView: View {
                         .frame(width: artworkSize, height: artworkSize)
                         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showSurahList)
 
+                        // iPad has way more vertical space than iPhone — push
+                        // controls down so they don't strand in the middle
+                        // with a huge empty section below them.
+                        if isIPad {
+                            Spacer(minLength: 30)
+                        }
+
                         // Full-screen controls
                         FullScreenPlayerContent(
                             progress: audioPlayerService.progress,

@@ -100,24 +100,24 @@ struct FullScreenPlayerContent: View {
                 VStack(spacing: RS.spacing(10)) {
                     if let surah = audioPlayerService.currentSurah {
                         Text(surah.name)
-                            .font(.system(size: isIPad ? 20 : RS.fontSize(16), weight: .regular, design: .serif))
+                            .font(.system(size: isIPad ? 26 : RS.fontSize(16), weight: .regular, design: .serif))
                             .foregroundColor(warmGray)
                     }
 
                     HStack(spacing: RS.spacing(8)) {
                         Text(audioPlayerService.currentSurah?.englishName ?? "")
-                            .font(.system(size: isIPad ? 26 : RS.fontSize(22), weight: .light))
+                            .font(.system(size: isIPad ? 36 : RS.fontSize(22), weight: .light))
                             .foregroundColor(themeManager.theme.primaryText)
                             .lineLimit(1)
 
                         Image(systemName: showSurahList ? "chevron.up" : "chevron.down")
-                            .font(.system(size: RS.fontSize(12), weight: .light))
+                            .font(.system(size: isIPad ? 16 : RS.fontSize(12), weight: .light))
                             .foregroundColor(warmGray)
                     }
 
                     HStack(spacing: 8) {
                         Text(audioPlayerService.currentReciter?.englishName ?? "")
-                            .font(.system(size: isIPad ? 16 : RS.fontSize(14), weight: .light))
+                            .font(.system(size: isIPad ? 20 : RS.fontSize(14), weight: .light))
                             .foregroundColor(warmGray)
                             .lineLimit(1)
 
@@ -205,13 +205,13 @@ struct FullScreenPlayerContent: View {
 
     // MARK: - Transport Controls
     private var transportControls: some View {
-        HStack(spacing: isIPad ? 80 : RS.spacing(60)) {
+        HStack(spacing: isIPad ? 100 : RS.spacing(60)) {
             Button(action: {
                 HapticManager.shared.impact(.light)
                 audioPlayerService.previousTrack()
             }) {
                 Image(systemName: "backward.fill")
-                    .font(.system(size: isIPad ? 32 : RS.fontSize(26), weight: .light))
+                    .font(.system(size: isIPad ? 42 : RS.fontSize(26), weight: .light))
                     .foregroundColor(themeManager.theme.primaryText)
             }
             .buttonStyle(SacredPlayerButtonStyle())
@@ -223,10 +223,10 @@ struct FullScreenPlayerContent: View {
                 ZStack {
                     Circle()
                         .fill(sacredGold)
-                        .frame(width: isIPad ? 85 : RS.dimension(72), height: isIPad ? 85 : RS.dimension(72))
+                        .frame(width: isIPad ? 110 : RS.dimension(72), height: isIPad ? 110 : RS.dimension(72))
                         .shadow(color: sacredGold.opacity(0.4), radius: 15, x: 0, y: 8)
                     Image(systemName: audioPlayerService.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: isIPad ? 32 : RS.fontSize(28)))
+                        .font(.system(size: isIPad ? 42 : RS.fontSize(28)))
                         .foregroundColor(themeManager.effectiveTheme == .dark ? .black : .white)
                         .offset(x: audioPlayerService.isPlaying ? 0 : 2)
                 }
@@ -238,24 +238,24 @@ struct FullScreenPlayerContent: View {
                 audioPlayerService.nextTrack()
             }) {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: isIPad ? 32 : RS.fontSize(26), weight: .light))
+                    .font(.system(size: isIPad ? 42 : RS.fontSize(26), weight: .light))
                     .foregroundColor(themeManager.theme.primaryText)
             }
             .buttonStyle(SacredPlayerButtonStyle())
         }
-        .padding(.vertical, isIPad ? 20 : RS.spacing(10))
+        .padding(.vertical, isIPad ? 32 : RS.spacing(10))
     }
 
     // MARK: - Bottom Controls (Shuffle / Sleep / Ambient / Repeat)
     private func bottomControls(horizontalPadding: CGFloat) -> some View {
-        HStack(spacing: isIPad ? 50 : RS.spacing(38)) {
+        HStack(spacing: isIPad ? 70 : RS.spacing(38)) {
             Button(action: {
                 HapticManager.shared.selection()
                 audioPlayerService.toggleShuffle()
             }) {
                 VStack(spacing: RS.spacing(6)) {
                     Image(systemName: "shuffle")
-                        .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
+                        .font(.system(size: isIPad ? 30 : RS.fontSize(18), weight: .light))
                         .foregroundColor(audioPlayerService.isShuffleEnabled ? sacredGold : warmGray)
                         .offset(y: audioPlayerService.isShuffleEnabled ? -2 : 0)
                         .animation(.easeInOut(duration: 0.2), value: audioPlayerService.isShuffleEnabled)
@@ -279,7 +279,7 @@ struct FullScreenPlayerContent: View {
                 }) {
                     VStack(spacing: RS.spacing(6)) {
                         Image(systemName: "moon.zzz")
-                            .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
+                            .font(.system(size: isIPad ? 30 : RS.fontSize(18), weight: .light))
                             .foregroundColor(audioPlayerService.sleepTimeRemaining != nil ? sacredGold : warmGray)
                             .offset(y: audioPlayerService.sleepTimeRemaining != nil ? -2 : 0)
                             .animation(.easeInOut(duration: 0.2), value: audioPlayerService.sleepTimeRemaining != nil)
@@ -303,7 +303,7 @@ struct FullScreenPlayerContent: View {
             }) {
                 VStack(spacing: RS.spacing(6)) {
                     Image(systemName: "leaf")
-                        .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
+                        .font(.system(size: isIPad ? 30 : RS.fontSize(18), weight: .light))
                         .foregroundColor(ambientSoundService.currentSound != nil ? sacredGold : warmGray)
                         .offset(y: ambientSoundService.currentSound != nil ? -2 : 0)
                         .animation(.easeInOut(duration: 0.2), value: ambientSoundService.currentSound?.id)
@@ -326,7 +326,7 @@ struct FullScreenPlayerContent: View {
             }) {
                 VStack(spacing: RS.spacing(6)) {
                     Image(systemName: audioPlayerService.repeatMode.icon)
-                        .font(.system(size: isIPad ? 22 : RS.fontSize(18), weight: .light))
+                        .font(.system(size: isIPad ? 30 : RS.fontSize(18), weight: .light))
                         .foregroundColor(audioPlayerService.repeatMode != .off ? sacredGold : warmGray)
                         .offset(y: audioPlayerService.repeatMode != .off ? -2 : 0)
                         .animation(.easeInOut(duration: 0.2), value: audioPlayerService.repeatMode)
