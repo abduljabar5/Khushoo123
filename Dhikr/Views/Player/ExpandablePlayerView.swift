@@ -196,7 +196,9 @@ struct ExpandablePlayerView: View {
             .ignoresSafeArea()
             .gesture(
                 PanGesture { value in
-                    guard !isIPad else { return }
+                    // Swipe gestures now work on iPad too — Apple Music /
+                    // Spotify / system Now Playing all support swipe-down to
+                    // dismiss on iPad, so users expect it.
                     let translationY = value.translation.height
                     if isExpanded {
                         if translationY > 0 {
@@ -208,7 +210,6 @@ struct ExpandablePlayerView: View {
                         }
                     }
                 } onEnd: { value in
-                    guard !isIPad else { return }
                     let velocityY = value.velocity.height
                     let translationY = value.translation.height
 
